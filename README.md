@@ -155,7 +155,7 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
 
 1. **Clonar o Repositório**:
    ```bash
-   git clone -b dev https://github.com/gfdac/SymphonyRecomp.git
+   git clone -b dev https://github.com/GuhClemente/SymphonyRecomp.git
    cd SymphonyRecomp
    ```
 
