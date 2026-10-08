@@ -192,6 +192,10 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
      ```bash
      ./mac_run_no_build.sh
      ```
+   - Exportar binários prontos para distribuição (Apple Silicon, Intel ou Universal):
+     ```bash
+     ./mac_publish.sh all   # Gera pacotes em dist/ para Apple Silicon, Intel e Universal 2
+     ```
 
 ---
 

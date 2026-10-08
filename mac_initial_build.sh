@@ -136,6 +136,49 @@ if [ "$BIN_FOUND" -eq 0 ]; then
 fi
 
 if [ "$MISSING" -eq 1 ]; then
+    warn "Arquivos de disco não encontrados em $DISC_DIR."
+    
+    # Tenta abrir seletor gráfico nativo do macOS (Finder)
+    if command -v osascript >/dev/null 2>&1; then
+        say "Abrindo janela do Finder para você selecionar o arquivo .cue da sua ROM..."
+        CHOSEN_CUE="$(osascript -e 'try' -e 'set f to choose file with prompt "Selecione o arquivo .cue do Castlevania: Symphony of the Night"' -e 'return POSIX path of f' -e 'on error' -e 'return ""' -e 'end try' 2>/dev/null || true)"
+        
+        if [ -n "$CHOSEN_CUE" ] && [ -f "$CHOSEN_CUE" ]; then
+            say "Arquivo selecionado: $CHOSEN_CUE"
+            CUE_SRC_DIR="$(dirname "$CHOSEN_CUE")"
+            
+            mkdir -p "$DISC_DIR"
+            cp "$CHOSEN_CUE" "$CUE_FILE"
+            ok "Arquivo .cue copiado para: $CUE_FILE"
+            
+            # Copiar os arquivos .bin referenciados dentro do .cue
+            grep -i '^FILE' "$CHOSEN_CUE" | sed -E 's/^FILE[[:space:]]+"([^"]+)".*/\1/' | while IFS= read -r bin_name; do
+                if [ -n "$bin_name" ] && [ -f "$CUE_SRC_DIR/$bin_name" ]; then
+                    say "Copiando trilha do disco: $bin_name..."
+                    cp "$CUE_SRC_DIR/$bin_name" "$DISC_DIR/$bin_name"
+                    ok "Copiado: $bin_name"
+                fi
+            done
+            
+            # Se nenhum .bin foi copiado via referência do cue, copia os .bin da mesma pasta
+            if ! compgen -G "$DISC_DIR/*.bin" > /dev/null && ! compgen -G "$DISC_DIR/*.BIN" > /dev/null; then
+                for b in "$CUE_SRC_DIR"/*.bin "$CUE_SRC_DIR"/*.BIN; do
+                    if [ -f "$b" ]; then
+                        say "Copiando binário: $(basename "$b")..."
+                        cp "$b" "$DISC_DIR/"
+                    fi
+                done
+            fi
+            
+            # Revalida
+            if [ -f "$CUE_FILE" ] && (compgen -G "$DISC_DIR/*.bin" > /dev/null || compgen -G "$DISC_DIR/*.BIN" > /dev/null); then
+                MISSING=0
+            fi
+        fi
+    fi
+fi
+
+if [ "$MISSING" -eq 1 ]; then
     printf "\n"
     printf "================================================================================\n"
     printf "${RED}${BOLD}ERRO: Arquivos de disco do Castlevania SOTN não encontrados!${NC}\n"
