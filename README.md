@@ -164,16 +164,34 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
    - `disc/Castlevania - Symphony of the Night (Track 2).bin`
    - `disc/Castlevania - Symphony of the Night (USA).cue`
 
-3. **Compilar e Iniciar**:
-   Execute o script inicial uma única vez para extrair as texturas e compilar os binários:
-   ```powershell
-   .\windows_initial_build.bat
-   ```
+3. **No Windows**:
+   - Build inicial (extrai dados e compila):
+     ```powershell
+     .\windows_initial_build.bat
+     ```
+   - Jogar / Iniciar:
+     ```powershell
+     .\windows_run.bat
+     ```
+   - Jogar sem reconstruir:
+     ```powershell
+     .\windows_run_no_build.bat
+     ```
 
-4. **Para Jogar Posteriormente sem Recompilar do Zero**:
-   ```powershell
-   .\windows_run_no_build.bat
-   ```
+4. **No macOS (Apple Silicon M1/M2/M3/M4 & Intel)**:
+   - Build inicial (instala .NET 10 SDK se necessário, extrai dados e compila nativo ARM64):
+     ```bash
+     chmod +x mac_initial_build.sh mac_run.sh
+     ./mac_initial_build.sh
+     ```
+   - Jogar / Iniciar:
+     ```bash
+     ./mac_run.sh
+     ```
+   - Jogar sem reconstruir:
+     ```bash
+     ./mac_run_no_build.sh
+     ```
 
 ---
 
