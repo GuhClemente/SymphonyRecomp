@@ -48,7 +48,7 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
 - **Conexão Pela Internet Fora da Rede Local (`NatHelper.cs`)**:
   - Detecção automática do seu **IP Público**.
   - Botão *"📋 Copiar Meu IP para Enviar ao Amigo"* em 1 clique.
-  - Suporte total a conexões diretas, roteadores com UPnP e redes virtuais gratuitas (**Radmin VPN**, **Tailscale**, **ZeroTier**).
+- **Manual Completo**: Consulte o [MULTIPLAYER.md](file:///Users/guhf/Documents/Workspace/SymphonyRecomp/MULTIPLAYER.md) para o guia detalhado passo a passo, arquitetura técnica e solução de problemas.
 
 ---
 

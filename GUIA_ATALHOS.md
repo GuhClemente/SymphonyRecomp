@@ -51,6 +51,7 @@ Este documento reúne todas as teclas de atalho, controles e novos painéis impl
 - **Buddy Warp**: Botão para se teleportar instantaneamente até a sala do seu parceiro.
 - **Chat da Sessão**: Mensagens de texto e avisos rápidos (*"Preciso de ajuda!"*, *"Chefe aqui!"*).
 - **Duelos no Coliseu**: Batalhas PvP equilibradas no Coliseu com placar de vitórias.
+- **Manual Completo**: Consulte o [MULTIPLAYER.md](file:///Users/guhf/Documents/Workspace/SymphonyRecomp/MULTIPLAYER.md) para o guia detalhado com passo a passo e arquitetura.
 
 ### ☠️ 7. Dificuldade & Modo Hardcore (`Diversos -> Dificuldade & Hardcore`)
 - **Modo Hard**: Multiplicador de dano recebido (1.5x a 5.0x) e restrições anti-spam de poções.
