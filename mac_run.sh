@@ -64,8 +64,16 @@ TARGET_DLL="$SCRIPT_DIR/bin/Release/net10.0/sotn.dll"
 
 if [ "$FORCE_BUILD" = false ] && [ -f "$TARGET_DLL" ]; then
     say "Iniciando Castlevania: Symphony of the Night (carregamento instantâneo)..."
-    exec "$DOTNET_CMD" run --project "$SCRIPT_DIR/RecompOne.SoTN.csproj" -c Release --no-build -- "${ARGS[@]}"
+    if [ ${#ARGS[@]} -gt 0 ]; then
+        exec "$DOTNET_CMD" run --project "$SCRIPT_DIR/RecompOne.SoTN.csproj" -c Release --no-build -- "${ARGS[@]}"
+    else
+        exec "$DOTNET_CMD" run --project "$SCRIPT_DIR/RecompOne.SoTN.csproj" -c Release --no-build
+    fi
 else
     say "Compilando SymphonyRecomp (isso pode levar ~2 minutos devido às 14.764 funções)..."
-    exec "$DOTNET_CMD" run --project "$SCRIPT_DIR/RecompOne.SoTN.csproj" -c Release -- "${ARGS[@]}"
+    if [ ${#ARGS[@]} -gt 0 ]; then
+        exec "$DOTNET_CMD" run --project "$SCRIPT_DIR/RecompOne.SoTN.csproj" -c Release -- "${ARGS[@]}"
+    else
+        exec "$DOTNET_CMD" run --project "$SCRIPT_DIR/RecompOne.SoTN.csproj" -c Release
+    fi
 fi
