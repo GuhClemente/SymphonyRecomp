@@ -2,20 +2,22 @@ using RecompOne.Runtime.Hle;
 
 namespace RecompOne.Runtime;
 
-
 //allow emiting custom ot for the renderer
 public sealed partial class Gpu
 {
-    HleVertex CustomVertex(in PrimVertex p) => new()
+    private HleVertex CustomVertex(in PrimVertex p)
     {
-        X = p.X + _drawOffsetX,
-        Y = p.Y + _drawOffsetY,
-        R = p.R, G = p.G, B = p.B,
-        U = p.U, V = p.V,
-    };
+        return new HleVertex
+        {
+            X = p.X + _drawOffsetX,
+            Y = p.Y + _drawOffsetY,
+            R = p.R, G = p.G, B = p.B,
+            U = p.U, V = p.V
+        };
+    }
 
     public void EmitPrim(int count, in PrimVertex a, in PrimVertex b, in PrimVertex c, in PrimVertex d,
-        bool useImage, int image, bool semiTrans, bool raw, bool gouraud, int blend)
+        bool useImage, int image, bool semiTrans, bool raw, bool gouraud, int blend, bool quantizedAlpha = false)
     {
         if (!HleOn || count < 3) return;
 
@@ -31,7 +33,8 @@ public sealed partial class Gpu
             TPage = (ushort)((blend & 3) << 5),
             Clut = 0,
             UseImage = useImage,
-            Image = image,
+            QuantizedAlpha = quantizedAlpha,
+            Image = image
         };
 
         var v0 = CustomVertex(a);
@@ -41,5 +44,21 @@ public sealed partial class Gpu
         if (count >= 4) be.DrawTri(v1, v2, CustomVertex(d), flags);
     }
 
-    public void EmitCustomOrder(int order) => GpuPrims.Emit(order, this);
+    public void EmitCapture(int image, IReadOnlyList<CaptureOverlay> overlays)
+    {
+        if (!HleOn) return;
+        var be = GpuHle.Backend!;
+        be.SetDrawEnv(CurEnv());
+        be.CaptureTarget(image, overlays);
+    }
+
+    public void EmitCustomThrough(int order, bool forward)
+    {
+        GpuPrims.EmitThrough(order, forward, this);
+    }
+
+    public void EmitCustomRemaining(bool forward)
+    {
+        GpuPrims.EmitRemaining(forward, this);
+    }
 }

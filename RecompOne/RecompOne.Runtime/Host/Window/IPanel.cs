@@ -16,5 +16,8 @@ public interface IFloatingPanel : IPanel;
 
 public static class PanelExtensions
 {
-    public static string Title(this IPanel panel) => ImGuiEx.Title(panel.TitleKey, panel.Name);
+    public static string Title(this IPanel panel)
+    {
+        return ImGuiUtils.Title(panel.TitleKey, panel.Name);
+    }
 }

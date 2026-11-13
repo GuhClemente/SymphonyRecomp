@@ -1,5 +1,6 @@
 using System.Numerics;
 using ImGuiNET;
+using RecompOne.Runtime.Config;
 using RecompOne.Runtime.Host.Window;
 
 namespace Recompiled;
@@ -21,36 +22,28 @@ public sealed class QualityOfLifePanel : IPanel
             return;
         }
 
-        var m = RecompOne.Runtime.Runtime.Mem;
-        if (m == null || !Cheats.InPlay())
-        {
-            ImGui.TextWrapped(Localization.T("common.not_in_play"));
-
-            IsOpen = open;
-            ImGui.End();
-            return;
-        }
-
         ImGui.SeparatorText(Localization.T("qol.toggles"));
 
         /* Toggles */
-        bool dirty = false;
-        dirty |= Toggle("qol.color_blind", ref QualityOfLife.ColorBlind);
-        dirty |= Toggle("qol.remove_flashing", ref QualityOfLife.RemoveFlashing);
-        dirty |= Toggle("qol.bug_fixes", ref QualityOfLife.BugFixes);
-        dirty |= Toggle("qol.clear_file", ref QualityOfLife.ClearFile);
-        dirty |= Toggle("qol.anti_freeze", ref QualityOfLife.AntiFreeze);
-        dirty |= Toggle("qol.infinite_wing_smash", ref QualityOfLife.InfiniteWingSmash);
-        dirty |= Toggle("qol.easy_spell_input", ref QualityOfLife.UseEasySpellInput);
-        dirty |= Toggle("qol.invincibility_frames", ref QualityOfLife.IncreaseInvincibilityFrames);
+        Toggle(QualityOfLifeOptions.ColorBlind, "qol.color_blind");
+        Toggle(QualityOfLifeOptions.RemoveFlashing, "qol.remove_flashing");
+        Toggle(QualityOfLifeOptions.BugFixes, "qol.bug_fixes");
+        Toggle(QualityOfLifeOptions.ClearFile, "qol.clear_file");
+        Toggle(QualityOfLifeOptions.AntiFreeze, "qol.anti_freeze");
+        Toggle(QualityOfLifeOptions.InfiniteWingSmash, "qol.infinite_wing_smash");
+        Toggle(QualityOfLifeOptions.UseEasySpellInput, "qol.easy_spell_input");
+        Toggle(QualityOfLifeOptions.IncreaseInvincibilityFrames, "qol.invincibility_frames");
+        Toggle(QualityOfLifeOptions.SkipPrologue, "qol.skip_prologue");
 
         /* Enhancements */
         ImGui.SeparatorText(Localization.T("qol.enhancements"));
-        dirty |= Toggle("qol.quick_weapon_swap", ref QuickWeaponSwap.Enabled);
-        dirty |= Toggle("qol.alucard_dash", ref AlucardDash.Enabled);
-        dirty |= Toggle("qol.skip_cd_rooms", ref SkipCdRooms.Enabled);
-        dirty |= Toggle("qol.richter_qol", ref RichterQoL.Enabled);
-        dirty |= Toggle("qol.fairy_song", ref QualityOfLife.RestoreFairySong);
+        Toggle(QualityOfLifeOptions.RestoreFairySong, "qol.fairy_song");
+
+        bool dirty = false;
+        dirty |= ToggleManual("qol.quick_weapon_swap", ref QuickWeaponSwap.Enabled);
+        dirty |= ToggleManual("qol.alucard_dash", ref AlucardDash.Enabled);
+        dirty |= ToggleManual("qol.skip_cd_rooms", ref SkipCdRooms.Enabled);
+        dirty |= ToggleManual("qol.richter_qol", ref RichterQoL.Enabled);
 
         if (dirty) QualityOfLife.Save();
 
@@ -58,7 +51,12 @@ public sealed class QualityOfLifePanel : IPanel
         ImGui.End();
     }
 
-    static bool Toggle(string key, ref bool value)
+    static void Toggle(Option<bool> option, string key)
+    {
+        SettingsWidgets.Toggle(option, key, key + ".hint");
+    }
+
+    static bool ToggleManual(string key, ref bool value)
     {
         bool changed = ImGui.Checkbox(Localization.T(key), ref value);
         ImGui.SetItemTooltip(Localization.T(key + ".hint"));

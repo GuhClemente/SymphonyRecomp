@@ -115,14 +115,14 @@ public static partial class WidescreenPatch //for both underground cave, reverse
 
     public static void WaterBody801C15F8Wide_no4(CpuContext c, IMemory m)
         => WaterBodyWide(c, m, 0x80180BBCu, 0x8018124Cu, 0x00, 0x10, 0x20, 0x9D, false,
-            SoTN.InitializeEntity_no4, SoTN.DestroyEntity_no4);
+            SoTN_no4.InitializeEntity_no4, SoTN_no4.DestroyEntity_no4);
 
     public static void WaterBody801C5118Wide_rno4(CpuContext c, IMemory m)
         => WaterBodyWide(c, m, 0x80180B0Cu, 0x80181190u, 0x10, 0x08, 0x18, 0x9D, true,
-            SoTN.RNO4_InitializeEntity, SoTN.DestroyEntity_rno4);
+            SoTN_rno4.RNO4_InitializeEntity, SoTN_rno4.DestroyEntity_rno4);
 
     public static void WaterBody8019D51CWide_bo3(CpuContext c, IMemory m)
-        => WaterBodyWide(c, m, 0x80180564u, 0x8018092Cu, 0x00, 0x10, 0x20, 0x9B, false,SoTN.BO3_InitializeEntity, SoTN.DestroyEntity_bo3);
+        => WaterBodyWide(c, m, 0x80180564u, 0x8018092Cu, 0x00, 0x10, 0x20, 0x9B, false,SoTN_bo3.BO3_InitializeEntity, SoTN_bo3.DestroyEntity_bo3);
 
     public static void WaterSurface801C4DD0Wide_rno4(CpuContext c, IMemory m)
     {
@@ -140,7 +140,7 @@ public static partial class WidescreenPatch //for both underground cave, reverse
         c.A0 = 0x80180000u;
         c.A0 = c.A0 + 0xB0Cu;
         c.RA = 0x801C4E08u;
-        SoTN.RNO4_InitializeEntity(c, m);
+        SoTN_rno4.RNO4_InitializeEntity(c, m);
         c.A0 = 0u | 0x0004u;
         c.V0 = 0u | 0x0004u;
         m.WriteU16((c.S1 + 0x54u), (ushort)0u);
@@ -160,7 +160,7 @@ public static partial class WidescreenPatch //for both underground cave, reverse
         c.V0 = c.A0 << 1;
         c.A0 = c.S1 + 0u;
         c.RA = 0x801C4E48u;
-        SoTN.DestroyEntity_rno4(c, m);
+        SoTN_rno4.DestroyEntity_rno4(c, m);
         goto L801C50FC;
         L801C4E50: ;
         c.V0 = c.V0 + c.A0;
@@ -200,7 +200,7 @@ public static partial class WidescreenPatch //for both underground cave, reverse
         c.S0 = m.ReadU32((c.S1 + 0x7Cu));
         c.A1 = c.S1 + 0u;
         c.RA = 0x801C4ED0u;
-        SoTN.RNO4_AnimateEntity(c, m);
+        SoTN_rno4.RNO4_AnimateEntity(c, m);
         c.V0 = m.ReadU16((c.S1 + 0x30u));
         c.V1 = m.ReadU8((c.S1 + 0x30u));
         c.A0 = 0x80070000u;
@@ -407,7 +407,7 @@ public static partial class WidescreenPatch //for both underground cave, reverse
         c.A0 = 0x80180000u;
         c.A0 = c.A0 + 0x564u;
         c.RA = 0x8019D20Cu;
-        SoTN.BO3_InitializeEntity(c, m);
+        SoTN_bo3.BO3_InitializeEntity(c, m);
         c.A0 = 0u | 0x0004u;
         c.V0 = 0u | 0x0004u;
         m.WriteU16((c.S1 + 0x54u), (ushort)0u);
@@ -427,7 +427,7 @@ public static partial class WidescreenPatch //for both underground cave, reverse
         c.V0 = c.A0 << 1;
         c.A0 = c.S1 + 0u;
         c.RA = 0x8019D24Cu;
-        SoTN.DestroyEntity_bo3(c, m);
+        SoTN_bo3.DestroyEntity_bo3(c, m);
         goto L8019D500;
         L8019D254: ;
         c.V0 = c.V0 + c.A0;
@@ -467,7 +467,7 @@ public static partial class WidescreenPatch //for both underground cave, reverse
         c.S0 = m.ReadU32((c.S1 + 0x7Cu));
         c.A1 = c.S1 + 0u;
         c.RA = 0x8019D2D4u;
-        SoTN.BO3_AnimateEntity(c, m);
+        SoTN_bo3.BO3_AnimateEntity(c, m);
         c.V0 = m.ReadU16((c.S1 + 0x30u));
         c.V1 = m.ReadU8((c.S1 + 0x30u));
         c.A0 = 0x80070000u;

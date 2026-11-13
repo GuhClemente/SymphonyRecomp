@@ -18,3 +18,5 @@ ghidra_files/*.exe
 ghidra_files/*.CNF
 tools/**/bin/
 tools/**/obj/
+translations/
+shaders/

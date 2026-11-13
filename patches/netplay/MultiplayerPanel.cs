@@ -79,7 +79,7 @@ public sealed class MultiplayerPanel : IPanel
 
         if (!NetworkManager.IsConnected)
         {
-            ImGui.BeginChild("host_join_child", new Vector2(-1, 230), ImGuiChildFlags.Border);
+            ImGui.BeginChild("host_join_child", new Vector2(-1, 230), ImGuiChildFlags.Borders);
             ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Opções de Conexão Online:");
 
             ImGui.InputInt("Porta", ref _inputPort);
@@ -107,7 +107,7 @@ public sealed class MultiplayerPanel : IPanel
         }
         else
         {
-            ImGui.BeginChild("connected_status_child", new Vector2(-1, 140), ImGuiChildFlags.Border);
+            ImGui.BeginChild("connected_status_child", new Vector2(-1, 140), ImGuiChildFlags.Borders);
             ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), "✔ STATUS: CONECTADO");
             ImGui.Text($"Modo: {NetworkManager.Role}");
             ImGui.Text($"Parceiro: {NetworkManager.RemotePlayerName}");

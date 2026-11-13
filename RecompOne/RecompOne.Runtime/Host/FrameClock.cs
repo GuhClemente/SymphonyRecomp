@@ -4,60 +4,102 @@ namespace RecompOne.Runtime.Host;
 
 internal static class FrameClock
 {
-    const double FrameMs = 1000.0 / 60.0;
-    const double SpinMs = 1.5;
+    private const int SlipFrames = 8;
 
-    static readonly Stopwatch _clock = Stopwatch.StartNew();
-    static double _nextFrameMs;
+    private static readonly Stopwatch _clock = Stopwatch.StartNew();
+
+    private static double _due;
+    private static long _count;
+
+    private static double _fpsAccumMs;
+    private static int _fpsFrames;
+
+    private static double _frameMark;
+
+    private static double _presentStartMs;
+    private static int _presentFrames;
 
     public static bool VSync { get; set; }
 
     public static double LastFrameMs { get; private set; }
-    public static double LastWaitMs { get; private set; }
 
-    static double _lastStart;
+    public static double Fps { get; private set; }
 
+    public static double PresentFps { get; private set; }
 
-    public static void Throttle()
+    public static double FrameMs => Sdk.LibGpu.Pal ? 1000.0 / 50.0 : 1000.0 / 60.0;
+
+    public static double Now => _clock.Elapsed.TotalMilliseconds;
+
+    public static long Count => _count;
+
+    public static double Due => _due;
+
+    public static int Catch()
     {
-        double now = _clock.Elapsed.TotalMilliseconds;
-        LastFrameMs = now - _lastStart;
-        _lastStart = now;
+        var now = Now;
 
-        _nextFrameMs += FrameMs;
-        double wait = _nextFrameMs - now;
-
-        if (wait < -100)
+        if (_due <= 0.0)
         {
-            _nextFrameMs = now;
-            LastWaitMs = 0;
-            return;
+            _due = now + FrameMs;
+            return 0;
         }
 
-        if (wait <= 0)
-        {
-            LastWaitMs = 0;
-            return;
-        }
+        if (now < _due) return 0;
 
-        if (VSync && wait < FrameMs * 0.75)
-        {
-            LastWaitMs = 0;
-            return;
-        }
+        var frame = FrameMs;
+        var ticks = (int)((now - _due) / frame) + 1;
 
-        double sleepUntil = _nextFrameMs - SpinMs;
-        if (now < sleepUntil)
-        {
-            int ms = (int)(sleepUntil - now);
-            if (ms > 0) Thread.Sleep(ms);
-        }
-
-        while (_clock.Elapsed.TotalMilliseconds < _nextFrameMs)
-            Thread.SpinWait(48);
-
-        LastWaitMs = wait;
+        _due = ticks > SlipFrames ? now + frame : _due + ticks * frame;
+        _count += ticks;
+        return ticks;
     }
 
-    public static void Resync() => _nextFrameMs = _clock.Elapsed.TotalMilliseconds;
+    public static void Force()
+    {
+        var now = Now;
+        _count++;
+        _due = now + FrameMs;
+    }
+
+    public static void Resync()
+    {
+        _due = Now + FrameMs;
+    }
+
+    public static void MarkPresent()
+    {
+        var now = Now;
+        _presentFrames++;
+
+        var elapsed = now - _presentStartMs;
+        if (elapsed < 1000.0) return;
+
+        PresentFps = _presentFrames * 1000.0 / elapsed;
+        _presentStartMs = now;
+        _presentFrames = 0;
+    }
+
+    public static void MarkFrame()
+    {
+        var now = Now;
+
+        if (_frameMark <= 0.0)
+        {
+            _frameMark = now;
+            return;
+        }
+
+        LastFrameMs = now - _frameMark;
+        _frameMark = now;
+
+        _fpsAccumMs += LastFrameMs;
+        _fpsFrames++;
+        if (_fpsAccumMs < 1000.0) return;
+
+        Fps = _fpsFrames * 1000.0 / _fpsAccumMs;
+        _fpsAccumMs = 0;
+        _fpsFrames = 0;
+    }
+
 }

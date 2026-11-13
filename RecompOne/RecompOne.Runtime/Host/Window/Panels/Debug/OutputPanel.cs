@@ -7,16 +7,26 @@ internal sealed class OutputPanel : IPanel
 {
     public string Name => "Output";
     public string TitleKey => "panel.output";
-    
-    public bool IsOpen { get => true; set { } }
-    static uint _texId;
-    static int _texW, _texH;
-    static float _aspect = 4f / 3f;
+
+    public bool IsOpen
+    {
+        get => true;
+        set { }
+    }
+
+    private static uint _texId;
+    private static int _texW, _texH;
+    private static float _aspect = 4f / 3f;
 
     public static bool IsDocked { get; private set; }
 
+    public static int ViewWidth { get; private set; }
+    public static int ViewHeight { get; private set; }
+
     public static void SetTexture(uint id, int w, int h, float aspect = 0f)
-        => (_texId, _texW, _texH, _aspect) = (id, w, h, aspect > 0f ? aspect : 4f / 3f);
+    {
+        (_texId, _texW, _texH, _aspect) = (id, w, h, aspect > 0f ? aspect : 4f / 3f);
+    }
 
     //idea: in the future make this be able to draw images so you can have ornamented backgrounds
     public void Draw()
@@ -24,7 +34,7 @@ internal sealed class OutputPanel : IPanel
         ImGui.SetNextWindowSize(new Vector2(640, 480), ImGuiCond.FirstUseEver);
         ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(0f, 0f, 0f, 1f));
 
-        bool visible = ImGui.Begin(this.Title());
+        var visible = ImGui.Begin(this.Title());
         IsDocked = ImGui.IsWindowDocked();
 
         if (!visible)
@@ -38,6 +48,9 @@ internal sealed class OutputPanel : IPanel
         {
             var avail = ImGui.GetContentRegionAvail();
             var imageSize = FitAspect(new Vector2(_aspect, 1f), avail);
+            var scale = ImGui.GetIO().DisplayFramebufferScale;
+            ViewWidth = (int)MathF.Round(imageSize.X * scale.X);
+            ViewHeight = (int)MathF.Round(imageSize.Y * scale.Y);
             var offset = (avail - imageSize) * 0.5f;
             ImGui.SetCursorPos(ImGui.GetCursorPos() + offset);
             ImGui.Image((nint)_texId, imageSize);
@@ -49,9 +62,9 @@ internal sealed class OutputPanel : IPanel
         ImGui.PopStyleColor();
     }
 
-    static Vector2 FitAspect(Vector2 src, Vector2 dst)
+    private static Vector2 FitAspect(Vector2 src, Vector2 dst)
     {
-        float scale = MathF.Min(dst.X / src.X, dst.Y / src.Y);
+        var scale = MathF.Min(dst.X / src.X, dst.Y / src.Y);
         return src * scale;
     }
 }

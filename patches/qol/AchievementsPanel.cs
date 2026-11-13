@@ -49,7 +49,7 @@ public sealed class AchievementsPanel : IPanel
 
         ImGui.Separator();
 
-        ImGui.BeginChild("achievements_list_child", Vector2.Zero, ImGuiChildFlags.Border);
+        ImGui.BeginChild("achievements_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
         foreach (var a in Achievements.All)
         {

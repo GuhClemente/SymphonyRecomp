@@ -6,6 +6,7 @@ public sealed class TilemapRenderedEvent : GameEvent
 {
     public int ScrollX;
     public int ScrollY;
+    public bool LayersVisible;
 }
 
 /// <summary>
@@ -14,6 +15,10 @@ public sealed class TilemapRenderedEvent : GameEvent
 public sealed class TilemapLayerDrawnEvent : GameEvent
 {
     public bool Foreground;
+    public uint Layout;
+    public int Columns;
+    public int Rows;
+    public bool Wrap;
     public uint Pool;
     public uint Ot;
     public uint GfxPage;
@@ -28,4 +33,8 @@ public sealed class TilemapLayerDrawnEvent : GameEvent
     public int ScrollY;
     public uint Sprites;
     public int MaxSprites;
+    public int TpageBase;
+    public uint DrawModesAddr;
+    public uint DrawModes;
+    public int MaxDrawModes;
 }

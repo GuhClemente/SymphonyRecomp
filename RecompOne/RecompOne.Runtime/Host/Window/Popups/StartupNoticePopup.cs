@@ -6,9 +6,9 @@ namespace RecompOne.Runtime.Host.Window;
 
 public sealed class StartupNoticePopup : Popup
 {
-    static string _message = "";
-    static string _title = "common.notice";
-    static string _ackKey = "StartupNoticeAck";
+    private static string _message = "";
+    private static string _title = "common.notice";
+    private static string _ackKey = "StartupNoticeAck";
 
     protected override string TitleKey => _title;
     protected override Vector2 Size => new(500f, 0f);
@@ -21,7 +21,9 @@ public sealed class StartupNoticePopup : Popup
         _ackKey = string.IsNullOrEmpty(ackKey) ? "StartupNoticeAck" : ackKey;
     }
 
-    public static bool NeedsAck => !string.IsNullOrEmpty(_message) && !ConfigManager.View.GetBool(_ackKey);
+    private static string AckSetting => $"notices.{_ackKey}";
+
+    public static bool NeedsAck => !string.IsNullOrEmpty(_message) && !Settings.Get(AckSetting, false);
 
     protected internal override void Update()
     {
@@ -38,8 +40,7 @@ public sealed class StartupNoticePopup : Popup
 
         if (ImGui.Button(Localization.T("common.understood"), new Vector2(-1f, 0f)))
         {
-            ConfigManager.View.SetBool(_ackKey, true);
-            ConfigManager.SaveView(PanelManager.Panels);
+            Settings.Set(AckSetting, true);
             Close();
         }
     }

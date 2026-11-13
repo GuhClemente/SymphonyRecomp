@@ -108,7 +108,7 @@ public sealed class FastTravelPanel : IPanel
 
     private void DrawDestinations(bool inverted)
     {
-        ImGui.BeginChild("dest_list_" + (inverted ? "inv" : "norm"), new Vector2(0, 0), ImGuiChildFlags.Border);
+        ImGui.BeginChild("dest_list_" + (inverted ? "inv" : "norm"), new Vector2(0, 0), ImGuiChildFlags.Borders);
 
         foreach (var dest in Destinations)
         {

@@ -4,7 +4,7 @@ namespace RecompOne.Runtime.Host.Window;
 
 public static class MainMenuBar
 {
-    static bool _registered;
+    private static bool _registered;
 
     public static void RegisterBuiltins()
     {
@@ -14,9 +14,10 @@ public static class MainMenuBar
         MenuRegistry.Menu("menu.system")
             .Popup<SettingsPopup>("menu.system.settings")
             .Separator("menu.system.view_separator")
-            .Check("menu.system.show_menu_bar", () => !ConfigManager.View.HideTopBar, ShowMenuBar, "F1")
-            .Check("menu.system.autohide_menu_bar", () => ConfigManager.View.AutoHideMenuBar, AutoHideMenuBar).Disabled()
-            .Check("menu.system.fullscreen", () => ConfigManager.View.Fullscreen, Fullscreen, "F11")
+            .Check("menu.system.show_menu_bar", static () => !InterfaceOptions.HideMenuBar, static show => InterfaceOptions.HideMenuBar.Value = !show, "F1")
+            .Check("menu.system.autohide_menu_bar", static () => InterfaceOptions.AutoHideMenuBar, static on => InterfaceOptions.AutoHideMenuBar.Value = on)
+            .Tooltip("menu.system.autohide_menu_bar.tooltip")
+            .Check("menu.system.fullscreen", static () => DisplayOptions.Fullscreen, Fullscreen, "F11")
             .Separator("menu.system.reset_separator")
             .Item("menu.system.hard_reset", Runtime.HardReset)
             .Separator("menu.system.quit_separator")
@@ -24,68 +25,86 @@ public static class MainMenuBar
 
         MenuRegistry.Menu("menu.mods").After("menu.system")
             .Popup<ModsPopup>("menu.mods.manage")
-            .Item("menu.mods.hub", static () => { }).Disabled();
+            .Popup<ModHubPopup>("menu.mods.hub").Enabled(static () => Hub.ModHub.Configured)
+            .Popup<AssetPacksPopup>("menu.mods.asset_packs");
 
         MenuRegistry.Menu("menu.debug")
             .Submenu("menu.debug.gpu")
-                .Panel<OutputPanel>("panel.output")
-                .Panel<VramViewerPanel>("panel.vram_viewer")
-                .Panel<TextureInspectorPanel>("panel.texture_inspector")
-                .Separator()
-                .Check("menu.debug.dump_textures",
-                    static () => Assets.Textures.TextureDumper.Tiles,
-                    static on => Assets.Textures.TextureDumper.SetTiles(on))
-                    .Tooltip("menu.debug.dump_textures.tooltip")
-                .Check("menu.debug.dump_pages",
-                    static () => Assets.Textures.TextureDumper.Pages,
-                    static on => Assets.Textures.TextureDumper.SetPages(on))
-                    .Tooltip("menu.debug.dump_pages.tooltip")
-                .End()
+            .Panel<OutputPanel>("panel.output")
+            .Panel<VramViewerPanel>("panel.vram_viewer")
+            .Panel<TextureInspectorPanel>("panel.texture_inspector")
+            .Panel<InterpDebugPanel>("panel.interp_debug")
+            .Separator()
+            .Check("menu.debug.dump_textures",
+                static () => Assets.Textures.TextureDumper.Tiles,
+                static on => Assets.Textures.TextureDumper.SetTiles(on))
+            .Tooltip("menu.debug.dump_textures.tooltip")
+            .Check("menu.debug.dump_pages",
+                static () => Assets.Textures.TextureDumper.Pages,
+                static on => Assets.Textures.TextureDumper.SetPages(on))
+            .Tooltip("menu.debug.dump_pages.tooltip")
+            .End()
             .Submenu("menu.debug.cpu")
-                .Panel<CpuStatePanel>("panel.cpu_state")
-                .End()
+            .Panel<CpuStatePanel>("panel.cpu_state")
+            .Separator()
+            .Custom(DrawTurbo)
+            .End()
             .Submenu("menu.debug.memory")
-                .Panel<RamMapPanel>("panel.ram_map")
-                .Panel<MemoryEditorPanel>("panel.memory_editor")
-                .End()
+            .Panel<RamMapPanel>("panel.ram_map")
+            .Panel<MemoryEditorPanel>("panel.memory_editor")
+            .End()
             .Submenu("menu.debug.audio")
-                .Panel<SpuViewerPanel>("panel.spu_viewer")
-                .End()
+            .Panel<SpuViewerPanel>("panel.spu_viewer")
+            .End()
             .Submenu("menu.debug.cd")
-                .Panel<CdDebugPanel>("panel.cd_debug")
-                .End()
+            .Panel<CdDebugPanel>("panel.cd_debug")
+            .End()
             .Submenu("menu.debug.system")
-                .Panel<OverlayEventsPanel>("panel.overlay_events")
-                .Panel<ConsolePanel>("panel.console")
-                .End()
+            .Panel<OverlayEventsPanel>("panel.overlay_events")
+            .Panel<ConsolePanel>("panel.console")
+            .End()
             .Separator()
             .Item("menu.debug.reset_view", ResetView);
     }
 
-    public static void Draw() => MenuRegistry.Draw();
-
-    static void ResetView()
+    public static void Draw()
     {
-        ConfigManager.ResetView(PanelManager.Panels);
+        MenuRegistry.RightAligned = DrawFps;
+        MenuRegistry.Draw();
+    }
+
+    private static void DrawTurbo()
+    {
+        var turbo = Interrupts.Turbo;
+
+        if (ImGuiNET.ImGui.MenuItem("Turbo", null, turbo))
+        {
+            Interrupts.Turbo = !turbo;
+            if (!Interrupts.Turbo) Interrupts.ResyncVBlank();
+        }
+    }
+
+    private static void DrawFps()
+    {
+        if (!InterfaceOptions.ShowFps) return;
+
+        var text = $"{FrameClock.PresentFps:F0} / {FrameClock.Fps:F0} fps";
+        var width = ImGuiNET.ImGui.CalcTextSize(text).X;
+        ImGuiNET.ImGui.SameLine(ImGuiNET.ImGui.GetWindowWidth() - width -
+                                ImGuiNET.ImGui.GetStyle().FramePadding.X * 2f);
+        ImGuiNET.ImGui.TextUnformatted(text);
+    }
+
+
+    private static void ResetView()
+    {
+        InterfaceLayout.Reset(PanelManager.Panels);
         HostWindow.RequestLayout();
     }
 
-    static void ShowMenuBar(bool show)
+    private static void Fullscreen(bool fullscreen)
     {
-        ConfigManager.View.HideTopBar = !show;
-        ConfigManager.SaveView(PanelManager.Panels);
-    }
-
-    static void AutoHideMenuBar(bool autoHide)
-    {
-        ConfigManager.View.AutoHideMenuBar = autoHide;
-        ConfigManager.SaveView(PanelManager.Panels);
-    }
-
-    static void Fullscreen(bool fullscreen)
-    {
-        ConfigManager.View.Fullscreen = fullscreen;
+        DisplayOptions.Fullscreen.Value = fullscreen;
         HostWindow.SetFullscreen(fullscreen);
-        ConfigManager.SaveView(PanelManager.Panels);
     }
 }

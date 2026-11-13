@@ -124,7 +124,7 @@ public sealed class BestiaryPanel : IPanel
         ImGui.TextColored(new Vector4(0.2f, 0.9f, 0.3f, 1f), "Radar de Inimigos Ativos na Sala:");
         ImGui.Separator();
 
-        ImGui.BeginChild("live_scanner_child", Vector2.Zero, ImGuiChildFlags.Border);
+        ImGui.BeginChild("live_scanner_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
         for (int i = 1; i < Entities.Count; i++)
         {
@@ -168,7 +168,7 @@ public sealed class BestiaryPanel : IPanel
 
         ImGui.Spacing();
 
-        ImGui.BeginChild("bestiary_list_child", Vector2.Zero, ImGuiChildFlags.Border);
+        ImGui.BeginChild("bestiary_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
         foreach (var m in Database)
         {

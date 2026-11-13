@@ -14,30 +14,41 @@ namespace RecompOne.Runtime.Host;
 
 internal static unsafe class InputManager
 {
-    static IKeyboard?_keyboard;
-    static IMouse?_mouse;
-    static Sdl?_sdl;
-    static GameController* _pad0;
-    static GameController* _pad1;
+    private static IKeyboard? _keyboard;
+    private static IMouse? _mouse;
+    private static Sdl? _sdl;
+    private static GameController* _pad0;
+    private static GameController* _pad1;
 
-    const int AxisThreshold = 8000;
-    const int StickThreshold = 16000;
-    const int LeftTrigger = 100;
-    const int RightTrigger = 101;
-    const int LeftStickLeft = 102;
-    const int LeftStickRight = 103;
-    const int LeftStickUp = 104;
-    const int LeftStickDown = 105;
-    const int RightStickLeft = 106;
-    const int RightStickRight = 107;
-    const int RightStickUp = 108;
-    const int RightStickDown = 109;
-    static bool _topBarToggle;
-    static bool _fullscreenToggle;
+    private const int AxisThreshold = 8000;
+    private const int StickThreshold = 16000;
+    private const int LeftTrigger = 100;
+    private const int RightTrigger = 101;
+    private const int LeftStickLeft = 102;
+    private const int LeftStickRight = 103;
+    private const int LeftStickUp = 104;
+    private const int LeftStickDown = 105;
+    private const int RightStickLeft = 106;
+    private const int RightStickRight = 107;
+    private const int RightStickUp = 108;
+    private const int RightStickDown = 109;
+    private static bool _topBarToggle;
+    private static bool _fullscreenToggle;
 
-    
-    public static bool ConsumeTopBarToggle() { var v = _topBarToggle; _topBarToggle = false; return v; }
-    public static bool ConsumeFullscreenToggle(){ var v = _fullscreenToggle; _fullscreenToggle = false; return v; }
+
+    public static bool ConsumeTopBarToggle()
+    {
+        var v = _topBarToggle;
+        _topBarToggle = false;
+        return v;
+    }
+
+    public static bool ConsumeFullscreenToggle()
+    {
+        var v = _fullscreenToggle;
+        _fullscreenToggle = false;
+        return v;
+    }
 
     public static void Initialize(IInputContext input)
     {
@@ -65,50 +76,70 @@ internal static unsafe class InputManager
             _sdl.InitSubSystem(Sdl.InitGamecontroller);
             Rescan();
         }
-        catch { _sdl = null; }
+        catch
+        {
+            _sdl = null;
+        }
     }
 
     public static bool IsConnected => _pad0 != null;
 
-    public static bool IsPadConnected(int pad) => pad == 0 ? _pad0 != null : _pad1 != null;
+    public static bool IsPadConnected(int pad)
+    {
+        return pad == 0 ? _pad0 != null : _pad1 != null;
+    }
 
-    public static bool IsKeyDown(Key k) => _keyboard?.IsKeyPressed(k) ?? false;
+    public static bool IsKeyDown(Key k)
+    {
+        return _keyboard?.IsKeyPressed(k) ?? false;
+    }
 
     public static void Poll()
     {
+        Controller.Analog = Settings.System.Input[0].Kind == PadKind.Analog;
+        Controller.Analog2 = Settings.System.Input[1].Kind == PadKind.Analog;
+
+
         PollGamepadEvents();
         PollKeyboard();
         PollGamepads();
-        Controller.Connected2 = _pad1 != null || HasAnyKey(ConfigManager.Game.Keys2);
+        Controller.Connected2 = _pad1 != null || Settings.System.Input[1].Keys.Any;
     }
 
     public static int? GetFirstPressedPadButton(int pad = 0)
     {
         var ctrl = pad == 0 ? _pad0 : _pad1;
         if (_sdl == null || ctrl == null) return null;
-        for (int b = 0; b < (int)GameControllerButton.Max; b++)
+        for (var b = 0; b < (int)GameControllerButton.Max; b++)
             if (_sdl.GameControllerGetButton(ctrl, (GameControllerButton)b) != 0)
                 return b;
         if (Pressed(ctrl, LeftTrigger)) return LeftTrigger;
         if (Pressed(ctrl, RightTrigger)) return RightTrigger;
-        for (int b = LeftStickLeft; b <= RightStickDown; b++)
-            if (Pressed(ctrl, b)) return b;
+        for (var b = LeftStickLeft; b <= RightStickDown; b++)
+            if (Pressed(ctrl, b))
+                return b;
         return null;
     }
 
-    static bool IsStickBinding(int b) => b is >= LeftStickLeft and <= RightStickDown;
-
-    static (GameControllerAxis Axis, bool Positive) AxisBinding(int b) => b switch
+    private static bool IsStickBinding(int b)
     {
-        LeftStickLeft   => (GameControllerAxis.Leftx,  false),
-        LeftStickRight  => (GameControllerAxis.Leftx,  true),
-        LeftStickUp     => (GameControllerAxis.Lefty,  false),
-        LeftStickDown   => (GameControllerAxis.Lefty,  true),
-        RightStickLeft  => (GameControllerAxis.Rightx, false),
-        RightStickRight => (GameControllerAxis.Rightx, true),
-        RightStickUp    => (GameControllerAxis.Righty, false),
-        _               => (GameControllerAxis.Righty, true),
-    };
+        return b is >= LeftStickLeft and <= RightStickDown;
+    }
+
+    private static (GameControllerAxis Axis, bool Positive) AxisBinding(int b)
+    {
+        return b switch
+        {
+            LeftStickLeft => (GameControllerAxis.Leftx, false),
+            LeftStickRight => (GameControllerAxis.Leftx, true),
+            LeftStickUp => (GameControllerAxis.Lefty, false),
+            LeftStickDown => (GameControllerAxis.Lefty, true),
+            RightStickLeft => (GameControllerAxis.Rightx, false),
+            RightStickRight => (GameControllerAxis.Rightx, true),
+            RightStickUp => (GameControllerAxis.Righty, false),
+            _ => (GameControllerAxis.Righty, true)
+        };
+    }
 
     public static void Shutdown()
     {
@@ -118,12 +149,12 @@ internal static unsafe class InputManager
         _sdl = null;
     }
 
-    static void PollGamepadEvents()
+    private static void PollGamepadEvents()
     {
         if (_sdl == null) return;
-        Silk.NET.SDL.Event ev;
-        bool changed = false;
-        bool anyCtrl = EventBus.HasAnyListeners<ControllerEvent>();
+        Event ev;
+        var changed = false;
+        var anyCtrl = EventBus.HasAnyListeners<ControllerEvent>();
         while (_sdl.PollEvent(&ev) != 0)
         {
             if (ev.Type == (uint)EventType.Controllerdeviceadded) changed = true;
@@ -134,61 +165,84 @@ internal static unsafe class InputManager
                 {
                     Device = ev.Cbutton.Which,
                     Button = ev.Cbutton.Button,
-                    Pressed = ev.Type == (uint)EventType.Controllerbuttondown,
+                    Pressed = ev.Type == (uint)EventType.Controllerbuttondown
                 });
             else if (ev.Type == (uint)EventType.Controlleraxismotion)
                 EventBus.Dispatch(new ControllerEvent
                 {
                     Device = ev.Caxis.Which,
                     Axis = ev.Caxis.Axis,
-                    Value = ev.Caxis.Value / 32768f,
+                    Value = ev.Caxis.Value / 32768f
                 });
         }
+
         if (changed) Rescan();
     }
 
-    static void CloseControllers()
+    private static void CloseControllers()
     {
-        if (_pad0 != null) { _sdl?.GameControllerClose(_pad0); _pad0 = null; }
-        if (_pad1 != null) { _sdl?.GameControllerClose(_pad1); _pad1 = null; }
+        if (_pad0 != null)
+        {
+            _sdl?.GameControllerClose(_pad0);
+            _pad0 = null;
+        }
+
+        if (_pad1 != null)
+        {
+            _sdl?.GameControllerClose(_pad1);
+            _pad1 = null;
+        }
     }
 
     public readonly record struct PadDevice(string Id, string Name);
 
-    static readonly List<PadDevice> _devices = [];
+    private static readonly List<PadDevice> _devices = [];
 
     public static IReadOnlyList<PadDevice> Devices
     {
-        get { lock (_devices) return _devices.ToArray(); }
+        get
+        {
+            lock (_devices)
+            {
+                return _devices.ToArray();
+            }
+        }
     }
 
-    public static void RefreshDevices() => Rescan();
+    public static void RefreshDevices()
+    {
+        Rescan();
+    }
 
-    static string DeviceId(int joystickIndex)
+    private static string DeviceId(int joystickIndex)
     {
         if (_sdl == null) return "";
         var guid = _sdl.JoystickGetDeviceGUID(joystickIndex);
         var text = new byte[33];
-        fixed (byte* p = text) _sdl.JoystickGetGUIDString(guid, p, text.Length);
-        int len = Array.IndexOf(text, (byte)0);
+        fixed (byte* p = text)
+        {
+            _sdl.JoystickGetGUIDString(guid, p, text.Length);
+        }
+
+        var len = Array.IndexOf(text, (byte)0);
         return System.Text.Encoding.ASCII.GetString(text, 0, len < 0 ? text.Length : len);
     }
 
-    static string DeviceName(int joystickIndex)
+    private static string DeviceName(int joystickIndex)
     {
         if (_sdl == null) return "";
         var name = _sdl.GameControllerNameForIndexS(joystickIndex);
         return string.IsNullOrWhiteSpace(name) ? $"Controller {joystickIndex}" : name;
     }
 
-    static void Rescan()
+    private static void Rescan()
     {
         if (_sdl == null) return;
         CloseControllers();
 
         var found = new List<(int Index, string Id, string Name)>();
-        int n = _sdl.NumJoysticks();
-        for (int i = 0; i < n; i++)
+        var n = _sdl.NumJoysticks();
+        for (var i = 0; i < n; i++)
         {
             if (_sdl.IsGameController(i) != SdlBool.True) continue;
             found.Add((i, DeviceId(i), DeviceName(i)));
@@ -201,25 +255,36 @@ internal static unsafe class InputManager
         }
 
         var used = new HashSet<int>();
-        _pad0 = OpenFor(found, ConfigManager.Game.PadDevice, used);
-        _pad1 = OpenFor(found, ConfigManager.Game.PadDevice2, used);
+        _pad0 = OpenFor(found, Settings.System.Input[0].Device, used);
+        _pad1 = OpenFor(found, Settings.System.Input[1].Device, used);
     }
 
-    static GameController* OpenFor(List<(int Index, string Id, string Name)> found, string wanted, HashSet<int> used)
+    private static GameController* OpenFor(List<(int Index, string Id, string Name)> found, string wanted,
+        HashSet<int> used)
     {
         if (_sdl == null) return null;
 
-        int pick = -1;
+        var pick = -1;
         if (!string.IsNullOrEmpty(wanted))
         {
             foreach (var f in found)
-                if (f.Id == wanted && used.Add(f.Index)) { pick = f.Index; break; }
+                if (f.Id == wanted && used.Add(f.Index))
+                {
+                    pick = f.Index;
+                    break;
+                }
+
             if (pick < 0) return null;
         }
         else
         {
             foreach (var f in found)
-                if (used.Add(f.Index)) { pick = f.Index; break; }
+                if (used.Add(f.Index))
+                {
+                    pick = f.Index;
+                    break;
+                }
+
             if (pick < 0) return null;
         }
 
@@ -228,7 +293,7 @@ internal static unsafe class InputManager
         return ctrl;
     }
 
-    static void PollKeyboard()
+    private static void PollKeyboard()
     {
         var kb = _keyboard;
         if (kb == null)
@@ -237,65 +302,59 @@ internal static unsafe class InputManager
             Controller.State2 = 0xFFFF;
             return;
         }
-        Controller.State = KeyState(kb, ConfigManager.Game.Keys);
-        Controller.State2 = KeyState(kb, ConfigManager.Game.Keys2);
+
+        Controller.State = KeyState(kb, Settings.System.Input[0].Keys);
+        Controller.State2 = KeyState(kb, Settings.System.Input[1].Keys);
     }
 
-    static ushort KeyState(IKeyboard kb, KeyBindings cfg)
+    private static ushort KeyState(IKeyboard kb, KeyBindings cfg)
     {
         ushort s = 0xFFFF;
+
         void B(string keyName, ushort bit)
         {
             if (Enum.TryParse<Key>(keyName, out var k) && kb.IsKeyPressed(k))
                 s &= (ushort)~bit;
         }
 
-        B(cfg.Cross,    Controller.Cross);
-        B(cfg.Circle,   Controller.Circle);
-        B(cfg.Square,   Controller.Square);
+        B(cfg.Cross, Controller.Cross);
+        B(cfg.Circle, Controller.Circle);
+        B(cfg.Square, Controller.Square);
         B(cfg.Triangle, Controller.Triangle);
-        B(cfg.L1,       Controller.L1);
-        B(cfg.R1,       Controller.R1);
-        B(cfg.L2,       Controller.L2);
-        B(cfg.R2,       Controller.R2);
-        B(cfg.L3,       Controller.L3);
-        B(cfg.R3,       Controller.R3);
-        B(cfg.Start,    Controller.Start);
-        B(cfg.Select,   Controller.Select);
-        B(cfg.Up,       Controller.Up);
-        B(cfg.Down,     Controller.Down);
-        B(cfg.Left,     Controller.Left);
-        B(cfg.Right,    Controller.Right);
+        B(cfg.L1, Controller.L1);
+        B(cfg.R1, Controller.R1);
+        B(cfg.L2, Controller.L2);
+        B(cfg.R2, Controller.R2);
+        B(cfg.L3, Controller.L3);
+        B(cfg.R3, Controller.R3);
+        B(cfg.Start, Controller.Start);
+        B(cfg.Select, Controller.Select);
+        B(cfg.Up, Controller.Up);
+        B(cfg.Down, Controller.Down);
+        B(cfg.Left, Controller.Left);
+        B(cfg.Right, Controller.Right);
 
         return s;
     }
 
-    static bool HasAnyKey(KeyBindings cfg) =>
-        cfg.Cross.Length > 0 || cfg.Circle.Length > 0 || cfg.Square.Length > 0 || cfg.Triangle.Length > 0 ||
-        cfg.L1.Length > 0 || cfg.R1.Length > 0 || cfg.L2.Length > 0 || cfg.R2.Length > 0 ||
-        cfg.L3.Length > 0 || cfg.R3.Length > 0 || cfg.Start.Length > 0 || cfg.Select.Length > 0 ||
-        cfg.Up.Length > 0 || cfg.Down.Length > 0 || cfg.Left.Length > 0 || cfg.Right.Length > 0;
-
-    static void PollGamepads()
+    private static void PollGamepads()
     {
         if (_sdl == null) return;
 
         if (_pad0 != null)
         {
-            Controller.State = PadState(_pad0, ConfigManager.Game.Pad, Controller.State);
-            Controller.LeftX = AxisToByte(_sdl.GameControllerGetAxis(_pad0, GameControllerAxis.Leftx));
-            Controller.LeftY = AxisToByte(_sdl.GameControllerGetAxis(_pad0, GameControllerAxis.Lefty));
-            Controller.RightX = AxisToByte(_sdl.GameControllerGetAxis(_pad0, GameControllerAxis.Rightx));
-            Controller.RightY = AxisToByte(_sdl.GameControllerGetAxis(_pad0, GameControllerAxis.Righty));
+            var bind = Settings.System.Input[0].Gamepad;
+            Controller.State = PadState(_pad0, bind, Controller.State);
+            (Controller.LeftX, Controller.LeftY) = Stick(_pad0, bind.LeftStickX, bind.LeftStickY);
+            (Controller.RightX, Controller.RightY) = Stick(_pad0, bind.RightStickX, bind.RightStickY);
         }
 
         if (_pad1 != null)
         {
-            Controller.State2 = PadState(_pad1, ConfigManager.Game.Pad2, Controller.State2);
-            Controller.LeftX2 = AxisToByte(_sdl.GameControllerGetAxis(_pad1, GameControllerAxis.Leftx));
-            Controller.LeftY2 = AxisToByte(_sdl.GameControllerGetAxis(_pad1, GameControllerAxis.Lefty));
-            Controller.RightX2 = AxisToByte(_sdl.GameControllerGetAxis(_pad1, GameControllerAxis.Rightx));
-            Controller.RightY2 = AxisToByte(_sdl.GameControllerGetAxis(_pad1, GameControllerAxis.Righty));
+            var bind = Settings.System.Input[1].Gamepad;
+            Controller.State2 = PadState(_pad1, bind, Controller.State2);
+            (Controller.LeftX2, Controller.LeftY2) = Stick(_pad1, bind.LeftStickX, bind.LeftStickY);
+            (Controller.RightX2, Controller.RightY2) = Stick(_pad1, bind.RightStickX, bind.RightStickY);
         }
         else
         {
@@ -303,28 +362,46 @@ internal static unsafe class InputManager
         }
     }
 
-    static ushort PadState(GameController* ctrl, GamepadBindings pad, ushort s)
+    private static float Axis(GameController* ctrl, int index)
     {
-        s = Apply(ctrl, pad.Cross,    Controller.Cross,    s);
-        s = Apply(ctrl, pad.Circle,   Controller.Circle,   s);
-        s = Apply(ctrl, pad.Square,   Controller.Square,   s);
+        if (_sdl == null || index < 0) return 0f;
+        return Math.Clamp(_sdl.GameControllerGetAxis(ctrl, (GameControllerAxis)index) / 32767f, -1f, 1f);
+    }
+
+    private static (byte X, byte Y) Stick(GameController* ctrl, int xIndex, int yIndex)
+    {
+        var x = Axis(ctrl, xIndex);
+        var y = Axis(ctrl, yIndex);
+        var magnitude = MathF.Sqrt(x * x + y * y);
+        if (magnitude < 1e-4f) return (0x80, 0x80);
+
+        var extent = MathF.Max(MathF.Abs(x), MathF.Abs(y));
+        var scale = MathF.Min(magnitude, 1f) / extent;
+        return (AxisToByte(x * scale), AxisToByte(y * scale));
+    }
+
+    private static ushort PadState(GameController* ctrl, GamepadBindings pad, ushort s)
+    {
+        s = Apply(ctrl, pad.Cross, Controller.Cross, s);
+        s = Apply(ctrl, pad.Circle, Controller.Circle, s);
+        s = Apply(ctrl, pad.Square, Controller.Square, s);
         s = Apply(ctrl, pad.Triangle, Controller.Triangle, s);
-        s = Apply(ctrl, pad.L1,       Controller.L1,       s);
-        s = Apply(ctrl, pad.R1,       Controller.R1,       s);
-        s = Apply(ctrl, pad.L2,       Controller.L2,       s);
-        s = Apply(ctrl, pad.R2,       Controller.R2,       s);
-        s = Apply(ctrl, pad.L3,       Controller.L3,       s);
-        s = Apply(ctrl, pad.R3,       Controller.R3,       s);
-        s = Apply(ctrl, pad.Start,    Controller.Start,    s);
-        s = Apply(ctrl, pad.Select,   Controller.Select,   s);
-        s = Apply(ctrl, pad.Up,       Controller.Up,       s);
-        s = Apply(ctrl, pad.Down,     Controller.Down,     s);
-        s = Apply(ctrl, pad.Left,     Controller.Left,     s);
-        s = Apply(ctrl, pad.Right,    Controller.Right,    s);
+        s = Apply(ctrl, pad.L1, Controller.L1, s);
+        s = Apply(ctrl, pad.R1, Controller.R1, s);
+        s = Apply(ctrl, pad.L2, Controller.L2, s);
+        s = Apply(ctrl, pad.R2, Controller.R2, s);
+        s = Apply(ctrl, pad.L3, Controller.L3, s);
+        s = Apply(ctrl, pad.R3, Controller.R3, s);
+        s = Apply(ctrl, pad.Start, Controller.Start, s);
+        s = Apply(ctrl, pad.Select, Controller.Select, s);
+        s = Apply(ctrl, pad.Up, Controller.Up, s);
+        s = Apply(ctrl, pad.Down, Controller.Down, s);
+        s = Apply(ctrl, pad.Left, Controller.Left, s);
+        s = Apply(ctrl, pad.Right, Controller.Right, s);
         return s;
     }
 
-    static ushort Apply(GameController* ctrl, int[] bindings, ushort bit, ushort s)
+    private static ushort Apply(GameController* ctrl, int[] bindings, ushort bit, ushort s)
     {
         foreach (var binding in bindings)
             if (Pressed(ctrl, binding))
@@ -332,7 +409,7 @@ internal static unsafe class InputManager
         return s;
     }
 
-    static bool Pressed(GameController* ctrl, int binding)
+    private static bool Pressed(GameController* ctrl, int binding)
     {
         if (_sdl == null) return false;
         if (binding == LeftTrigger)
@@ -342,69 +419,65 @@ internal static unsafe class InputManager
         if (IsStickBinding(binding))
         {
             var (axis, positive) = AxisBinding(binding);
-            short v = _sdl.GameControllerGetAxis(ctrl, axis);
+            var v = _sdl.GameControllerGetAxis(ctrl, axis);
             return positive ? v > StickThreshold : v < -StickThreshold;
         }
+
         return _sdl.GameControllerGetButton(ctrl, (GameControllerButton)binding) != 0;
     }
 
-    static byte AxisToByte(short axis)
+    private static byte AxisToByte(float value)
     {
-        float f = Math.Clamp(axis * 1.3f / 32768.0f, -1.0f, 1.0f);
+        var f = Math.Clamp(value, -1.0f, 1.0f);
         return (byte)Math.Clamp((int)MathF.Round((f + 1.0f) * 127.5f), 0, 255);
     }
 
     public static void SetRumble(byte large, byte small)
     {
         if (_sdl == null || _pad0 == null) return;
-        ushort lo = (ushort)(large * 257);
-        ushort hi = small != 0 ? (ushort)65535 : (ushort)0;
-        uint duration = large == 0 && small == 0 ? 0u : 500u;
+        var lo = (ushort)(large * 257);
+        var hi = small != 0 ? (ushort)65535 : (ushort)0;
+        var duration = large == 0 && small == 0 ? 0u : 500u;
         _sdl.GameControllerRumble(_pad0, lo, hi, duration);
     }
 
-    static void OnKeyDown(IKeyboard kb, Key key, int _)
+    private static void OnKeyDown(IKeyboard kb, Key key, int _)
     {
-        if (key == Key.F1)  _topBarToggle = true;
+        if (key == Key.F1) _topBarToggle = true;
         if (key == Key.F11) _fullscreenToggle = true;
 
         if (EventBus.HasAnyListeners<KeyboardEvent>())
-        {
-            EventBus.Dispatch(new KeyboardEvent{
+            EventBus.Dispatch(new KeyboardEvent
+            {
                 Key = (int)key,
                 Pressed = true
             });
-        }
     }
 
-    static void OnKeyUp(IKeyboard kb, Key key, int _)
+    private static void OnKeyUp(IKeyboard kb, Key key, int _)
     {
         if (EventBus.HasAnyListeners<KeyboardEvent>())
-        {
-            EventBus.Dispatch(new KeyboardEvent{
+            EventBus.Dispatch(new KeyboardEvent
+            {
                 Key = (int)key,
                 Pressed = false
             });
-        }
     }
 
-    static void OnMouseMove(IMouse mouse, Vector2 position)
+    private static void OnMouseMove(IMouse mouse, Vector2 position)
     {
         if (EventBus.HasAnyListeners<MouseEvent>())
-        {
             EventBus.Dispatch(new MouseEvent
             {
                 Action = MouseAction.Move,
                 X = (int)position.X,
                 Y = (int)position.Y
             });
-        }
     }
 
-    static void OnMouseDown(IMouse mouse, MouseButton mouseButton)
+    private static void OnMouseDown(IMouse mouse, MouseButton mouseButton)
     {
         if (EventBus.HasAnyListeners<MouseEvent>())
-        {
             EventBus.Dispatch(new MouseEvent
             {
                 Action = MouseAction.Button,
@@ -413,13 +486,11 @@ internal static unsafe class InputManager
                 X = (int)mouse.Position.X,
                 Y = (int)mouse.Position.Y
             });
-        }
     }
 
-    static void OnMouseUp(IMouse mouse, MouseButton mouseButton)
+    private static void OnMouseUp(IMouse mouse, MouseButton mouseButton)
     {
         if (EventBus.HasAnyListeners<MouseEvent>())
-        {
             EventBus.Dispatch(new MouseEvent
             {
                 Action = MouseAction.Button,
@@ -428,13 +499,11 @@ internal static unsafe class InputManager
                 X = (int)mouse.Position.X,
                 Y = (int)mouse.Position.Y
             });
-        }
     }
-    
-    static void OnScroll(IMouse mouse, ScrollWheel wheel)
+
+    private static void OnScroll(IMouse mouse, ScrollWheel wheel)
     {
         if (EventBus.HasAnyListeners<MouseEvent>())
-        {
             EventBus.Dispatch(new MouseEvent
             {
                 Action = MouseAction.Wheel,
@@ -442,14 +511,16 @@ internal static unsafe class InputManager
                 X = (int)mouse.Position.X,
                 Y = (int)mouse.Position.Y
             });
-        }
     }
-    static EvMouseButton MapMouseButton(MouseButton button) => button switch
-    {
-        MouseButton.Left => EvMouseButton.Left,
-        MouseButton.Right => EvMouseButton.Right,
-        MouseButton.Middle => EvMouseButton.Middle,
-        _ => EvMouseButton.None
-    };
 
+    private static EvMouseButton MapMouseButton(MouseButton button)
+    {
+        return button switch
+        {
+            MouseButton.Left => EvMouseButton.Left,
+            MouseButton.Right => EvMouseButton.Right,
+            MouseButton.Middle => EvMouseButton.Middle,
+            _ => EvMouseButton.None
+        };
+    }
 }

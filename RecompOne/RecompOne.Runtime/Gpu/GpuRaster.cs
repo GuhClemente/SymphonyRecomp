@@ -1,3 +1,4 @@
+using System.Numerics;
 using RecompOne.Runtime.Events;
 
 namespace RecompOne.Runtime;
@@ -5,328 +6,280 @@ namespace RecompOne.Runtime;
 //old soft raster
 public sealed partial class Gpu
 {
-    struct Vert { public int X, Y, R, G, B, U, V; }
-
-    static readonly RenderPrimEvent _primEvent = new();
-
-    static readonly int[,] Dither =
+    private struct Vert
     {
-        { -4,  0, -3,  1 },
-        {  2, -2,  3, -1 },
-        { -3,  1, -4,  0 },
-        {  3, -1,  2, -2 },
-    };
+        public int X, Y, R, G, B, U, V;
+        public float Px, Py, Pw;
+        public bool Precise;
+        public bool PreciseW;
+        public bool Native;
+        public bool IgnoreDepth;
+        public uint Prim;
+        public Vector3 Camera; //camera space, for interp
+        public int Transform;
+    }
 
-    void DrawPolygon()
+    private static readonly RenderPrimEvent _primEvent = new();
+
+    private void DrawPolygon()
     {
-        uint cmd = _fifo[0];
-        bool gouraud = (cmd & (1u << 28)) != 0;
-        bool quad = (cmd & (1u << 27)) != 0;
-        bool tex = (cmd & (1u << 26)) != 0;
-        bool semi = (cmd & (1u << 25)) != 0;
-        bool raw = (cmd & (1u << 24)) != 0;
-        int n = quad ? 4 : 3;
+        var cmd = _fifo[0];
+        var gouraud = (cmd & (1u << 28)) != 0;
+        var quad = (cmd & (1u << 27)) != 0;
+        var tex = (cmd & (1u << 26)) != 0;
+        var semi = (cmd & (1u << 25)) != 0;
+        var raw = (cmd & (1u << 24)) != 0;
+        var n = quad ? 4 : 3;
 
         Span<Vert> v = stackalloc Vert[4];
-        int idx = 1;
-        int clut = 0;
+        Span<uint> words = stackalloc uint[4];
+        var idx = 1;
+        var clut = 0;
         int cr = (int)(cmd & 0xFF), cg = (int)((cmd >> 8) & 0xFF), cb = (int)((cmd >> 16) & 0xFF);
 
-        for (int i = 0; i < n; i++)
+        for (var i = 0; i < n; i++)
         {
             if (gouraud && i > 0)
             {
-                uint cw = _fifo[idx++];
-                cr = (int)(cw & 0xFF); cg = (int)((cw >> 8) & 0xFF); cb = (int)((cw >> 16) & 0xFF);
+                var cw = _fifo[idx++];
+                cr = (int)(cw & 0xFF);
+                cg = (int)((cw >> 8) & 0xFF);
+                cb = (int)((cw >> 16) & 0xFF);
             }
-            v[i].R = cr; v[i].G = cg; v[i].B = cb;
 
-            uint vw = _fifo[idx++];
+            v[i].R = cr;
+            v[i].G = cg;
+            v[i].B = cb;
+
+            var slot = idx;
+            var vw = _fifo[idx++];
+            words[i] = vw;
             v[i].X = _drawOffsetX + CoordX(vw);
             v[i].Y = _drawOffsetY + CoordY(vw);
+            v[i].Precise = false;
+            v[i].PreciseW = false;
+            v[i].Native = false;
+            v[i].IgnoreDepth = false;
+            v[i].Prim = 0;
+            
+            if (_fifoBase != 0u && Hle.NativeGeometry.TryTake(_fifoBase + (uint)slot * 4u, vw, out var native))
+            {
+                v[i].Px = _drawOffsetX + native.Screen.X;
+                v[i].Py = _drawOffsetY + native.Screen.Y;
+                v[i].Pw = native.Camera.Z;
+                v[i].Camera = native.Camera;
+                v[i].Transform = native.Transform;
+                v[i].Native = v[i].Precise = v[i].PreciseW = true;
+                v[i].IgnoreDepth = native.IgnoreDepth;
+            }
 
             if (tex)
             {
-                uint uvw = _fifo[idx++];
+                var uvw = _fifo[idx++];
                 v[i].U = (int)(uvw & 0xFF);
                 v[i].V = (int)((uvw >> 8) & 0xFF);
                 if (i == 0) clut = (int)((uvw >> 16) & 0xFFFF);
                 else if (i == 1) SetTexpageFromWord((uvw >> 16) & 0xFFFF);
             }
         }
+
+        if (quad && Hle.NativeGeometry.HasAnchors && AnchorBillboard(v, words) && tex && semi && _blendMode == 1)
+            EmitLight(v, clut, raw);
+
+        if (_fifoBase != 0u && Hle.PrimIdentity.Any && !v[0].Native && Hle.PrimIdentity.TryResolve(_fifoBase, out var prim))
+            for (var i = 0; i < n; i++)
+                v[i].Prim = prim;
+
         //dispatch the render event for prims
         if (Event.HasAnyListeners<RenderPrimEvent>())
         {
             var e = _primEvent;
-            e.Context = Runtime.Cpu!; e.Memory = Runtime.Mem!;
+            e.Context = Runtime.Cpu!;
+            e.Memory = Runtime.Mem!;
             e.Count = n;
-            for (int i = 0; i < n; i++) { e.X[i] = v[i].X; e.Y[i] = v[i].Y; }
-            e.DrawLeft = _drawAreaLeft; e.DrawRight = _drawAreaRight; e.DrawTop = _drawAreaTop; e.DrawBottom = _drawAreaBottom;
-            e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = gouraud; e.Raw = raw; e.Clut = clut; e.TexPage = 0; e.Skip = false;
+            for (var i = 0; i < n; i++)
+            {
+                e.X[i] = v[i].X;
+                e.Y[i] = v[i].Y;
+            }
+
+            e.DrawLeft = _drawAreaLeft;
+            e.DrawRight = _drawAreaRight;
+            e.DrawTop = _drawAreaTop;
+            e.DrawBottom = _drawAreaBottom;
+            e.Textured = tex;
+            e.SemiTransparent = semi;
+            e.Gouraud = gouraud;
+            e.Raw = raw;
+            e.Clut = clut;
+            e.TexPage = 0;
+            e.Skip = false;
             Event.Dispatch(e);
             if (e.Skip) return;
-            for (int i = 0; i < n; i++) { v[i].X = e.X[i]; v[i].Y = e.Y[i]; }
-        }
-
-        if (HleOn)
-        {
-            HleTri(v[0], v[1], v[2], tex, gouraud, semi, raw, clut);
-            if (quad) HleTri(v[1], v[2], v[3], tex, gouraud, semi, raw, clut);
-        }
-        else
-        {
-            RasterTriangle(v[0], v[1], v[2], tex, gouraud, semi, raw, clut);
-            if (quad) RasterTriangle(v[1], v[2], v[3], tex, gouraud, semi, raw, clut);
-        }
-    }
-    
-    void RasterTriangle(Vert a, Vert b, Vert c, bool tex, bool gouraud, bool semi, bool raw, int clut)
-    {
-        int spanX = Math.Max(a.X, Math.Max(b.X, c.X)) - Math.Min(a.X, Math.Min(b.X, c.X));
-        int spanY = Math.Max(a.Y, Math.Max(b.Y, c.Y)) - Math.Min(a.Y, Math.Min(b.Y, c.Y));
-        if (spanX > 1023 || spanY > 511) return;
-
-        long area = (long)(b.X - a.X) * (c.Y - a.Y) - (long)(b.Y - a.Y) * (c.X - a.X);
-        if (area == 0) return;
-        if (area < 0) { (b, c) = (c, b); area = -area; }
-
-        int minX = Math.Max(_drawAreaLeft, Math.Min(a.X, Math.Min(b.X, c.X)));
-        int maxX = Math.Min(_drawAreaRight, Math.Max(a.X, Math.Max(b.X, c.X)));
-        int minY = Math.Max(_drawAreaTop, Math.Min(a.Y, Math.Min(b.Y, c.Y)));
-        int maxY = Math.Min(_drawAreaBottom, Math.Max(a.Y, Math.Max(b.Y, c.Y)));
-        if (minX > maxX || minY > maxY) return;
-
-        int bias0 = IsTopLeft(b, c) ? 0 : -1;
-        int bias1 = IsTopLeft(c, a) ? 0 : -1;
-        int bias2 = IsTopLeft(a, b) ? 0 : -1;
-        bool ditherTex = _dither && !raw;
-
-        int sx0 = b.Y - c.Y, sy0 = c.X - b.X;
-        int sx1 = c.Y - a.Y, sy1 = a.X - c.X;
-        int sx2 = a.Y - b.Y, sy2 = b.X - a.X;
-
-        long w0Row = (long)(c.X - b.X) * (minY - b.Y) - (long)(c.Y - b.Y) * (minX - b.X);
-        long w1Row = (long)(a.X - c.X) * (minY - c.Y) - (long)(a.Y - c.Y) * (minX - c.X);
-        long w2Row = (long)(b.X - a.X) * (minY - a.Y) - (long)(b.Y - a.Y) * (minX - a.X);
-
-        for (int y = minY; y <= maxY; y++, w0Row += sy0, w1Row += sy1, w2Row += sy2)
-        {
-            long w0 = w0Row, w1 = w1Row, w2 = w2Row;
-            for (int x = minX; x <= maxX; x++, w0 += sx0, w1 += sx1, w2 += sx2)
+            for (var i = 0; i < n; i++)
             {
-                if (w0 + bias0 < 0 || w1 + bias1 < 0 || w2 + bias2 < 0) continue;
-
-                int r, g, bl;
-                if (gouraud)
+                var dx = e.X[i] - v[i].X;
+                var dy = e.Y[i] - v[i].Y;
+                v[i].X = e.X[i];
+                v[i].Y = e.Y[i];
+                if (v[i].Precise)
                 {
-                    r = (int)((w0 * a.R + w1 * b.R + w2 * c.R) / area);
-                    g = (int)((w0 * a.G + w1 * b.G + w2 * c.G) / area);
-                    bl = (int)((w0 * a.B + w1 * b.B + w2 * c.B) / area);
+                    v[i].Px += dx;
+                    v[i].Py += dy;
                 }
-                else { r = a.R; g = a.G; bl = a.B; }
-
-                if (tex)
-                {
-                    int u = (int)((w0 * a.U + w1 * b.U + w2 * c.U) / area);
-                    int tv = (int)((w0 * a.V + w1 * b.V + w2 * c.V) / area);
-                    ushort texel = FetchTexel(u, tv, clut);
-                    if (texel == 0) continue;
-                    bool stp = (texel & 0x8000) != 0;
-                    int tr = (texel & 0x1F) << 3, tg = ((texel >> 5) & 0x1F) << 3, tb = ((texel >> 10) & 0x1F) << 3;
-                    if (!raw) { tr = tr * r >> 7; tg = tg * g >> 7; tb = tb * bl >> 7; }
-                    Plot(x, y, tr, tg, tb, semi && stp, ditherTex, stp);
-                }
-                else Plot(x, y, r, g, bl, semi, _dither && gouraud);
             }
         }
+
+        HleTri(v[0], v[1], v[2], HasInvalidW(v[0], v[1], v[2]), tex, gouraud, semi, raw, clut);
+        if (quad) HleTri(v[1], v[2], v[3], HasInvalidW(v[1], v[2], v[3]), tex, gouraud, semi, raw, clut);
     }
 
-    static bool IsTopLeft(in Vert p0, in Vert p1)
+    private void DrawRectangle()
     {
-        int dy = p1.Y - p0.Y, dx = p1.X - p0.X;
-        return dy < 0 || (dy == 0 && dx > 0);
-    }
-
-    void DrawRectangle()
-    {
-        uint cmd = _fifo[0];
-        int sz = (int)((cmd >> 27) & 3);
-        bool tex = (cmd & (1u << 26)) != 0;
-        bool semi = (cmd & (1u << 25)) != 0;
-        bool raw = (cmd & (1u << 24)) != 0;
+        var cmd = _fifo[0];
+        var sz = (int)((cmd >> 27) & 3);
+        var tex = (cmd & (1u << 26)) != 0;
+        var semi = (cmd & (1u << 25)) != 0;
+        var raw = (cmd & (1u << 24)) != 0;
         int cr = (int)(cmd & 0xFF), cg = (int)((cmd >> 8) & 0xFF), cb = (int)((cmd >> 16) & 0xFF);
 
-        int idx = 1;
-        uint vw = _fifo[idx++];
-        int x = _drawOffsetX + CoordX(vw);
-        int y = _drawOffsetY + CoordY(vw);
+        var idx = 1;
+        var vw = _fifo[idx++];
+        var x = _drawOffsetX + CoordX(vw);
+        var y = _drawOffsetY + CoordY(vw);
 
         int u0 = 0, v0 = 0, clut = 0;
         if (tex)
         {
-            uint uvw = _fifo[idx++];
-            u0 = (int)(uvw & 0xFF); v0 = (int)((uvw >> 8) & 0xFF);
+            var uvw = _fifo[idx++];
+            u0 = (int)(uvw & 0xFF);
+            v0 = (int)((uvw >> 8) & 0xFF);
             clut = (int)((uvw >> 16) & 0xFFFF);
         }
 
         int w, h;
-        if (sz == 0) { uint wh = _fifo[idx]; w = (int)(wh & 0xFFFF); h = (int)((wh >> 16) & 0xFFFF); }
-        else { w = h = sz == 1 ? 1 : sz == 2 ? 8 : 16; }
+        if (sz == 0)
+        {
+            var wh = _fifo[idx];
+            w = (int)(wh & 0xFFFF);
+            h = (int)((wh >> 16) & 0xFFFF);
+        }
+        else
+        {
+            w = h = sz == 1 ? 1 : sz == 2 ? 8 : 16;
+        }
+
         //dispatch event
         if (Event.HasAnyListeners<RenderPrimEvent>())
         {
             var e = _primEvent;
-            e.Context = Runtime.Cpu!; e.Memory = Runtime.Mem!;
+            e.Context = Runtime.Cpu!;
+            e.Memory = Runtime.Mem!;
             e.Count = 2;
-            e.X[0] = x; e.X[1] = x + w; e.Y[0] = y; e.Y[1] = y + h;
-            e.DrawLeft = _drawAreaLeft; e.DrawRight = _drawAreaRight; e.DrawTop = _drawAreaTop; e.DrawBottom = _drawAreaBottom;
-            e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = false; e.Raw = raw; e.Clut = clut; e.TexPage = 0; e.Skip = false;
+            e.X[0] = x;
+            e.X[1] = x + w;
+            e.Y[0] = y;
+            e.Y[1] = y + h;
+            e.DrawLeft = _drawAreaLeft;
+            e.DrawRight = _drawAreaRight;
+            e.DrawTop = _drawAreaTop;
+            e.DrawBottom = _drawAreaBottom;
+            e.Textured = tex;
+            e.SemiTransparent = semi;
+            e.Gouraud = false;
+            e.Raw = raw;
+            e.Clut = clut;
+            e.TexPage = 0;
+            e.Skip = false;
             Event.Dispatch(e);
             if (e.Skip) return;
-            x = e.X[0]; w = e.X[1] - e.X[0];
+            x = e.X[0];
+            w = e.X[1] - e.X[0];
         }
-        if (HleOn) { HleRect(x, y, w, h, u0, v0, clut, cr, cg, cb, tex, semi, raw); return; }
 
-        for (int dy = 0; dy < h; dy++)
-            for (int dx = 0; dx < w; dx++)
-            {
-                int px = x + dx, py = y + dy;
-                if (px < _drawAreaLeft || px > _drawAreaRight || py < _drawAreaTop || py > _drawAreaBottom) continue;
-                if (tex)
-                {
-                    ushort texel = FetchTexel((u0 + dx) & 0xFF, (v0 + dy) & 0xFF, clut);
-                    if (texel == 0) continue;
-                    bool stp = (texel & 0x8000) != 0;
-                    int tr = (texel & 0x1F) << 3, tg = ((texel >> 5) & 0x1F) << 3, tb = ((texel >> 10) & 0x1F) << 3;
-                    if (!raw) { tr = tr * cr >> 7; tg = tg * cg >> 7; tb = tb * cb >> 7; }
-                    Plot(px, py, tr, tg, tb, semi && stp, false, stp);
-                }
-                else Plot(px, py, cr, cg, cb, semi, false);
-            }
+        HleRect(x, y, w, h, u0, v0, clut, cr, cg, cb, tex, semi, raw);
     }
 
-    void DrawLine()
+    private void DrawLine()
     {
-        uint cmd = _fifo[0];
-        bool gouraud = (cmd & (1u << 28)) != 0;
-        bool semi = (cmd & (1u << 25)) != 0;
-        int idx = 1;
+        var cmd = _fifo[0];
+        var gouraud = (cmd & (1u << 28)) != 0;
+        var semi = (cmd & (1u << 25)) != 0;
+        var idx = 1;
 
         int r0 = (int)(cmd & 0xFF), g0 = (int)((cmd >> 8) & 0xFF), b0 = (int)((cmd >> 16) & 0xFF);
-        uint v0w = _fifo[idx++];
+        var a = LineVert(idx++, r0, g0, b0);
         int r1 = r0, g1 = g0, b1 = b0;
-        if (gouraud) { uint cw = _fifo[idx++]; r1 = (int)(cw & 0xFF); g1 = (int)((cw >> 8) & 0xFF); b1 = (int)((cw >> 16) & 0xFF); }
-        uint v1w = _fifo[idx++];
+        if (gouraud)
+        {
+            var cw = _fifo[idx++];
+            r1 = (int)(cw & 0xFF);
+            g1 = (int)((cw >> 8) & 0xFF);
+            b1 = (int)((cw >> 16) & 0xFF);
+        }
 
-        LineSegment(CoordX(v0w), CoordY(v0w), r0, g0, b0, CoordX(v1w), CoordY(v1w), r1, g1, b1, semi, gouraud);
+        var b = LineVert(idx, r1, g1, b1);
+        HleLine(in a, in b, semi, gouraud);
     }
 
-    void ExecutePolyline()
+    private void ExecutePolyline()
     {
-        uint cmd = _fifo[0];
-        bool gouraud = (cmd & (1u << 28)) != 0;
-        bool semi = (cmd & (1u << 25)) != 0;
+        var cmd = _fifo[0];
+        var gouraud = (cmd & (1u << 28)) != 0;
+        var semi = (cmd & (1u << 25)) != 0;
 
-        var pts = new List<(int X, int Y, int R, int G, int B)>();
-        int idx = 1;
+        var pts = new List<Vert>();
+        var idx = 1;
         int r = (int)(cmd & 0xFF), g = (int)((cmd >> 8) & 0xFF), b = (int)((cmd >> 16) & 0xFF);
-        bool first = true;
-        while (idx < _fifo.Count)
+        var first = true;
+        while (idx < _fifoCount)
         {
-            if (gouraud && !first) { uint cw = _fifo[idx++]; r = (int)(cw & 0xFF); g = (int)((cw >> 8) & 0xFF); b = (int)((cw >> 16) & 0xFF); }
-            if (idx >= _fifo.Count) break;
-            uint vw = _fifo[idx++];
-            pts.Add((CoordX(vw), CoordY(vw), r, g, b));
+            if (gouraud && !first)
+            {
+                var cw = _fifo[idx++];
+                r = (int)(cw & 0xFF);
+                g = (int)((cw >> 8) & 0xFF);
+                b = (int)((cw >> 16) & 0xFF);
+            }
+
+            if (idx >= _fifoCount) break;
+            pts.Add(LineVert(idx++, r, g, b));
             first = false;
         }
 
-        for (int i = 0; i + 1 < pts.Count; i++)
-            LineSegment(pts[i].X, pts[i].Y, pts[i].R, pts[i].G, pts[i].B,
-                        pts[i + 1].X, pts[i + 1].Y, pts[i + 1].R, pts[i + 1].G, pts[i + 1].B, semi, gouraud);
+        for (var i = 0; i + 1 < pts.Count; i++)
+        {
+            var a = pts[i];
+            var c = pts[i + 1];
+            HleLine(in a, in c, semi, gouraud);
+        }
     }
 
-    void LineSegment(int x0, int y0, int r0, int g0, int b0, int x1, int y1, int r1, int g1, int b1, bool semi, bool gouraud)
+    private Vert LineVert(int slot, int r, int g, int b)
     {
-        x0 += _drawOffsetX; y0 += _drawOffsetY;
-        x1 += _drawOffsetX; y1 += _drawOffsetY;
-        if (HleOn) { HleLine(x0, y0, r0, g0, b0, x1, y1, r1, g1, b1, semi, gouraud); return; }
-        int dx = Math.Abs(x1 - x0), dy = Math.Abs(y1 - y0);
-        int steps = Math.Max(dx, dy);
-        if (steps == 0) { Plot(x0, y0, r0, g0, b0, semi, _dither); return; }
-        for (int i = 0; i <= steps; i++)
+        var vw = _fifo[slot];
+        var v = new Vert
         {
-            double t = (double)i / steps;
-            int x = (int)Math.Round(x0 + (x1 - x0) * t);
-            int y = (int)Math.Round(y0 + (y1 - y0) * t);
-            int r = (int)(r0 + (r1 - r0) * t);
-            int g = (int)(g0 + (g1 - g0) * t);
-            int b = (int)(b0 + (b1 - b0) * t);
-            if (x < _drawAreaLeft || x > _drawAreaRight || y < _drawAreaTop || y > _drawAreaBottom) continue;
-            Plot(x, y, r, g, b, semi, _dither);
+            X = _drawOffsetX + CoordX(vw),
+            Y = _drawOffsetY + CoordY(vw),
+            R = r, G = g, B = b
+        };
+
+        if (_fifoBase != 0u && Hle.NativeGeometry.TryTake(_fifoBase + (uint)slot * 4u, vw, out var native))
+        {
+            v.Px = _drawOffsetX + native.Screen.X;
+            v.Py = _drawOffsetY + native.Screen.Y;
+            v.Pw = native.Camera.Z;
+            v.Camera = native.Camera;
+            v.Transform = native.Transform;
+            v.Native = v.Precise = v.PreciseW = true;
+            v.IgnoreDepth = native.IgnoreDepth;
         }
+
+        return v;
     }
 
-    ushort FetchTexel(int u, int v, int clut)
-    {
-        u = (u & ~(_texWinMaskX * 8)) | ((_texWinOffX & _texWinMaskX) * 8);
-        v = (v & ~(_texWinMaskY * 8)) | ((_texWinOffY & _texWinMaskY) * 8);
-        u &= 0xFF; v &= 0xFF;
-
-        int row = (_texPageY + v) & (VramHeight - 1);
-        if (_texDepth == 2 || _texDepth == 3)
-            return Vram[row * VramWidth + ((_texPageX + u) & (VramWidth - 1))];
-
-        int clutX = (clut & 0x3F) * 16;
-        int clutY = (clut >> 6) & 0x1FF;
-        int index;
-        if (_texDepth == 0)
-        {
-            ushort block = Vram[row * VramWidth + ((_texPageX + (u >> 2)) & (VramWidth - 1))];
-            index = (block >> ((u & 3) * 4)) & 0xF;
-        }
-        else
-        {
-            ushort block = Vram[row * VramWidth + ((_texPageX + (u >> 1)) & (VramWidth - 1))];
-            index = (block >> ((u & 1) * 8)) & 0xFF;
-        }
-        return Vram[(clutY & (VramHeight - 1)) * VramWidth + ((clutX + index) & (VramWidth - 1))];
-    }
-
-    void Plot(int x, int y, int r, int g, int b, bool semi, bool dither, bool maskBit = false)
-    {
-        if (x < _drawAreaLeft || x > _drawAreaRight || y < _drawAreaTop || y > _drawAreaBottom) return;
-        if (x < 0 || x >= VramWidth || y < 0 || y >= VramHeight) return;
-
-        int idx = y * VramWidth + x;
-        ushort bg = Vram[idx];
-        if (_checkMask && (bg & 0x8000) != 0) return;
-
-        if (dither)
-        {
-            int d = Dither[y & 3, x & 3];
-            r = Clamp255(r + d); g = Clamp255(g + d); b = Clamp255(b + d);
-        }
-
-        int fr = Math.Min(31, r >> 3), fg = Math.Min(31, g >> 3), fb = Math.Min(31, b >> 3);
-
-        if (semi)
-        {
-            int br = bg & 0x1F, bgn = (bg >> 5) & 0x1F, bbl = (bg >> 10) & 0x1F;
-            switch (_blendMode)
-            {
-                case 0: fr = (br + fr) >> 1; fg = (bgn + fg) >> 1; fb = (bbl + fb) >> 1; break;
-                case 1: fr = Math.Min(31, br + fr); fg = Math.Min(31, bgn + fg); fb = Math.Min(31, bbl + fb); break;
-                case 2: fr = Math.Max(0, br - fr); fg = Math.Max(0, bgn - fg); fb = Math.Max(0, bbl - fb); break;
-                default: fr = Math.Min(31, br + (fr >> 2)); fg = Math.Min(31, bgn + (fg >> 2)); fb = Math.Min(31, bbl + (fb >> 2)); break;
-            }
-        }
-
-        ushort outp = (ushort)(fr | (fg << 5) | (fb << 10));
-        if (_setMask || maskBit) outp |= 0x8000;
-        Vram[idx] = outp;
-    }
-
-    void SetTexpageFromWord(uint tp)
+    private void SetTexpageFromWord(uint tp)
     {
         _texPageX = (int)(tp & 0xF) * 64;
         _texPageY = (int)((tp >> 4) & 1) * 256;
@@ -335,8 +288,134 @@ public sealed partial class Gpu
         _texDisable = (tp & (1u << 11)) != 0;
     }
 
-    static int CoordX(uint w) { int x = (int)(w & 0x7FF); return (x & 0x400) != 0 ? x - 0x800 : x; }
-    static int CoordY(uint w) { int y = (int)((w >> 16) & 0x7FF); return (y & 0x400) != 0 ? y - 0x800 : y; }
-    static ushort To15(int r, int g, int b) => (ushort)(((r >> 3) & 0x1F) | (((g >> 3) & 0x1F) << 5) | (((b >> 3) & 0x1F) << 10));
-    static int Clamp255(int v) => v < 0 ? 0 : v > 255 ? 255 : v;
+    private static int CoordX(uint w)
+    {
+        var x = (int)(w & 0x7FF);
+        return (x & 0x400) != 0 ? x - 0x800 : x;
+    }
+
+    private static int CoordY(uint w)
+    {
+        var y = (int)((w >> 16) & 0x7FF);
+        return (y & 0x400) != 0 ? y - 0x800 : y;
+    }
+
+    private static ushort To15(int r, int g, int b)
+    {
+        return (ushort)(((r >> 3) & 0x1F) | (((g >> 3) & 0x1F) << 5) | (((b >> 3) & 0x1F) << 10));
+    }
+
+    private static bool AnchorBillboard(Span<Vert> v, ReadOnlySpan<uint> words)
+    {
+        for (var i = 0; i < 4; i++)
+            if (v[i].Precise) return false;
+
+        int x0 = CoordX(words[0]), x1 = CoordX(words[1]), y0 = CoordY(words[0]), y2 = CoordY(words[2]);
+        if (CoordX(words[2]) != x0 || CoordX(words[3]) != x1 || CoordY(words[1]) != y0 || CoordY(words[3]) != y2) return false;
+        if (((x0 + x1) & 1) != 0 || ((y0 + y2) & 1) != 0) return false;
+
+        var cx = (x0 + x1) >> 1;
+        var cy = (y0 + y2) >> 1;
+        if (!Hle.NativeGeometry.TryAnchor(cx, cy, out var anchor)) return false;
+
+        var dx = anchor.Screen.X - cx;
+        var dy = anchor.Screen.Y - cy;
+        if (MathF.Abs(dx) > 1f || MathF.Abs(dy) > 1f) return false;
+
+        for (var i = 0; i < 4; i++)
+        {
+            v[i].Px = v[i].X + dx;
+            v[i].Py = v[i].Y + dy;
+            v[i].Pw = anchor.Camera.Z;
+            v[i].Precise = v[i].PreciseW = true;
+            v[i].Transform = anchor.Transform;
+            v[i].IgnoreDepth = anchor.IgnoreDepth;
+            v[i].Camera = anchor.Camera;
+        }
+
+        return true;
+    }
+
+    private const int LightSamples = 6;
+    private const float LightMinimum = 0.3f;
+    private const float LightReach = 8f;
+    private readonly Dictionary<ulong, Vector3> _textureAverages = new();
+
+    private void EmitLight(ReadOnlySpan<Vert> v, int clut, bool raw)
+    {
+        var h = (short)Gte.ReadControl(26);
+        if (h <= 0 || v[0].Pw <= 0f) return;
+
+        int u0 = v[0].U, v0 = v[0].V, u1 = v[0].U, v1 = v[0].V;
+        for (var i = 1; i < 4; i++)
+        {
+            u0 = Math.Min(u0, v[i].U);
+            v0 = Math.Min(v0, v[i].V);
+            u1 = Math.Max(u1, v[i].U);
+            v1 = Math.Max(v1, v[i].V);
+        }
+
+        var texture = TextureAverage(u0, v0, u1, v1, clut);
+        var tint = raw ? Vector3.One : new Vector3(v[0].R, v[0].G, v[0].B) / 128f;
+        var color = texture * tint;
+        if (Math.Max(color.X, Math.Max(color.Y, color.Z)) < LightMinimum) return;
+
+        var half = Math.Max(Math.Abs(v[1].X - v[0].X), Math.Abs(v[2].Y - v[0].Y)) * 0.5f;
+        var radius = half * v[0].Pw / h * LightReach;
+        Hle.NativeGeometry.Light(new Hle.SceneLight(v[0].Camera, color, radius));
+    }
+
+    private Vector3 TextureAverage(int u0, int v0, int u1, int v1, int clut)
+    {
+        var page = CurTPage() & 0x19F;
+        var key = (ulong)(uint)page | (ulong)(uint)clut << 16 | (ulong)(byte)u0 << 32 | (ulong)(byte)v0 << 40 |
+                  (ulong)(byte)u1 << 48 | (ulong)(byte)v1 << 56;
+        if (_textureAverages.TryGetValue(key, out var cached)) return cached;
+        if (_textureAverages.Count > 4096) _textureAverages.Clear();
+
+        var sum = Vector3.Zero;
+        var count = 0;
+        for (var y = 0; y < LightSamples; y++)
+        for (var x = 0; x < LightSamples; x++)
+        {
+            var u = u0 + (u1 - u0) * (x + 0.5f) / LightSamples;
+            var t = v0 + (v1 - v0) * (y + 0.5f) / LightSamples;
+            var texel = Texel((int)u & 0xFF, (int)t & 0xFF, clut);
+            if (texel == 0) continue;
+            sum += new Vector3(texel & 0x1F, (texel >> 5) & 0x1F, (texel >> 10) & 0x1F) / 31f;
+            count++;
+        }
+
+        var average = count > 0 ? sum / (LightSamples * LightSamples) : Vector3.Zero;
+        _textureAverages[key] = average;
+        return average;
+    }
+
+    private ushort Texel(int u, int v, int clut)
+    {
+        var x = _texPageX;
+        var y = _texPageY + v;
+        switch (_texDepth)
+        {
+            case 0:
+            {
+                var word = Shadow[(x + (u >> 2)) & 1023, y & 511];
+                var index = (word >> ((u & 3) << 2)) & 0xF;
+                return Shadow[((clut & 0x3F) * 16 + index) & 1023, (clut >> 6) & 511];
+            }
+            case 1:
+            {
+                var word = Shadow[(x + (u >> 1)) & 1023, y & 511];
+                var index = (word >> ((u & 1) << 3)) & 0xFF;
+                return Shadow[((clut & 0x3F) * 16 + index) & 1023, (clut >> 6) & 511];
+            }
+            default:
+                return Shadow[(x + u) & 1023, y & 511];
+        }
+    }
+
+    private static bool HasInvalidW(in Vert a, in Vert b, in Vert c)
+    {
+        return !a.PreciseW || !b.PreciseW || !c.PreciseW || !float.IsFinite(a.Pw) || !float.IsFinite(b.Pw) || !float.IsFinite(c.Pw) || a.Pw <= 0f || b.Pw <= 0f || c.Pw <= 0f;
+    }
 }

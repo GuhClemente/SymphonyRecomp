@@ -10,17 +10,28 @@ internal sealed class CdDebugPanel : IPanel
     public string TitleKey => "panel.cd_debug";
     public bool IsOpen { get; set; }
 
-    readonly List<string> _events = new();
-    bool _autoScroll = true;
+    private readonly List<string> _events = new();
+    private bool _autoScroll = true;
 
     public void Draw()
     {
         ImGui.SetNextWindowSize(new Vector2(640, 420), ImGuiCond.FirstUseEver);
-        bool open = IsOpen;
-        if (!ImGui.Begin(this.Title(), ref open)) { IsOpen = open; ImGui.End(); return; }
+        var open = IsOpen;
+        if (!ImGui.Begin(this.Title(), ref open))
+        {
+            IsOpen = open;
+            ImGui.End();
+            return;
+        }
 
         var cd = Runtime.Cd;
-        if (cd == null) { IsOpen = open; ImGui.End(); return; }
+        if (cd == null)
+        {
+            ImGui.TextDisabled("CD controller not running");
+            IsOpen = open;
+            ImGui.End();
+            return;
+        }
 
         cd.CaptureDebug(out var d, _events);
 
@@ -32,34 +43,52 @@ internal sealed class CdDebugPanel : IPanel
         ImGui.End();
     }
 
-    static void DrawStatus(CdController.CdDebug d)
+    private static void DrawStatus(CdController.CdDebug d)
     {
         Pair("Seek LBA", $"{d.SeekLba} ({Msf(d.SeekLba)})");
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Last read", $"{d.LastReadLba} ({Msf(d.LastReadLba)})");
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Sectors read", d.SectorsRead.ToString());
 
         Pair("Reading", d.Reading ? "yes" : "no");
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Stream pending", d.StreamPending ? "yes" : "no");
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Data ready", d.DataReady ? "yes" : "no");
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Data FIFO", $"{d.DataFifoPos}/{d.DataBufLength}");
 
         Pair("IRQ flags", $"{d.IrqFlags:X2}");
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Last IRQ", d.LastIrq.ToString());
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Pending IRQs", d.PendingIrqCount.ToString());
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Param/Resp", $"{d.ParamCount}/{d.ResponseCount}");
-        ImGui.SameLine(); ImGui.Spacing(); ImGui.SameLine();
+        ImGui.SameLine();
+        ImGui.Spacing();
+        ImGui.SameLine();
         Pair("Index", d.Index.ToString());
     }
 
-    void DrawEvents()
+    private void DrawEvents()
     {
         ImGui.TextDisabled("Events");
         ImGui.SameLine();
@@ -68,6 +97,7 @@ internal sealed class CdDebugPanel : IPanel
             Runtime.Cd?.ClearDebugEvents();
             _events.Clear();
         }
+
         ImGui.SameLine();
         ImGui.Checkbox("Auto-scroll", ref _autoScroll);
 
@@ -80,8 +110,8 @@ internal sealed class CdDebugPanel : IPanel
             return;
         }
 
-        float rowH = ImGui.GetTextLineHeightWithSpacing();
-        bool atBottom = ImGui.GetScrollY() >= ImGui.GetScrollMaxY() - rowH;
+        var rowH = ImGui.GetTextLineHeightWithSpacing();
+        var atBottom = ImGui.GetScrollY() >= ImGui.GetScrollMaxY() - rowH;
 
         foreach (var e in _events)
             ImGui.TextUnformatted(e);
@@ -93,17 +123,17 @@ internal sealed class CdDebugPanel : IPanel
         ImGui.PopStyleVar();
     }
 
-    static string Msf(int lba)
+    private static string Msf(int lba)
     {
-        int abs = lba + 150;
+        var abs = lba + 150;
         if (abs < 0) abs = 0;
-        int m = abs / (60 * 75);
-        int s = abs / 75 % 60;
-        int f = abs % 75;
+        var m = abs / (60 * 75);
+        var s = abs / 75 % 60;
+        var f = abs % 75;
         return $"{m:D2}:{s:D2}:{f:D2}";
     }
 
-    static void Pair(string label, string value)
+    private static void Pair(string label, string value)
     {
         ImGui.TextDisabled(label);
         ImGui.SameLine();

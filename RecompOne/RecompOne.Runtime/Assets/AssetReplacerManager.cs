@@ -12,6 +12,7 @@ public sealed class XaEntry
     public Func<byte[]?> Open = () => null;
     public XaOptions Options = new();
     public string PackId = "";
+    public int Rank;
     public string? Note;
     public double Interleave = 1;
     public int TimesPlayed;
@@ -23,8 +24,10 @@ public sealed class XaEntry
         return StartLba <= lba;
     }
 
-    public override string ToString() =>
-        $"{PackId}: f{(FileNumber?.ToString() ?? "*")} c{(Channel?.ToString() ?? "*")} @{StartLba} -> {AudioName}";
+    public override string ToString()
+    {
+        return $"{PackId}: f{FileNumber?.ToString() ?? "*"} c{Channel?.ToString() ?? "*"} @{StartLba} -> {AudioName}";
+    }
 }
 
 public sealed class TextureAsset
@@ -52,10 +55,24 @@ public sealed class TextureRule
         if (Bpp != 0 && Bpp != bpp) return false;
         if (w < MinWidth || h < MinHeight || w > MaxWidth || h > MaxHeight) return false;
         if (Texpages.Length == 0) return true;
-        foreach (int tp in Texpages)
-            if (tp == tpage) return true;
+        foreach (var tp in Texpages)
+            if (tp == tpage)
+                return true;
         return false;
     }
+}
+
+public sealed class SfxAsset
+{
+    public ulong Hash;
+    public string FileName = "";
+    public string PackId = "";
+    public Func<byte[]?> Open = () => null;
+    public float Gain = 1f;
+    public bool PitchFollow = true;
+    public int BaseRate;
+    public bool? Loop;
+    public string? Note;
 }
 
 public sealed class ClutAsset
@@ -76,37 +93,75 @@ public sealed class AssetStats
     public int TextureHits;
     public int TextureMisses;
     public int TextureLoadFailures;
+    public int SfxHits;
+    public int SfxLoadFailures;
 }
 
 public sealed class AssetReplacerManager
 {
-    static readonly Lazy<AssetReplacerManager> _instance = new(() => new AssetReplacerManager());
+    private sealed record DirectTextureFolder(int Priority, long Sequence, Dictionary<ulong, TextureAsset> Textures);
+
+    private static readonly Lazy<AssetReplacerManager> _instance = new(() => new AssetReplacerManager());
     public static AssetReplacerManager Instance => _instance.Value;
 
-    readonly object _gate = new();
-    readonly List<AssetPack> _packs = [];
-    readonly List<XaEntry> _xa = [];
-    readonly List<XaEntry> _runtimeXa = [];
-    readonly Dictionary<ulong, TextureAsset> _texExact = [];
-    readonly Dictionary<ulong, TextureAsset> _texAny = [];
-    readonly Dictionary<ulong, ClutAsset> _cluts = [];
-    readonly List<TextureRule> _rules = [];
+    private readonly object _gate = new();
+    private readonly List<AssetPack> _packs = [];
+    private readonly List<XaEntry> _xa = [];
+    private readonly List<XaEntry> _runtimeXa = [];
+    private readonly Dictionary<ulong, TextureAsset> _texExact = [];
+    private readonly Dictionary<ulong, TextureAsset> _texAny = [];
+    private readonly Dictionary<string, DirectTextureFolder> _directTextureFolders = new(StringComparer.OrdinalIgnoreCase);
+    private long _textureFolderSequence;
+    private readonly Dictionary<ulong, ClutAsset> _cluts = [];
+    private readonly List<TextureRule> _rules = [];
+    private readonly Dictionary<ulong, SfxAsset> _sfx = [];
+    private volatile Dictionary<ulong, SfxAsset> _sfxView = [];
+    private PackState _state = new();
+    private FileSystemWatcher? _watcher;
+    private long _reloadDue;
+    private int _generation;
 
-    string _gameId = "UNKNOWN";
-    bool _gameIdResolved;
+    private string _gameId = "UNKNOWN";
+    private bool _gameIdResolved;
 
-    public bool Enabled { get; set; } = true;
+    private bool _enabled = true;
+
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (_enabled == value) return;
+            _enabled = value;
+            Xa.XaRouter.Rebind(); //so this shit dont crash
+        }
+    }
+    public bool AutoReload { get; set; } = true;
     public string Root { get; private set; } = "";
     public AssetStats Stats { get; } = new();
+    public int Generation => Volatile.Read(ref _generation);
+    public event Action? Reloaded;
 
     public IReadOnlyList<AssetPack> Packs
     {
-        get { lock (_gate) return _packs.ToArray(); }
+        get
+        {
+            lock (_gate)
+            {
+                return _packs.ToArray();
+            }
+        }
     }
 
     public IReadOnlyList<XaEntry> XaEntries
     {
-        get { lock (_gate) return _xa.Concat(_runtimeXa).ToArray(); }
+        get
+        {
+            lock (_gate)
+            {
+                return _xa.Concat(_runtimeXa).ToArray();
+            }
+        }
     }
 
     public string GameId
@@ -127,14 +182,14 @@ public sealed class AssetReplacerManager
             var cd = Runtime.Cd;
             if (cd == null) return;
             var bytes = cd.Fs.ReadFile("SYSTEM.CNF");
-            string text = System.Text.Encoding.ASCII.GetString(bytes);
-            int i = text.IndexOf("cdrom", StringComparison.OrdinalIgnoreCase);
+            var text = System.Text.Encoding.ASCII.GetString(bytes);
+            var i = text.IndexOf("cdrom", StringComparison.OrdinalIgnoreCase);
             if (i < 0) return;
-            int end = text.IndexOfAny(['\r', '\n'], i);
-            string boot = end < 0 ? text[i..] : text[i..end];
-            int slash = boot.LastIndexOfAny(['\\', '/', ':']);
-            string name = slash >= 0 ? boot[(slash + 1)..] : boot;
-            int semi = name.IndexOf(';');
+            var end = text.IndexOfAny(['\r', '\n'], i);
+            var boot = end < 0 ? text[i..] : text[i..end];
+            var slash = boot.LastIndexOfAny(['\\', '/', ':']);
+            var name = slash >= 0 ? boot[(slash + 1)..] : boot;
+            var semi = name.IndexOf(';');
             if (semi >= 0) name = name[..semi];
             name = name.Trim().ToUpperInvariant().Replace("_", "-").Replace(".", "");
             if (name.Length > 0) _gameId = name;
@@ -148,8 +203,14 @@ public sealed class AssetReplacerManager
     {
         root ??= Path.GetFullPath("packs");
         Root = root;
-        try { Directory.CreateDirectory(root); }
-        catch (Exception ex) { Console.Error.WriteLine($"[assets] cannot create '{root}': {ex.Message}"); }
+        try
+        {
+            Directory.CreateDirectory(root);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[assets] cannot create '{root}': {ex.Message}");
+        }
 
         ResolveGameId();
 
@@ -159,14 +220,15 @@ public sealed class AssetReplacerManager
             foreach (var dir in Directory.EnumerateDirectories(root))
             {
                 if (Path.GetFileName(dir).StartsWith('.')) continue;
-                var pack = AssetPack.Open(dir, out string? err);
+                var pack = AssetPack.Open(dir, out var err);
                 if (pack != null) found.Add(pack);
                 else if (err != "pack.json not found")
                     Console.Error.WriteLine($"[assets] {Path.GetFileName(dir)}: {err}");
             }
+
             foreach (var zip in Directory.EnumerateFiles(root, "*.zip"))
             {
-                var pack = AssetPack.Open(zip, out string? err);
+                var pack = AssetPack.Open(zip, out var err);
                 if (pack != null) found.Add(pack);
                 else Console.Error.WriteLine($"[assets] {Path.GetFileName(zip)}: {err}");
             }
@@ -176,53 +238,221 @@ public sealed class AssetReplacerManager
             Console.Error.WriteLine($"[assets] discovery failed: {ex.Message}");
         }
 
+        var state = PackState.Load(root);
         found.Sort((a, b) =>
         {
-            int p = a.Manifest.Priority.CompareTo(b.Manifest.Priority);
+            int ia = state.IndexOf(a.Id), ib = state.IndexOf(b.Id);
+            if (ia >= 0 && ib >= 0) return ia.CompareTo(ib);
+            if (ia >= 0) return 1;
+            if (ib >= 0) return -1;
+            var p = b.Manifest.Priority.CompareTo(a.Manifest.Priority);
             return p != 0 ? p : string.CompareOrdinal(a.Id, b.Id);
         });
 
         lock (_gate)
         {
-            _packs.Clear();
-            _xa.Clear();
-            foreach (var pack in found)
-            {
-                if (!pack.TargetsGame(_gameId))
-                {
-                    pack.LoadError = $"targets another game (disc is {_gameId})";
-                    pack.Enabled = false;
-                    _packs.Add(pack);
-                    Console.WriteLine($"[assets] '{pack.Id}' disabled: {pack.LoadError}");
-                    continue;
-                }
-                _packs.Add(pack);
-                IndexXa(pack);
-                IndexTextures(pack);
-            }
-        }
-
-        Console.WriteLine($"[assets] game={_gameId} packs={found.Count} xa={_xa.Count} " +
-                          $"tex={_texExact.Count + _texAny.Count} cluts={_cluts.Count} rules={_rules.Count} root={root}");
-    }
-
-    public void Reload()
-    {
-        lock (_gate)
-        {
+            _state = state;
             _packs.Clear();
             _xa.Clear();
             _texExact.Clear();
             _texAny.Clear();
             _cluts.Clear();
             _rules.Clear();
+            _sfx.Clear();
+
+            foreach (var pack in found)
+            {
+                _packs.Add(pack);
+                pack.Enabled = state.IsEnabled(pack.Id);
+            }
+
+            for (var rank = found.Count - 1; rank >= 0; rank--)
+            {
+                var pack = found[rank];
+                if (!pack.Enabled) continue;
+                IndexXa(pack, rank);
+                IndexTextures(pack);
+                IndexSfx(pack);
+            }
+
+            _xa.Sort((a, b) =>
+            {
+                var lba = b.StartLba.CompareTo(a.StartLba);
+                return lba != 0 ? lba : a.Rank.CompareTo(b.Rank);
+            });
+
+            _sfxView = new Dictionary<ulong, SfxAsset>(_sfx);
+            RefreshHasTextures();
         }
-        Textures.TextureResolver.Invalidate();
-        Xa.XaRouter.Reset();
-        LoadAll(string.IsNullOrEmpty(Root) ? null : Root);
+
+        Interlocked.Increment(ref _generation);
+        EnsureWatcher(root);
+
+        Console.WriteLine($"[assets] game={_gameId} packs={found.Count} xa={_xa.Count} " +
+                          $"tex={_texExact.Count + _texAny.Count} cluts={_cluts.Count} rules={_rules.Count} " +
+                          $"sfx={_sfx.Count} root={root}");
+        Reloaded?.Invoke();
     }
 
-    void IndexXa(AssetPack pack)
+    public void Reload()
+    {
+        Interlocked.Exchange(ref _reloadDue, 0);
+        var xa = XaSignature();
+        LoadAll(string.IsNullOrEmpty(Root) ? null : Root);
+        Textures.TextureResolver.Invalidate();
+        Sfx.SfxCache.Clear();
+        if (XaSignature() != xa) Xa.XaRouter.Rebind();
+    }
+
+    public void RequestReload(int delayMs = 0)
+    {
+        Interlocked.Exchange(ref _reloadDue, Environment.TickCount64 + Math.Max(1, delayMs));
+    }
+
+    public void Pump()
+    {
+        var due = Interlocked.Read(ref _reloadDue);
+        if (due == 0 || Environment.TickCount64 < due) return;
+        Reload();
+    }
+
+    private string XaSignature()
+    {
+        lock (_gate)
+        {
+            return string.Join('|', _xa.Select(e => $"{e.PackId}:{e.FileNumber}:{e.Channel}:{e.StartLba}:{e.AudioName}"));
+        }
+    }
+
+    private void EnsureWatcher(string root)
+    {
+        if (_watcher != null && _watcher.Path == root) return;
+        _watcher?.Dispose();
+        _watcher = null;
+        try
+        {
+            var watcher = new FileSystemWatcher(root)
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite |
+                               NotifyFilters.Size
+            };
+            watcher.Changed += OnPackFileChanged;
+            watcher.Created += OnPackFileChanged;
+            watcher.Deleted += OnPackFileChanged;
+            watcher.Renamed += OnPackFileChanged;
+            watcher.EnableRaisingEvents = true;
+            _watcher = watcher;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[assets] cannot watch '{root}' for changes: {ex.Message}");
+        }
+    }
+
+    private void OnPackFileChanged(object sender, FileSystemEventArgs e)
+    {
+        if (!AutoReload) return;
+        if (Path.GetFileName(e.FullPath).Equals("packs.json", StringComparison.OrdinalIgnoreCase) &&
+            Path.GetDirectoryName(e.FullPath) == Root)
+            return;
+        RequestReload(600);
+    }
+
+    public bool IsPackEnabled(string id)
+    {
+        lock (_gate)
+        {
+            return _state.IsEnabled(id);
+        }
+    }
+
+    public void SetPackEnabled(string id, bool enabled)
+    {
+        lock (_gate)
+        {
+            _state.Disabled.RemoveAll(d => d.Equals(id, StringComparison.OrdinalIgnoreCase));
+            if (!enabled) _state.Disabled.Add(id);
+            SaveOrder();
+        }
+
+        Reload();
+    }
+
+    public void MovePack(string id, int index)
+    {
+        lock (_gate)
+        {
+            var order = _packs.Select(p => p.Id).ToList();
+            var from = order.FindIndex(o => o.Equals(id, StringComparison.OrdinalIgnoreCase));
+            if (from < 0) return;
+            order.RemoveAt(from);
+            order.Insert(Math.Clamp(index, 0, order.Count), id);
+            _state.Order = order;
+            SaveOrder();
+        }
+
+        Reload();
+    }
+
+    public void PutOnTop(string id)
+    {
+        lock (_gate)
+        {
+            _state.Order.RemoveAll(o => o.Equals(id, StringComparison.OrdinalIgnoreCase));
+            _state.Order.Insert(0, id);
+            _state.Disabled.RemoveAll(d => d.Equals(id, StringComparison.OrdinalIgnoreCase));
+            SaveOrder();
+        }
+    }
+
+    private void SaveOrder()
+    {
+        if (_state.Order.Count == 0) _state.Order = _packs.Select(p => p.Id).ToList();
+        if (!string.IsNullOrEmpty(Root)) _state.Save(Root);
+    }
+
+    public void LoadTextureFolder(string id, string directory, int priority)
+    {
+        var replacements = new Dictionary<ulong, TextureAsset>();
+        if (Directory.Exists(directory))
+        {
+            foreach (var path in Directory.EnumerateFiles(directory, "*.png", SearchOption.TopDirectoryOnly))
+            {
+                var name = Path.GetFileNameWithoutExtension(path);
+                if (!AssetHash.TryParseHex(name, out var hash)) continue;
+                replacements[hash] = new TextureAsset
+                {
+                    IndexHash = hash,
+                    Mode = TextureMode.Rgba,
+                    FileName = path,
+                    PackId = id,
+                    Open = () => File.Exists(path) ? File.ReadAllBytes(path) : null
+                };
+            }
+        }
+
+        lock (_gate)
+        {
+            _directTextureFolders[id] = new DirectTextureFolder(priority, ++_textureFolderSequence, replacements);
+            RefreshHasTextures();
+        }
+
+        Textures.TextureResolver.Invalidate();
+    }
+
+    public void UnloadTextureFolder(string id)
+    {
+        lock (_gate)
+        {
+            _directTextureFolders.Remove(id);
+            RefreshHasTextures();
+        }
+
+        Textures.TextureResolver.Invalidate();
+    }
+
+    private void IndexXa(AssetPack pack, int rank)
     {
         var list = pack.Manifest.Xa;
         if (list == null) return;
@@ -239,9 +469,10 @@ public sealed class AssetReplacerManager
             var entry = new XaEntry
             {
                 PackId = pack.Id,
+                Rank = rank,
                 AudioName = dto.Audio!,
                 Note = dto.Note,
-                Options = BuildOptions(dto, defaults),
+                Options = BuildOptions(dto, defaults)
             };
 
             if (dto.FileNumber.HasValue) entry.FileNumber = (byte)dto.FileNumber.Value;
@@ -249,58 +480,37 @@ public sealed class AssetReplacerManager
             entry.StartLba = dto.StartLba ?? 0;
 
             if (entry.StartLba == 0 && !string.IsNullOrWhiteSpace(dto.File))
-            {
                 try
                 {
-                    if (Runtime.Cd?.Fs.Locate(dto.File!, out int lba, out _) == true)
+                    if (Runtime.Cd?.Fs.Locate(dto.File!, out var lba, out _) == true)
                         entry.StartLba = lba;
                 }
                 catch
                 {
                 }
-            }
 
-            if (!string.IsNullOrWhiteSpace(dto.Hash) && AssetHash.TryParseHex(dto.Hash, out ulong h))
+            if (!string.IsNullOrWhiteSpace(dto.Hash) && AssetHash.TryParseHex(dto.Hash, out var h))
                 entry.PayloadHash = h;
 
-            string audio = dto.Audio!;
+            var audio = dto.Audio!;
             var owner = pack;
             entry.Open = () => owner.ReadAsset(audio);
 
             _xa.Add(entry);
         }
-
-        _xa.Sort((a, b) => b.StartLba.CompareTo(a.StartLba));
     }
 
-    void IndexTextures(AssetPack pack)
+    private void IndexTextures(AssetPack pack)
     {
-        foreach (string file in pack.ListAssets("textures"))
+        foreach (var file in pack.ListAssets("textures"))
+            if (PackContents.TryParseTexture(file, out var index, out var clutHash, out var mode))
+                AddTexture(pack, file, index, clutHash, mode);
+
+        foreach (var file in pack.ListAssets("cluts"))
         {
-            string name = Path.GetFileName(file);
-            if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
-
-            string stem = name[..^4];
-            var mode = TextureMode.Rgba;
-            if (stem.EndsWith(".idx", StringComparison.OrdinalIgnoreCase))
-            {
-                stem = stem[..^4];
-                mode = TextureMode.Indexed;
-            }
-
-            string[] parts = stem.Split('_');
-            if (!AssetHash.TryParseHex(parts[0], out ulong index)) continue;
-            ulong clutHash = 0;
-            if (parts.Length > 1 && !AssetHash.TryParseHex(parts[1], out clutHash)) continue;
-
-            AddTexture(pack, file, index, clutHash, mode);
-        }
-
-        foreach (string file in pack.ListAssets("cluts"))
-        {
-            string name = Path.GetFileName(file);
+            var name = Path.GetFileName(file);
             if (!name.EndsWith(".clut.png", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!AssetHash.TryParseHex(name[..^9], out ulong clutHash)) continue;
+            if (!AssetHash.TryParseHex(name[..^9], out var clutHash)) continue;
             AddClut(pack, file, clutHash);
         }
 
@@ -308,7 +518,7 @@ public sealed class AssetReplacerManager
             foreach (var dto in pack.Manifest.Textures)
             {
                 if (string.IsNullOrWhiteSpace(dto.File)) continue;
-                if (!AssetHash.TryParseHex(dto.Index ?? dto.Hash, out ulong index)) continue;
+                if (!AssetHash.TryParseHex(dto.Index ?? dto.Hash, out var index)) continue;
 
                 ulong clutHash = 0;
                 if (!string.IsNullOrWhiteSpace(dto.Clut) &&
@@ -320,11 +530,13 @@ public sealed class AssetReplacerManager
             }
 
         if (pack.Manifest.TextureRules != null)
+        {
+            var rules = new List<TextureRule>();
             foreach (var dto in pack.Manifest.TextureRules)
             {
                 if (string.IsNullOrWhiteSpace(dto.File)) continue;
-                string file = dto.File!;
-                _rules.Add(new TextureRule
+                var file = dto.File!;
+                rules.Add(new TextureRule
                 {
                     Texpages = dto.Texpages?.ToArray() ?? [],
                     Bpp = dto.Bpp ?? 0,
@@ -337,21 +549,65 @@ public sealed class AssetReplacerManager
                         Mode = TextureMode.Rgba,
                         FileName = file,
                         PackId = pack.Id,
-                        Open = () => pack.ReadAsset(file),
-                    },
+                        Open = () => pack.ReadAsset(file)
+                    }
                 });
             }
+
+            _rules.InsertRange(0, rules);
+        }
 
         if (pack.Manifest.Cluts != null)
             foreach (var dto in pack.Manifest.Cluts)
             {
                 if (string.IsNullOrWhiteSpace(dto.File)) continue;
-                if (!AssetHash.TryParseHex(dto.Clut ?? dto.Hash, out ulong clutHash)) continue;
+                if (!AssetHash.TryParseHex(dto.Clut ?? dto.Hash, out var clutHash)) continue;
                 AddClut(pack, dto.File!, clutHash);
             }
     }
 
-    void AddTexture(AssetPack pack, string file, ulong index, ulong clutHash, TextureMode mode)
+    private void IndexSfx(AssetPack pack)
+    {
+        var found = new Dictionary<ulong, SfxAsset>();
+        foreach (var file in pack.ListAssets("sfx"))
+            if (PackContents.TryParseSound(file, out var hash))
+                found[hash] = NewSfx(pack, hash, file);
+
+        if (pack.Manifest.Sfx != null)
+            foreach (var dto in pack.Manifest.Sfx)
+            {
+                if (!AssetHash.TryParseHex(dto.Hash, out var hash)) continue;
+                if (!string.IsNullOrWhiteSpace(dto.File)) found[hash] = NewSfx(pack, hash, dto.File!);
+                if (!found.TryGetValue(hash, out var asset)) continue;
+                if (dto.Gain.HasValue) asset.Gain = dto.Gain.Value;
+                if (dto.PitchFollow.HasValue) asset.PitchFollow = dto.PitchFollow.Value;
+                if (dto.BaseRate.HasValue) asset.BaseRate = dto.BaseRate.Value;
+                if (dto.Loop.HasValue) asset.Loop = dto.Loop.Value;
+                asset.Note = dto.Note;
+            }
+
+        foreach (var (hash, asset) in found) _sfx[hash] = asset;
+    }
+
+    private static SfxAsset NewSfx(AssetPack pack, ulong hash, string file)
+    {
+        return new SfxAsset
+        {
+            Hash = hash,
+            FileName = file,
+            PackId = pack.Id,
+            Open = () => pack.ReadAsset(file)
+        };
+    }
+
+    public bool HasSfx => _sfxView.Count > 0;
+
+    public SfxAsset? ResolveSfx(ulong hash)
+    {
+        return Enabled && _sfxView.TryGetValue(hash, out var asset) ? asset : null;
+    }
+
+    private void AddTexture(AssetPack pack, string file, ulong index, ulong clutHash, TextureMode mode)
     {
         var asset = new TextureAsset
         {
@@ -360,34 +616,47 @@ public sealed class AssetReplacerManager
             Mode = mode,
             FileName = file,
             PackId = pack.Id,
-            Open = () => pack.ReadAsset(file),
+            Open = () => pack.ReadAsset(file)
         };
 
         if (clutHash == 0) _texAny[index] = asset;
         else _texExact[Combine(index, clutHash)] = asset;
     }
 
-    void AddClut(AssetPack pack, string file, ulong clutHash)
+    private void AddClut(AssetPack pack, string file, ulong clutHash)
     {
         _cluts[clutHash] = new ClutAsset
         {
             ClutHash = clutHash,
             FileName = file,
             PackId = pack.Id,
-            Open = () => pack.ReadAsset(file),
+            Open = () => pack.ReadAsset(file)
         };
     }
 
-    static ulong Combine(ulong a, ulong b) => (a * 1099511628211UL) ^ b;
-
-    public bool HasTextures
+    private static ulong Combine(ulong a, ulong b)
     {
-        get { lock (_gate) return _texExact.Count > 0 || _texAny.Count > 0 || _cluts.Count > 0 || _rules.Count > 0; }
+        return (a * 1099511628211UL) ^ b;
+    }
+
+    private volatile bool _hasTextures;
+    public bool HasTextures => _hasTextures;
+
+    private void RefreshHasTextures()
+    {
+        _hasTextures = _directTextureFolders.Values.Any(folder => folder.Textures.Count > 0) ||
+                       _texExact.Count > 0 || _texAny.Count > 0 || _cluts.Count > 0 || _rules.Count > 0;
     }
 
     public bool HasRules
     {
-        get { lock (_gate) return _rules.Count > 0; }
+        get
+        {
+            lock (_gate)
+            {
+                return _rules.Count > 0;
+            }
+        }
     }
 
     public TextureAsset? MatchRule(int tpage, int bpp, int w, int h)
@@ -396,7 +665,8 @@ public sealed class AssetReplacerManager
         lock (_gate)
         {
             foreach (var rule in _rules)
-                if (rule.Matches(tpage, bpp, w, h)) return rule.Asset;
+                if (rule.Matches(tpage, bpp, w, h))
+                    return rule.Asset;
             return null;
         }
     }
@@ -406,6 +676,18 @@ public sealed class AssetReplacerManager
         if (!Enabled) return null;
         lock (_gate)
         {
+            TextureAsset? direct = null;
+            var bestPriority = int.MinValue;
+            var bestSequence = long.MinValue;
+            foreach (var folder in _directTextureFolders.Values)
+            {
+                if (folder.Priority < bestPriority || !folder.Textures.TryGetValue(indexHash, out var texture)) continue;
+                if (folder.Priority == bestPriority && folder.Sequence < bestSequence) continue;
+                direct = texture;
+                bestPriority = folder.Priority;
+                bestSequence = folder.Sequence;
+            }
+            if (direct != null) return direct;
             if (_texExact.TryGetValue(Combine(indexHash, clutHash), out var exact)) return exact;
             return _texAny.GetValueOrDefault(indexHash);
         }
@@ -414,7 +696,10 @@ public sealed class AssetReplacerManager
     public ClutAsset? ResolveClut(ulong clutHash)
     {
         if (!Enabled || clutHash == 0) return null;
-        lock (_gate) return _cluts.GetValueOrDefault(clutHash);
+        lock (_gate)
+        {
+            return _cluts.GetValueOrDefault(clutHash);
+        }
     }
 
     public ReplacementTexture? LoadTexture(TextureAsset asset)
@@ -425,7 +710,7 @@ public sealed class AssetReplacerManager
         asset.Loaded = loaded;
         try
         {
-            byte[]? data = asset.Open();
+            var data = asset.Open();
             if (data == null) throw new FileNotFoundException(asset.FileName);
 
             var img = StbImageSharp.ImageResult.FromMemory(data, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
@@ -453,11 +738,11 @@ public sealed class AssetReplacerManager
         asset.Loaded = loaded;
         try
         {
-            byte[]? data = asset.Open();
+            var data = asset.Open();
             if (data == null) throw new FileNotFoundException(asset.FileName);
 
             var img = StbImageSharp.ImageResult.FromMemory(data, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
-            int count = img.Width * img.Height;
+            var count = img.Width * img.Height;
             if (count != 16 && count != 256)
                 throw new InvalidDataException($"palette must hold 16 or 256 entries, got {count}");
 
@@ -474,7 +759,7 @@ public sealed class AssetReplacerManager
         }
     }
 
-    static XaOptions BuildOptions(XaEntryDto dto, XaEntryDto? defaults)
+    private static XaOptions BuildOptions(XaEntryDto dto, XaEntryDto? defaults)
     {
         var o = new XaOptions();
         Apply(defaults);
@@ -497,7 +782,7 @@ public sealed class AssetReplacerManager
                 {
                     "loop" => ShortPolicy.Loop,
                     "endstream" or "end" => ShortPolicy.EndStream,
-                    _ => ShortPolicy.Silence,
+                    _ => ShortPolicy.Silence
                 };
         }
     }
@@ -509,11 +794,24 @@ public sealed class AssetReplacerManager
         {
             XaEntry? best = null;
             foreach (var e in _runtimeXa)
-                if (e.Matches(file, channel, lba) && (best == null || e.StartLba > best.StartLba)) best = e;
+                if (e.Matches(file, channel, lba) && (best == null || e.StartLba > best.StartLba))
+                    best = e;
             if (best != null) return best;
             foreach (var e in _xa)
-                if (e.Matches(file, channel, lba) && (best == null || e.StartLba > best.StartLba)) best = e;
+                if (e.Matches(file, channel, lba) && (best == null || e.StartLba > best.StartLba))
+                    best = e;
             return best;
+        }
+    }
+
+    public bool HasXaHashes
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _runtimeXa.Any(e => e.PayloadHash != 0) || _xa.Any(e => e.PayloadHash != 0);
+            }
         }
     }
 
@@ -523,9 +821,11 @@ public sealed class AssetReplacerManager
         lock (_gate)
         {
             foreach (var e in _runtimeXa)
-                if (e.PayloadHash == payloadHash) return e;
+                if (e.PayloadHash == payloadHash)
+                    return e;
             foreach (var e in _xa)
-                if (e.PayloadHash == payloadHash) return e;
+                if (e.PayloadHash == payloadHash)
+                    return e;
             return null;
         }
     }
@@ -545,13 +845,14 @@ public sealed class AssetReplacerManager
     {
         try
         {
-            byte[]? data = entry.Open();
+            var data = entry.Open();
             if (data == null || data.Length == 0)
             {
                 Stats.XaOpenFailures++;
                 Console.Error.WriteLine($"[assets] {entry.PackId}: '{entry.AudioName}' is missing or empty");
                 return null;
             }
+
             var decoder = PcmDecoderFactory.Open(entry.AudioName, data);
             return new ReplacementStream(entry.AudioName, decoder, entry.Options.Clone());
         }
@@ -574,9 +875,13 @@ public sealed class AssetReplacerManager
             AudioName = audioPath,
             Options = options ?? new XaOptions(),
             PackId = owner,
-            Open = () => File.Exists(audioPath) ? File.ReadAllBytes(audioPath) : null,
+            Open = () => File.Exists(audioPath) ? File.ReadAllBytes(audioPath) : null
         };
-        lock (_gate) _runtimeXa.Add(entry);
+        lock (_gate)
+        {
+            _runtimeXa.Add(entry);
+        }
+
         return entry;
     }
 
@@ -591,19 +896,29 @@ public sealed class AssetReplacerManager
             AudioName = name,
             Options = options ?? new XaOptions(),
             PackId = owner,
-            Open = open,
+            Open = open
         };
-        lock (_gate) _runtimeXa.Add(entry);
+        lock (_gate)
+        {
+            _runtimeXa.Add(entry);
+        }
+
         return entry;
     }
 
     public void UnregisterXa(XaEntry entry)
     {
-        lock (_gate) _runtimeXa.Remove(entry);
+        lock (_gate)
+        {
+            _runtimeXa.Remove(entry);
+        }
     }
 
     public void ClearRuntimeRegistrations(string owner)
     {
-        lock (_gate) _runtimeXa.RemoveAll(e => e.PackId == owner);
+        lock (_gate)
+        {
+            _runtimeXa.RemoveAll(e => e.PackId == owner);
+        }
     }
 }

@@ -1,128 +1,489 @@
+using System.Runtime.CompilerServices;
+
 namespace RecompOne.Runtime;
 
 public static class Gte
 {
-    static readonly short[] V = new short[9];
-    static byte RGBC_R, RGBC_G, RGBC_B, RGBC_CODE;
-    static ushort OTZ;
-    static int IR0, IR1, IR2, IR3;
-    static readonly short[] SX = new short[3];
-    static readonly short[] SY = new short[3];
-    static readonly ushort[] SZ = new ushort[4];
-    static readonly uint[] RGB = new uint[3];
-    static uint RES1;
-    static int MAC0, MAC1, MAC2, MAC3;
-    static uint LZCS, LZCR;
+    private static readonly short[] V = new short[9];
+    private static byte RGBC_R, RGBC_G, RGBC_B, RGBC_CODE;
+    private static ushort OTZ;
+    private static int IR0, IR1, IR2, IR3;
+    private static readonly short[] SX = new short[3];
+    private static readonly short[] SY = new short[3];
+    private static readonly ushort[] SZ = new ushort[4];
+    private static readonly uint[] RGB = new uint[3];
+    private static uint RES1;
+    private static int MAC0, MAC1, MAC2, MAC3;
+    private static uint LZCS, LZCR;
 
-    static readonly short[] RT = new short[9];
-    static readonly short[] LLM = new short[9];
-    static readonly short[] LCM = new short[9];
-    static readonly int[] TR = new int[3];
-    static readonly int[] BK = new int[3];
-    static readonly int[] FC = new int[3];
-    static int OFX, OFY;
-    static ushort H;
-    static short DQA;
-    static int DQB;
-    static short ZSF3, ZSF4;
-    static uint FLAG;
+    private static readonly short[] RT = new short[9];
+    private static readonly short[] LLM = new short[9];
+    private static readonly short[] LCM = new short[9];
+    private static readonly int[] TR = new int[3];
+    private static readonly int[] BK = new int[3];
+    private static readonly int[] FC = new int[3];
+    private static int OFX, OFY;
+    private static ushort H;
+    private static short DQA;
+    private static int DQB;
+    private static short ZSF3, ZSF4;
+    private static uint FLAG;
 
-    static readonly byte[] Unr = BuildUnr();
+    public readonly record struct FloatVertex(float X, float Y, float Z, float ScreenX, float ScreenY, float Depth);
+    private static readonly float[] FloatV = new float[9];
+    private static readonly FloatVertex[] FloatFifo = new FloatVertex[3];
+    private static readonly float[] FloatRotation = new float[9];
+    private static readonly float[] FloatTranslation = new float[3];
+    private static float FloatH, FloatOfx, FloatOfy;
+    
+    public static  void LoadVertexFloat(int index, float x, float y, float z)
+    {
+        if ((uint)index >= 3u) return;
+        var offset = index * 3;
+        FloatV[offset] = x;
+        FloatV[offset + 1] = y;
+        FloatV[offset + 2] = z;
+    }
+    
+    public static void SetFloatTransform(ReadOnlySpan<float> rotation, ReadOnlySpan<float> translation, float h, float ofx, float ofy)
+    {
+        if (rotation.Length < 9 || translation.Length < 3) return;
+        rotation[..9].CopyTo(FloatRotation);
+        translation[..3].CopyTo(FloatTranslation);
+        FloatH = h;
+        FloatOfx = ofx;
+        FloatOfy = ofy;
+    }
+    
+    public static void RtptFloat()
+    {
+        for (var i = 0; i < 3; i++) FloatFifo[i] = ProjectFloat(i);
+    }
+    
+    public static void RtpsFloat()
+    {
+        FloatFifo[0] = FloatFifo[1];
+        FloatFifo[1] = FloatFifo[2];
+        FloatFifo[2] = ProjectFloat(0);
+    }
+    
+    public static FloatVertex ReadFloatVertex(int index)
+    {
+        return (uint)index < 3u ? FloatFifo[index] : default;
+    }
+    
+    private static FloatVertex ProjectFloat(int index)
+    {
+        var offset = index * 3;
+        var x = FloatV[offset];
+        var y = FloatV[offset + 1];
+        var z = FloatV[offset + 2];
+        var cx = FloatRotation[0] * x + FloatRotation[1] * y + FloatRotation[2] * z + FloatTranslation[0];
+        var cy = FloatRotation[3] * x + FloatRotation[4] * y + FloatRotation[5] * z + FloatTranslation[1];
+        var cz = FloatRotation[6] * x + FloatRotation[7] * y + FloatRotation[8] * z + FloatTranslation[2];
+        var divisor = MathF.Abs(cz) < 0.0001f ? MathF.CopySign(0.0001f, cz == 0f ? 1f : cz) : cz;
+        return new FloatVertex(cx, cy, cz, FloatOfx + cx * FloatH / divisor, FloatOfy + cy * FloatH / divisor, cz);
+    }
+    
+    private const int SnapshotSlots = 8192;
+    
+    private static readonly short[] _snapRt = new short[SnapshotSlots * 9];
+    private static readonly int[] _snapTr = new int[SnapshotSlots * 3];
+    private static readonly int[] _snapView = new int[SnapshotSlots * 3];
+    private static readonly uint[] _snapId = new uint[SnapshotSlots];
+    private static readonly short[] _snapCamRt = new short[SnapshotSlots * 9];
+    private static readonly int[] _snapCamTr = new int[SnapshotSlots * 3];
+    private static readonly bool[] _snapCam = new bool[SnapshotSlots];
 
-    static byte[] BuildUnr()
+    private const int MaxCameraDepth = 8;
+    private static readonly short[] _cameraRt = new short[(MaxCameraDepth + 1) * 9];
+    private static readonly int[] _cameraTr = new int[(MaxCameraDepth + 1) * 3];
+    private static bool _hasDefaultCamera;
+    private static int _cameraDepth;
+    private static readonly TransformKind[] _snapKind = new TransformKind[SnapshotSlots];
+    private static int _snapSerial;
+    private static bool _snapDirty = true;
+    private static bool _snapForced = true;
+
+    private static uint _rtSite;
+    private static uint _trSite;
+    private static uint _rtCaller;
+    private static readonly Dictionary<uint, uint> _autoOrdinals = new();
+
+    private const int MaxGroupDepth = 16;
+    private static readonly uint[] _groupBases = new uint[MaxGroupDepth];
+    private static readonly uint[] _groupIds = new uint[MaxGroupDepth];
+    private static readonly uint[] _groupOrdinals = new uint[MaxGroupDepth];
+    private static readonly bool[] _groupIgnore = new bool[MaxGroupDepth];
+    private static int _groupDepth;
+
+    public static int TransformSerial
+    {
+        get
+        {
+            if (!_snapDirty) return _snapSerial;
+
+            _snapDirty = false;
+            if (!_snapForced && _snapSerial > 0 && SameAsSnapshot(_snapSerial)) return _snapSerial;
+            _snapForced = false;
+
+            _snapSerial++;
+
+            var slot = (_snapSerial & (SnapshotSlots - 1)) * 9;
+            for (var i = 0; i < 9; i++) _snapRt[slot + i] = RT[i];
+
+            slot = (_snapSerial & (SnapshotSlots - 1)) * 3;
+            for (var i = 0; i < 3; i++) _snapTr[slot + i] = TR[i];
+
+            _snapView[slot] = H;
+            _snapView[slot + 1] = OFX;
+            _snapView[slot + 2] = OFY;
+
+            slot = _snapSerial & (SnapshotSlots - 1);
+            _snapId[slot] = NextId(out _snapKind[slot]);
+            StoreCamera(slot);
+
+            return _snapSerial;
+        }
+    }
+
+    private static bool SameAsSnapshot(int serial)
+    {
+        var slot = (serial & (SnapshotSlots - 1)) * 9;
+        for (var i = 0; i < 9; i++)
+            if (_snapRt[slot + i] != RT[i]) return false;
+
+        slot = (serial & (SnapshotSlots - 1)) * 3;
+        for (var i = 0; i < 3; i++)
+            if (_snapTr[slot + i] != TR[i]) return false;
+
+        return _snapView[slot] == H && _snapView[slot + 1] == OFX && _snapView[slot + 2] == OFY;
+    }
+
+    private static uint NextId(out TransformKind kind)
+    {
+        if (_groupDepth > 0)
+        {
+            var top = _groupDepth - 1;
+            kind = _groupIgnore[top] ? TransformKind.Ignored : TransformKind.Explicit;
+            return Mix(Mix(_groupIds[top], _groupOrdinals[top]++), 0x51ED270Bu) | 1u;
+        }
+
+        var key = Mix(Mix(_rtSite, _trSite), _rtCaller);
+        _autoOrdinals.TryGetValue(key, out var ordinal);
+        _autoOrdinals[key] = ordinal + 1;
+        kind = TransformKind.Auto;
+        return Mix(key, ordinal) | 1u;
+    }
+
+    private static uint Mix(uint hash, uint value)
+    {
+        hash ^= value + 0x9E3779B9u + (hash << 6) + (hash >> 2);
+        hash ^= hash >> 15;
+        hash *= 0x2C1B3C6Du;
+        hash ^= hash >> 12;
+        return hash;
+    }
+
+    private static void StoreCamera(int slot)
+    {
+        var level = _cameraDepth > 0 ? _cameraDepth : _hasDefaultCamera ? 0 : -1;
+        _snapCam[slot] = level >= 0;
+        if (level < 0) return;
+
+        Array.Copy(_cameraRt, level * 9, _snapCamRt, slot * 9, 9);
+        Array.Copy(_cameraTr, level * 3, _snapCamTr, slot * 3, 3);
+    }
+
+    public static void SetCamera(ReadOnlySpan<short> rotation, ReadOnlySpan<int> translation)
+    {
+        rotation[..9].CopyTo(_cameraRt.AsSpan(0, 9));
+        translation[..3].CopyTo(_cameraTr.AsSpan(0, 3));
+        _hasDefaultCamera = true;
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static void ClearCamera()
+    {
+        _hasDefaultCamera = false;
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static void PushCamera(ReadOnlySpan<short> rotation, ReadOnlySpan<int> translation)
+    {
+        if (_cameraDepth >= MaxCameraDepth) return;
+
+        _cameraDepth++;
+        rotation[..9].CopyTo(_cameraRt.AsSpan(_cameraDepth * 9, 9));
+        translation[..3].CopyTo(_cameraTr.AsSpan(_cameraDepth * 3, 3));
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static void PopCamera()
+    {
+        if (_cameraDepth == 0) return;
+
+        _cameraDepth--;
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static bool SnapshotCamera(int serial, Span<short> rotation, Span<int> translation)
+    {
+        if (serial <= 0 || _snapSerial - serial >= SnapshotSlots) return false;
+
+        var slot = serial & (SnapshotSlots - 1);
+        if (!_snapCam[slot]) return false;
+
+        _snapCamRt.AsSpan(slot * 9, 9).CopyTo(rotation);
+        _snapCamTr.AsSpan(slot * 3, 3).CopyTo(translation);
+        return true;
+    }
+
+    public static void BeginFrame()
+    {
+        _autoOrdinals.Clear();
+        _groupDepth = 0;
+        _cameraDepth = 0;
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static void PushGroup(uint id, bool ignore = false)
+    {
+        if (_groupDepth >= MaxGroupDepth) return;
+
+        _groupBases[_groupDepth] = id;
+        _groupIds[_groupDepth] = id;
+        _groupOrdinals[_groupDepth] = 0;
+        _groupIgnore[_groupDepth] = ignore;
+        _groupDepth++;
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static void SetGroupPart(uint part)
+    {
+        if (_groupDepth == 0) return;
+
+        var top = _groupDepth - 1;
+        _groupIds[top] = Mix(_groupBases[top], part);
+        _groupOrdinals[top] = 0;
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static void PopGroup()
+    {
+        if (_groupDepth == 0) return;
+
+        _groupDepth--;
+        _snapForced = true;
+        _snapDirty = true;
+    }
+
+    public static bool Snapshot(int serial, Span<short> rotation, Span<int> translation, Span<int> view)
+    {
+        if (serial <= 0 || _snapSerial - serial >= SnapshotSlots) return false;
+
+        var slot = (serial & (SnapshotSlots - 1)) * 9;
+        for (var i = 0; i < 9; i++) rotation[i] = _snapRt[slot + i];
+
+        slot = (serial & (SnapshotSlots - 1)) * 3;
+        for (var i = 0; i < 3; i++) translation[i] = _snapTr[slot + i];
+        for (var i = 0; i < 3; i++) view[i] = _snapView[slot + i];
+
+        return true;
+    }
+
+    public static bool SnapshotId(int serial, out uint id, out TransformKind kind)
+    {
+        id = 0;
+        kind = TransformKind.Auto;
+        if (serial <= 0 || _snapSerial - serial >= SnapshotSlots) return false;
+
+        var slot = serial & (SnapshotSlots - 1);
+        id = _snapId[slot];
+        kind = _snapKind[slot];
+        return true;
+    }
+    
+    private static readonly byte[] Unr = BuildUnr();
+
+    private static byte[] BuildUnr()
     {
         var t = new byte[0x101];
-        for (int i = 0; i < 0x101; i++)
+        for (var i = 0; i < 0x101; i++)
         {
-            int v = (0x40000 / (i + 0x100) + 1) / 2 - 0x101;
+            var v = (0x40000 / (i + 0x100) + 1) / 2 - 0x101;
             t[i] = (byte)(v < 0 ? 0 : v > 0xFF ? 0xFF : v);
         }
+
         return t;
     }
 
-    static void Flag(int bit) => FLAG |= 1u << bit;
-
-    static int SatIR(int n, int v, bool lm)
+    private static void Flag(int bit)
     {
-        int min = lm ? 0 : -0x8000;
-        if (v < min) { v = min; Flag(25 - n); }
-        else if (v > 0x7FFF) { v = 0x7FFF; Flag(25 - n); }
+        FLAG |= 1u << bit;
+    }
+
+    private static int SatIR(int n, int v, bool lm)
+    {
+        var min = lm ? 0 : -0x8000;
+        if (v < min)
+        {
+            v = min;
+            Flag(25 - n);
+        }
+        else if (v > 0x7FFF)
+        {
+            v = 0x7FFF;
+            Flag(25 - n);
+        }
+
         return v;
     }
 
-    static int SatIR0(int v)
+    private static int SatIR0(int v)
     {
-        if (v < 0) { Flag(12); return 0; }
-        if (v > 0x1000) { Flag(12); return 0x1000; }
+        if (v < 0)
+        {
+            Flag(12);
+            return 0;
+        }
+
+        if (v > 0x1000)
+        {
+            Flag(12);
+            return 0x1000;
+        }
+
         return v;
     }
 
-    static int SatColor(int n, int v)
+    private static int SatColor(int n, int v)
     {
-        if (v < 0) { Flag(21 - n); return 0; }
-        if (v > 0xFF) { Flag(21 - n); return 0xFF; }
+        if (v < 0)
+        {
+            Flag(21 - n);
+            return 0;
+        }
+
+        if (v > 0xFF)
+        {
+            Flag(21 - n);
+            return 0xFF;
+        }
+
         return v;
     }
 
-    static int SatSZ(int v)
+    private static int SatSZ(int v)
     {
-        if (v < 0) { Flag(18); return 0; }
-        if (v > 0xFFFF) { Flag(18); return 0xFFFF; }
+        if (v < 0)
+        {
+            Flag(18);
+            return 0;
+        }
+
+        if (v > 0xFFFF)
+        {
+            Flag(18);
+            return 0xFFFF;
+        }
+
         return v;
     }
 
-    static int SatX(int v)
+    private static int SatX(int v)
     {
-        if (v < -0x400) { Flag(14); return -0x400; }
-        if (v > 0x3FF) { Flag(14); return 0x3FF; }
+        if (v < -0x400)
+        {
+            Flag(14);
+            return -0x400;
+        }
+
+        if (v > 0x3FF)
+        {
+            Flag(14);
+            return 0x3FF;
+        }
+
         return v;
     }
 
-    static int SatY(int v)
+    private static int SatY(int v)
     {
-        if (v < -0x400) { Flag(13); return -0x400; }
-        if (v > 0x3FF) { Flag(13); return 0x3FF; }
+        if (v < -0x400)
+        {
+            Flag(13);
+            return -0x400;
+        }
+
+        if (v > 0x3FF)
+        {
+            Flag(13);
+            return 0x3FF;
+        }
+
         return v;
     }
 
-    static long CheckMac0(long v)
+    private static long CheckMac0(long v)
     {
         if (v > 0x7FFFFFFFL) Flag(16);
         else if (v < -0x80000000L) Flag(15);
         return v;
     }
 
-    static void CheckMac(int n, long v)
+    private static void CheckMac(int n, long v)
     {
-        if (v >= (1L << 43)) Flag(31 - n);
+        if (v >= 1L << 43) Flag(31 - n);
         else if (v < -(1L << 43)) Flag(28 - n);
     }
 
-    static void SetMac(int n, long v, int sf, bool lm)
+    private static void SetMac(int n, long v, int sf, bool lm)
     {
         CheckMac(n, v);
-        int m = (int)(v >> sf);
-        if (n == 1) { MAC1 = m; IR1 = SatIR(1, m, lm); }
-        else if (n == 2) { MAC2 = m; IR2 = SatIR(2, m, lm); }
-        else { MAC3 = m; IR3 = SatIR(3, m, lm); }
+        var m = (int)(v >> sf);
+        if (n == 1)
+        {
+            MAC1 = m;
+            IR1 = SatIR(1, m, lm);
+        }
+        else if (n == 2)
+        {
+            MAC2 = m;
+            IR2 = SatIR(2, m, lm);
+        }
+        else
+        {
+            MAC3 = m;
+            IR3 = SatIR(3, m, lm);
+        }
     }
 
-    static void MatVec(short[] mx, int t0, int t1, int t2, int vx, int vy, int vz, int sf, bool lm)
+    private static void MatVec(short[] mx, int t0, int t1, int t2, int vx, int vy, int vz, int sf, bool lm)
     {
         SetMac(1, ((long)t0 << 12) + (long)mx[0] * vx + (long)mx[1] * vy + (long)mx[2] * vz, sf, lm);
         SetMac(2, ((long)t1 << 12) + (long)mx[3] * vx + (long)mx[4] * vy + (long)mx[5] * vz, sf, lm);
         SetMac(3, ((long)t2 << 12) + (long)mx[6] * vx + (long)mx[7] * vy + (long)mx[8] * vz, sf, lm);
     }
-    static void PushColor()
+
+    private static void PushColor()
     {
-        int r = SatColor(0, MAC1 >> 4);
-        int g = SatColor(1, MAC2 >> 4);
-        int b = SatColor(2, MAC3 >> 4);
-        RGB[0] = RGB[1]; RGB[1] = RGB[2];
+        var r = SatColor(0, MAC1 >> 4);
+        var g = SatColor(1, MAC2 >> 4);
+        var b = SatColor(2, MAC3 >> 4);
+        RGB[0] = RGB[1];
+        RGB[1] = RGB[2];
         RGB[2] = (uint)(r | (g << 8) | (b << 16) | (RGBC_CODE << 24));
     }
 
-    static void Interp(long in1, long in2, long in3, int sf, bool lm)
+    private static void Interp(long in1, long in2, long in3, int sf, bool lm)
     {
         IR1 = SatIR(1, (int)((((long)FC[0] << 12) - in1) >> sf), false);
         IR2 = SatIR(2, (int)((((long)FC[1] << 12) - in2) >> sf), false);
@@ -133,7 +494,7 @@ public static class Gte
         PushColor();
     }
 
-    static void Modulate(int sf, bool lm)
+    private static void Modulate(int sf, bool lm)
     {
         SetMac(1, ((long)RGBC_R * IR1) << 4, sf, lm);
         SetMac(2, ((long)RGBC_G * IR2) << 4, sf, lm);
@@ -141,165 +502,422 @@ public static class Gte
         PushColor();
     }
 
-    static int Clz16(uint v)
+    private static int Clz16(uint v)
     {
-        int n = 0;
-        for (int i = 15; i >= 0 && (v & (1u << i)) == 0; i--) n++;
-        return n;
+        return System.Numerics.BitOperations.LeadingZeroCount(v | 1u) - 16;
     }
 
-    static uint Divide(uint h, uint sz3)
+    private static uint Divide(uint h, uint sz3)
     {
-        if (h >= sz3 * 2) { Flag(17); return 0x1FFFF; }
-        int z = Clz16(sz3);
-        ulong n = (ulong)h << z;
-        ulong d = (ulong)sz3 << z;
-        int idx = (int)((d - 0x7FC0) >> 7);
-        if (idx < 0) idx = 0; else if (idx > 0x100) idx = 0x100;
-        ulong u = (ulong)Unr[idx] + 0x101;
+        if (h >= sz3 * 2)
+        {
+            Flag(17);
+            return 0x1FFFF;
+        }
+
+        var z = Clz16(sz3);
+        var n = (ulong)h << z;
+        var d = (ulong)sz3 << z;
+        var idx = (int)((d - 0x7FC0) >> 7);
+        if (idx < 0) idx = 0;
+        else if (idx > 0x100) idx = 0x100;
+        var u = (ulong)Unr[idx] + 0x101;
         d = (0x2000080UL - d * u) >> 8;
         d = (0x0000080UL + d * u) >> 8;
-        ulong res = (n * d + 0x8000) >> 16;
+        var res = (n * d + 0x8000) >> 16;
         return res > 0x1FFFF ? 0x1FFFFu : (uint)res;
     }
 
-    static void Rtp(int vx, int vy, int vz, int sf, bool lm, bool last)
+    private static void Rtp(int vx, int vy, int vz, int sf, bool lm, bool last)
     {
-        long m1 = ((long)TR[0] << 12) + (long)RT[0] * vx + (long)RT[1] * vy + (long)RT[2] * vz;
-        long m2 = ((long)TR[1] << 12) + (long)RT[3] * vx + (long)RT[4] * vy + (long)RT[5] * vz;
-        long m3 = ((long)TR[2] << 12) + (long)RT[6] * vx + (long)RT[7] * vy + (long)RT[8] * vz;
-        CheckMac(1, m1); CheckMac(2, m2); CheckMac(3, m3);
-        MAC1 = (int)(m1 >> sf); MAC2 = (int)(m2 >> sf); MAC3 = (int)(m3 >> sf);
+        var m1 = ((long)TR[0] << 12) + (long)RT[0] * vx + (long)RT[1] * vy + (long)RT[2] * vz;
+        var m2 = ((long)TR[1] << 12) + (long)RT[3] * vx + (long)RT[4] * vy + (long)RT[5] * vz;
+        var m3 = ((long)TR[2] << 12) + (long)RT[6] * vx + (long)RT[7] * vy + (long)RT[8] * vz;
+        CheckMac(1, m1);
+        CheckMac(2, m2);
+        CheckMac(3, m3);
+        MAC1 = (int)(m1 >> sf);
+        MAC2 = (int)(m2 >> sf);
+        MAC3 = (int)(m3 >> sf);
         IR1 = SatIR(1, MAC1, lm);
         IR2 = SatIR(2, MAC2, lm);
-        int ir3flag = (int)(m3 >> 12);
+        var ir3flag = (int)(m3 >> 12);
         if (ir3flag < -0x8000 || ir3flag > 0x7FFF) Flag(22);
-        IR3 = MAC3 < (lm ? 0 : -0x8000) ? (lm ? 0 : -0x8000) : MAC3 > 0x7FFF ? 0x7FFF : MAC3;
+        IR3 = MAC3 < (lm ? 0 : -0x8000) ? lm ? 0 : -0x8000 : MAC3 > 0x7FFF ? 0x7FFF : MAC3;
 
-        int sz = SatSZ((int)(m3 >> 12));
-        SZ[0] = SZ[1]; SZ[1] = SZ[2]; SZ[2] = SZ[3]; SZ[3] = (ushort)sz;
+        var sz = SatSZ((int)(m3 >> 12));
+        SZ[0] = SZ[1];
+        SZ[1] = SZ[2];
+        SZ[2] = SZ[3];
+        SZ[3] = (ushort)sz;
 
-        uint div = Divide(H, SZ[3]);
-        long sx = CheckMac0((long)div * IR1 + OFX); MAC0 = (int)sx;
-        long sy = CheckMac0((long)div * IR2 + OFY); MAC0 = (int)sy;
-        int nx = SatX((int)(sx >> 16));
-        int ny = SatY((int)(sy >> 16));
-        SX[0] = SX[1]; SX[1] = SX[2]; SX[2] = (short)nx;
-        SY[0] = SY[1]; SY[1] = SY[2]; SY[2] = (short)ny;
+        var div = Divide(H, SZ[3]);
+        var sx = CheckMac0((long)div * IR1 + OFX);
+        MAC0 = (int)sx;
+        var sy = CheckMac0((long)div * IR2 + OFY);
+        MAC0 = (int)sy;
+        var nx = SatX((int)(sx >> 16));
+        var ny = SatY((int)(sy >> 16));
+        SX[0] = SX[1];
+        SX[1] = SX[2];
+        SX[2] = (short)nx;
+        SY[0] = SY[1];
+        SY[1] = SY[2];
+        SY[2] = (short)ny;
+
 
         if (last)
         {
-            long dp = CheckMac0((long)div * DQA + DQB);
+            var dp = CheckMac0((long)div * DQA + DQB);
             MAC0 = (int)dp;
             IR0 = SatIR0((int)(dp >> 12));
         }
     }
 
+    private static void EndFlag()
+    {
+        if ((FLAG & 0x7F87E000u) != 0) FLAG |= 0x80000000u;
+    }
+
+    private static int _hCandidate, _hVotes;
+
+    public static int SceneH { get; private set; }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void VoteH()
+    {
+        if (_hVotes == 0)
+        {
+            _hCandidate = H;
+            _hVotes = 1;
+        }
+        else if (_hCandidate == H)
+        {
+            _hVotes++;
+        }
+        else
+        {
+            _hVotes--;
+        }
+    }
+
+    public static void CloseFrame()
+    {
+        if (_hVotes > 0) SceneH = _hCandidate;
+        _hVotes = 0;
+    }
+
+    public static bool TryGetCamera(Span<short> rotation, Span<int> translation)
+    {
+        if (!_hasDefaultCamera) return false;
+        _cameraRt.AsSpan(0, 9).CopyTo(rotation);
+        _cameraTr.AsSpan(0, 3).CopyTo(translation);
+        return true;
+    }
+
+    public static void Rtps(int sf, bool lm)
+    {
+        VoteH();
+        FLAG = 0;
+        Rtp(V[0], V[1], V[2], sf, lm, true);
+        EndFlag();
+    }
+
+    public static void Rtpt(int sf, bool lm)
+    {
+        VoteH();
+        FLAG = 0;
+        Rtp(V[0], V[1], V[2], sf, lm, false);
+        Rtp(V[3], V[4], V[5], sf, lm, false);
+        Rtp(V[6], V[7], V[8], sf, lm, true);
+        EndFlag();
+    }
+
+    public static void Nclip()
+    {
+        FLAG = 0;
+
+        MAC0 = (int)CheckMac0((long)SX[0] * (SY[1] - SY[2]) + (long)SX[1] * (SY[2] - SY[0]) +
+                              (long)SX[2] * (SY[0] - SY[1]));
+        EndFlag();
+    }
+
+    public static void Avsz3()
+    {
+        FLAG = 0;
+        MAC0 = (int)CheckMac0((long)ZSF3 * (SZ[1] + SZ[2] + SZ[3]));
+        OTZ = (ushort)SatSZ(MAC0 >> 12);
+        EndFlag();
+    }
+
+    public static void Avsz4()
+    {
+        FLAG = 0;
+        MAC0 = (int)CheckMac0((long)ZSF4 * (SZ[0] + SZ[1] + SZ[2] + SZ[3]));
+        OTZ = (ushort)SatSZ(MAC0 >> 12);
+        EndFlag();
+    }
+
+    public static void MvmvaOp(int sf, bool lm, int mx, int vn, int cv)
+    {
+        FLAG = 0;
+        Mvmva(sf, lm, mx, vn, cv);
+        EndFlag();
+    }
+
+    public static void Sqr(int sf, bool lm)
+    {
+        FLAG = 0;
+        SetMac(1, (long)IR1 * IR1, sf, lm);
+        SetMac(2, (long)IR2 * IR2, sf, lm);
+        SetMac(3, (long)IR3 * IR3, sf, lm);
+        EndFlag();
+    }
+
+    public static void Cross(int sf, bool lm)
+    {
+        FLAG = 0;
+        int ir1 = IR1, ir2 = IR2, ir3 = IR3;
+        SetMac(1, (long)RT[4] * ir3 - (long)RT[8] * ir2, sf, lm);
+        SetMac(2, (long)RT[8] * ir1 - (long)RT[0] * ir3, sf, lm);
+        SetMac(3, (long)RT[0] * ir2 - (long)RT[4] * ir1, sf, lm);
+        EndFlag();
+    }
+
+    public static void Gpf(int sf, bool lm)
+    {
+        FLAG = 0;
+        SetMac(1, (long)IR0 * IR1, sf, lm);
+        SetMac(2, (long)IR0 * IR2, sf, lm);
+        SetMac(3, (long)IR0 * IR3, sf, lm);
+        PushColor();
+        EndFlag();
+    }
+
+    public static void Gpl(int sf, bool lm)
+    {
+        FLAG = 0;
+        SetMac(1, ((long)MAC1 << sf) + (long)IR0 * IR1, sf, lm);
+        SetMac(2, ((long)MAC2 << sf) + (long)IR0 * IR2, sf, lm);
+        SetMac(3, ((long)MAC3 << sf) + (long)IR0 * IR3, sf, lm);
+        PushColor();
+        EndFlag();
+    }
+
+    public static void Dpcs(int sf, bool lm)
+    {
+        FLAG = 0;
+        Interp((long)RGBC_R << 16, (long)RGBC_G << 16, (long)RGBC_B << 16, sf, lm);
+        EndFlag();
+    }
+
+    public static void Dpct(int sf, bool lm)
+    {
+        FLAG = 0;
+        for (var i = 0; i < 3; i++)
+            Interp((long)(RGB[0] & 0xFF) << 16, (long)((RGB[0] >> 8) & 0xFF) << 16, (long)((RGB[0] >> 16) & 0xFF) << 16,
+                sf, lm);
+
+        EndFlag();
+    }
+
+    public static void Intpl(int sf, bool lm)
+    {
+        FLAG = 0;
+        Interp((long)IR1 << 12, (long)IR2 << 12, (long)IR3 << 12, sf, lm);
+        EndFlag();
+    }
+
+    public static void Dcpl(int sf, bool lm)
+    {
+        FLAG = 0;
+        Interp(((long)RGBC_R * IR1) << 4, ((long)RGBC_G * IR2) << 4, ((long)RGBC_B * IR3) << 4, sf, lm);
+        EndFlag();
+    }
+
+    public static void NcsOp(int sf, bool lm)
+    {
+        FLAG = 0;
+        Ncs(0, sf, lm);
+        EndFlag();
+    }
+
+    public static void NctOp(int sf, bool lm)
+    {
+        FLAG = 0;
+        Ncs(0, sf, lm);
+        Ncs(1, sf, lm);
+        Ncs(2, sf, lm);
+        EndFlag();
+    }
+
+    public static void NcdsOp(int sf, bool lm)
+    {
+        FLAG = 0;
+        Ncds(0, sf, lm);
+        EndFlag();
+    }
+
+    public static void NcdtOp(int sf, bool lm)
+    {
+        FLAG = 0;
+        Ncds(0, sf, lm);
+        Ncds(1, sf, lm);
+        Ncds(2, sf, lm);
+        EndFlag();
+    }
+
+    public static void NccsOp(int sf, bool lm)
+    {
+        FLAG = 0;
+        Nccs(0, sf, lm);
+        EndFlag();
+    }
+
+    public static void NcctOp(int sf, bool lm)
+    {
+        FLAG = 0;
+        Nccs(0, sf, lm);
+        Nccs(1, sf, lm);
+        Nccs(2, sf, lm);
+        EndFlag();
+    }
+
+    public static void Cc(int sf, bool lm)
+    {
+        FLAG = 0;
+        MatVec(LCM, BK[0], BK[1], BK[2], IR1, IR2, IR3, sf, lm);
+        Modulate(sf, lm);
+        EndFlag();
+    }
+
+    public static void Cdp(int sf, bool lm)
+    {
+        FLAG = 0;
+        MatVec(LCM, BK[0], BK[1], BK[2], IR1, IR2, IR3, sf, lm);
+        Interp(((long)RGBC_R * IR1) << 4, ((long)RGBC_G * IR2) << 4, ((long)RGBC_B * IR3) << 4, sf, lm);
+        EndFlag();
+    }
+    //should rmeove?
     public static void Execute(uint cmd)
     {
         FLAG = 0;
-        int sf = (cmd & (1u << 19)) != 0 ? 12 : 0;
-        bool lm = (cmd & (1u << 10)) != 0;
-        int mx = (int)((cmd >> 17) & 3);
-        int vn = (int)((cmd >> 15) & 3);
-        int cv = (int)((cmd >> 13) & 3);
+        var sf = (cmd & (1u << 19)) != 0 ? 12 : 0;
+        var lm = (cmd & (1u << 10)) != 0;
+        var mx = (int)((cmd >> 17) & 3);
+        var vn = (int)((cmd >> 15) & 3);
+        var cv = (int)((cmd >> 13) & 3);
 
         switch (cmd & 0x3F)
         {
-            case 0x01: Rtp(V[0], V[1], V[2], sf, lm, true); break;
-            case 0x30:
-                Rtp(V[0], V[1], V[2], sf, lm, false);
-                Rtp(V[3], V[4], V[5], sf, lm, false);
-                Rtp(V[6], V[7], V[8], sf, lm, true);
-                break;
+            case 0x01:
+                Rtps(sf, lm);
+                return;
             case 0x06:
-                MAC0 = (int)CheckMac0((long)SX[0] * (SY[1] - SY[2]) + (long)SX[1] * (SY[2] - SY[0]) + (long)SX[2] * (SY[0] - SY[1]));
-                break;
-            case 0x2D:
-                MAC0 = (int)CheckMac0((long)ZSF3 * (SZ[1] + SZ[2] + SZ[3]));
-                OTZ = (ushort)SatSZ(MAC0 >> 12);
-                break;
-            case 0x2E:
-                MAC0 = (int)CheckMac0((long)ZSF4 * (SZ[0] + SZ[1] + SZ[2] + SZ[3]));
-                OTZ = (ushort)SatSZ(MAC0 >> 12);
-                break;
-            case 0x12: Mvmva(sf, lm, mx, vn, cv); break;
-            case 0x28:
-                SetMac(1, (long)IR1 * IR1, sf, lm);
-                SetMac(2, (long)IR2 * IR2, sf, lm);
-                SetMac(3, (long)IR3 * IR3, sf, lm);
-                break;
+                Nclip();
+                return;
             case 0x0C:
-                int ir1 = IR1, ir2 = IR2, ir3 = IR3;
-                SetMac(1, (long)RT[4] * ir3 - (long)RT[8] * ir2, sf, lm);
-                SetMac(2, (long)RT[8] * ir1 - (long)RT[0] * ir3, sf, lm);
-                SetMac(3, (long)RT[0] * ir2 - (long)RT[4] * ir1, sf, lm);
-                break;
-            case 0x3D:
-                SetMac(1, (long)IR0 * IR1, sf, lm);
-                SetMac(2, (long)IR0 * IR2, sf, lm);
-                SetMac(3, (long)IR0 * IR3, sf, lm);
-                PushColor();
-                break;
-            case 0x3E:
-                SetMac(1, ((long)MAC1 << sf) + (long)IR0 * IR1, sf, lm);
-                SetMac(2, ((long)MAC2 << sf) + (long)IR0 * IR2, sf, lm);
-                SetMac(3, ((long)MAC3 << sf) + (long)IR0 * IR3, sf, lm);
-                PushColor();
-                break;
-            case 0x10: Interp((long)RGBC_R << 16, (long)RGBC_G << 16, (long)RGBC_B << 16, sf, lm); break;
-            case 0x2A:
-                for (int i = 0; i < 3; i++)
-                    Interp((long)(RGB[0] & 0xFF) << 16, (long)((RGB[0] >> 8) & 0xFF) << 16, (long)((RGB[0] >> 16) & 0xFF) << 16, sf, lm);
-                break;
-            case 0x11: Interp((long)IR1 << 12, (long)IR2 << 12, (long)IR3 << 12, sf, lm); break;
-            case 0x29: Interp(((long)RGBC_R * IR1) << 4, ((long)RGBC_G * IR2) << 4, ((long)RGBC_B * IR3) << 4, sf, lm); break;
-            case 0x1E: Ncs(0, sf, lm); break;
-            case 0x20: Ncs(0, sf, lm); Ncs(1, sf, lm); Ncs(2, sf, lm); break;
-            case 0x13: Ncds(0, sf, lm); break;
-            case 0x16: Ncds(0, sf, lm); Ncds(1, sf, lm); Ncds(2, sf, lm); break;
-            case 0x1B: Nccs(0, sf, lm); break;
-            case 0x3F: Nccs(0, sf, lm); Nccs(1, sf, lm); Nccs(2, sf, lm); break;
-            case 0x1C:
-                MatVec(LCM, BK[0], BK[1], BK[2], IR1, IR2, IR3, sf, lm);
-                Modulate(sf, lm);
-                break;
+                Cross(sf, lm);
+                return;
+            case 0x10:
+                Dpcs(sf, lm);
+                return;
+            case 0x11:
+                Intpl(sf, lm);
+                return;
+            case 0x12:
+                MvmvaOp(sf, lm, mx, vn, cv);
+                return;
+            case 0x13:
+                NcdsOp(sf, lm);
+                return;
             case 0x14:
-                MatVec(LCM, BK[0], BK[1], BK[2], IR1, IR2, IR3, sf, lm);
-                Interp(((long)RGBC_R * IR1) << 4, ((long)RGBC_G * IR2) << 4, ((long)RGBC_B * IR3) << 4, sf, lm);
-                break;
+                Cdp(sf, lm);
+                return;
+            case 0x16:
+                NcdtOp(sf, lm);
+                return;
+            case 0x1B:
+                NccsOp(sf, lm);
+                return;
+            case 0x1C:
+                Cc(sf, lm);
+                return;
+            case 0x1E:
+                NcsOp(sf, lm);
+                return;
+            case 0x20:
+                NctOp(sf, lm);
+                return;
+            case 0x28:
+                Sqr(sf, lm);
+                return;
+            case 0x29:
+                Dcpl(sf, lm);
+                return;
+            case 0x2A:
+                Dpct(sf, lm);
+                return;
+            case 0x2D:
+                Avsz3();
+                return;
+            case 0x2E:
+                Avsz4();
+                return;
+            case 0x30:
+                Rtpt(sf, lm);
+                return;
+            case 0x3D:
+                Gpf(sf, lm);
+                return;
+            case 0x3E:
+                Gpl(sf, lm);
+                return;
+            case 0x3F:
+                NcctOp(sf, lm);
+                return;
         }
 
         if ((FLAG & 0x7F87E000u) != 0) FLAG |= 0x80000000u;
     }
 
-    static void Ncs(int vec, int sf, bool lm)
+    private static void Ncs(int vec, int sf, bool lm)
     {
         MatVec(LLM, 0, 0, 0, V[vec * 3], V[vec * 3 + 1], V[vec * 3 + 2], sf, lm);
         MatVec(LCM, BK[0], BK[1], BK[2], IR1, IR2, IR3, sf, lm);
         PushColor();
     }
 
-    static void Ncds(int vec, int sf, bool lm)
+    private static void Ncds(int vec, int sf, bool lm)
     {
         MatVec(LLM, 0, 0, 0, V[vec * 3], V[vec * 3 + 1], V[vec * 3 + 2], sf, lm);
         MatVec(LCM, BK[0], BK[1], BK[2], IR1, IR2, IR3, sf, lm);
         Interp(((long)RGBC_R * IR1) << 4, ((long)RGBC_G * IR2) << 4, ((long)RGBC_B * IR3) << 4, sf, lm);
     }
 
-    static void Nccs(int vec, int sf, bool lm)
+    private static void Nccs(int vec, int sf, bool lm)
     {
         MatVec(LLM, 0, 0, 0, V[vec * 3], V[vec * 3 + 1], V[vec * 3 + 2], sf, lm);
         MatVec(LCM, BK[0], BK[1], BK[2], IR1, IR2, IR3, sf, lm);
         Modulate(sf, lm);
     }
 
-    static void Mvmva(int sf, bool lm, int mx, int vn, int cv)
+    private static void Mvmva(int sf, bool lm, int mx, int vn, int cv)
     {
-        short[] mat = mx == 0 ? RT : mx == 1 ? LLM : mx == 2 ? LCM : RT;
+        var mat = mx == 0 ? RT : mx == 1 ? LLM : mx == 2 ? LCM : RT;
         int vx, vy, vz;
-        if (vn < 3) { vx = V[vn * 3]; vy = V[vn * 3 + 1]; vz = V[vn * 3 + 2]; }
-        else { vx = IR1; vy = IR2; vz = IR3; }
+        if (vn < 3)
+        {
+            vx = V[vn * 3];
+            vy = V[vn * 3 + 1];
+            vz = V[vn * 3 + 2];
+        }
+        else
+        {
+            vx = IR1;
+            vy = IR2;
+            vz = IR3;
+        }
 
         if (cv == 2)
         {
@@ -313,11 +931,23 @@ public static class Gte
         }
 
         int t0 = 0, t1 = 0, t2 = 0;
-        if (cv == 0) { t0 = TR[0]; t1 = TR[1]; t2 = TR[2]; }
-        else if (cv == 1) { t0 = BK[0]; t1 = BK[1]; t2 = BK[2]; }
+        if (cv == 0)
+        {
+            t0 = TR[0];
+            t1 = TR[1];
+            t2 = TR[2];
+        }
+        else if (cv == 1)
+        {
+            t0 = BK[0];
+            t1 = BK[1];
+            t2 = BK[2];
+        }
+
         MatVec(mat, t0, t1, t2, vx, vy, vz, sf, lm);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static uint Read(int reg)
     {
         switch (reg)
@@ -352,9 +982,9 @@ public static class Gte
             case 27: return (uint)MAC3;
             case 28:
             case 29:
-                int r = Math.Clamp(IR1 >> 7, 0, 0x1F);
-                int g = Math.Clamp(IR2 >> 7, 0, 0x1F);
-                int b = Math.Clamp(IR3 >> 7, 0, 0x1F);
+                var r = Math.Clamp(IR1 >> 7, 0, 0x1F);
+                var g = Math.Clamp(IR2 >> 7, 0, 0x1F);
+                var b = Math.Clamp(IR3 >> 7, 0, 0x1F);
                 return (uint)(r | (g << 5) | (b << 10));
             case 30: return LZCS;
             case 31: return LZCR;
@@ -362,28 +992,56 @@ public static class Gte
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Write(int reg, uint val)
     {
         switch (reg)
         {
-            case 0: V[0] = (short)val; V[1] = (short)(val >> 16); break;
+            case 0:
+                V[0] = (short)val;
+                V[1] = (short)(val >> 16);
+                break;
             case 1: V[2] = (short)val; break;
-            case 2: V[3] = (short)val; V[4] = (short)(val >> 16); break;
+            case 2:
+                V[3] = (short)val;
+                V[4] = (short)(val >> 16);
+                break;
             case 3: V[5] = (short)val; break;
-            case 4: V[6] = (short)val; V[7] = (short)(val >> 16); break;
+            case 4:
+                V[6] = (short)val;
+                V[7] = (short)(val >> 16);
+                break;
             case 5: V[8] = (short)val; break;
-            case 6: RGBC_R = (byte)val; RGBC_G = (byte)(val >> 8); RGBC_B = (byte)(val >> 16); RGBC_CODE = (byte)(val >> 24); break;
+            case 6:
+                RGBC_R = (byte)val;
+                RGBC_G = (byte)(val >> 8);
+                RGBC_B = (byte)(val >> 16);
+                RGBC_CODE = (byte)(val >> 24);
+                break;
             case 7: OTZ = (ushort)val; break;
             case 8: IR0 = (short)val; break;
             case 9: IR1 = (short)val; break;
             case 10: IR2 = (short)val; break;
             case 11: IR3 = (short)val; break;
-            case 12: SX[0] = (short)val; SY[0] = (short)(val >> 16); break;
-            case 13: SX[1] = (short)val; SY[1] = (short)(val >> 16); break;
-            case 14: SX[2] = (short)val; SY[2] = (short)(val >> 16); break;
+            case 12:
+                SX[0] = (short)val;
+                SY[0] = (short)(val >> 16);
+                break;
+            case 13:
+                SX[1] = (short)val;
+                SY[1] = (short)(val >> 16);
+                break;
+            case 14:
+                SX[2] = (short)val;
+                SY[2] = (short)(val >> 16);
+                break;
             case 15:
-                SX[0] = SX[1]; SY[0] = SY[1]; SX[1] = SX[2]; SY[1] = SY[2];
-                SX[2] = (short)val; SY[2] = (short)(val >> 16);
+                SX[0] = SX[1];
+                SY[0] = SY[1];
+                SX[1] = SX[2];
+                SY[1] = SY[2];
+                SX[2] = (short)val;
+                SY[2] = (short)(val >> 16);
                 break;
             case 16: SZ[0] = (ushort)val; break;
             case 17: SZ[1] = (ushort)val; break;
@@ -405,13 +1063,14 @@ public static class Gte
             case 29: break;
             case 30:
                 LZCS = val;
-                uint test = (val & 0x80000000u) != 0 ? ~val : val;
+                var test = (val & 0x80000000u) != 0 ? ~val : val;
                 LZCR = (uint)(test == 0 ? 32 : System.Numerics.BitOperations.LeadingZeroCount(test));
                 break;
             case 31: break;
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static uint ReadControl(int reg)
     {
         switch (reg)
@@ -452,30 +1111,81 @@ public static class Gte
         }
     }
 
+    public static void WriteControl(int reg, uint val, uint site)
+    {
+        if (reg <= 4)
+        {
+            _rtSite = site;
+            _rtCaller = Runtime.Cpu?.RA ?? 0u;
+        }
+        else if (reg <= 7) _trSite = site;
+
+        WriteControl(reg, val);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void WriteControl(int reg, uint val)
     {
+        if (reg <= 7 || reg is 24 or 25 or 26) _snapDirty = true;
+
         switch (reg)
         {
-            case 0: RT[0] = (short)val; RT[1] = (short)(val >> 16); break;
-            case 1: RT[2] = (short)val; RT[3] = (short)(val >> 16); break;
-            case 2: RT[4] = (short)val; RT[5] = (short)(val >> 16); break;
-            case 3: RT[6] = (short)val; RT[7] = (short)(val >> 16); break;
+            case 0:
+                RT[0] = (short)val;
+                RT[1] = (short)(val >> 16);
+                break;
+            case 1:
+                RT[2] = (short)val;
+                RT[3] = (short)(val >> 16);
+                break;
+            case 2:
+                RT[4] = (short)val;
+                RT[5] = (short)(val >> 16);
+                break;
+            case 3:
+                RT[6] = (short)val;
+                RT[7] = (short)(val >> 16);
+                break;
             case 4: RT[8] = (short)val; break;
             case 5: TR[0] = (int)val; break;
             case 6: TR[1] = (int)val; break;
             case 7: TR[2] = (int)val; break;
-            case 8: LLM[0] = (short)val; LLM[1] = (short)(val >> 16); break;
-            case 9: LLM[2] = (short)val; LLM[3] = (short)(val >> 16); break;
-            case 10: LLM[4] = (short)val; LLM[5] = (short)(val >> 16); break;
-            case 11: LLM[6] = (short)val; LLM[7] = (short)(val >> 16); break;
+            case 8:
+                LLM[0] = (short)val;
+                LLM[1] = (short)(val >> 16);
+                break;
+            case 9:
+                LLM[2] = (short)val;
+                LLM[3] = (short)(val >> 16);
+                break;
+            case 10:
+                LLM[4] = (short)val;
+                LLM[5] = (short)(val >> 16);
+                break;
+            case 11:
+                LLM[6] = (short)val;
+                LLM[7] = (short)(val >> 16);
+                break;
             case 12: LLM[8] = (short)val; break;
             case 13: BK[0] = (int)val; break;
             case 14: BK[1] = (int)val; break;
             case 15: BK[2] = (int)val; break;
-            case 16: LCM[0] = (short)val; LCM[1] = (short)(val >> 16); break;
-            case 17: LCM[2] = (short)val; LCM[3] = (short)(val >> 16); break;
-            case 18: LCM[4] = (short)val; LCM[5] = (short)(val >> 16); break;
-            case 19: LCM[6] = (short)val; LCM[7] = (short)(val >> 16); break;
+            case 16:
+                LCM[0] = (short)val;
+                LCM[1] = (short)(val >> 16);
+                break;
+            case 17:
+                LCM[2] = (short)val;
+                LCM[3] = (short)(val >> 16);
+                break;
+            case 18:
+                LCM[4] = (short)val;
+                LCM[5] = (short)(val >> 16);
+                break;
+            case 19:
+                LCM[6] = (short)val;
+                LCM[7] = (short)(val >> 16);
+                break;
             case 20: LCM[8] = (short)val; break;
             case 21: FC[0] = (int)val; break;
             case 22: FC[1] = (int)val; break;
@@ -487,11 +1197,27 @@ public static class Gte
             case 28: DQB = (int)val; break;
             case 29: ZSF3 = (short)val; break;
             case 30: ZSF4 = (short)val; break;
-            case 31: FLAG = val & 0x7FFFF000u; if ((FLAG & 0x7F87E000u) != 0) FLAG |= 0x80000000u; break;
+            case 31:
+                FLAG = val & 0x7FFFF000u;
+                if ((FLAG & 0x7F87E000u) != 0) FLAG |= 0x80000000u;
+                break;
         }
     }
 
-    public static void LoadWord(int reg, uint val) => Write(reg, val);
-    public static uint StoreWord(int reg) => Read(reg);
-    public static bool GetCondition() => false;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void LoadWord(int reg, uint val)
+    {
+        Write(reg, val);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint StoreWord(int reg)
+    {
+        return Read(reg);
+    }
+
+    public static bool GetCondition()
+    {
+        return false;
+    }
 }

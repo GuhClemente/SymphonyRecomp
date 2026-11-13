@@ -12,21 +12,75 @@ public sealed class RecompOneConfig
     [JsonPropertyName("funcMap")] public string? FuncMap { get; set; }
     [JsonPropertyName("main")] public string? Main { get; set; }
     [JsonPropertyName("functions")] public FunctionEntry[] Functions { get; set; } = [];
-    [JsonPropertyName("linearSweep")] public bool LinearSweep { get; set; } //linear sweep is to find functions when the elf doesnt ptovide then properly (fuck you sh) this can and WILL get some data as code, use it by your own risk
+
+    [JsonPropertyName("pointerScan")]
+    public bool
+        PointerScan
+    {
+        get;
+        set;
+    } //not sure if should be a config or on by default, this scans betwen cross overlay pointer calls to properly decode jumptbls, medievil uses it so thats why it is implemented here, maybe in the gfuture on by default, this also will toll the performance of the recompiler a bit so keeping it here while i decide what to do
+
+
+    [JsonPropertyName("linearSweep")]
+    public bool
+        LinearSweep
+    {
+        get;
+        set;
+    } //linear sweep is to find functions when the elf doesnt ptovide then properly (fuck you sh) this can and WILL get some data as code, use it by your own risk
+
     [JsonPropertyName("debug")] public bool Debug { get; set; }
     [JsonPropertyName("addressComments")] public bool AddressComments { get; set; }
     [JsonPropertyName("disasmComments")] public bool DisasmComments { get; set; }
     [JsonPropertyName("overlays")] public OverlayConfig[] Overlays { get; set; } = [];
+    [JsonPropertyName("disableHle")] public string[] DisableHle { get; set; } = []; //can disable some of the patches
     [JsonPropertyName("stubs")] public string[] Stubs { get; set; } = [];
     [JsonPropertyName("ignored")] public string[] Ignored { get; set; } = [];
     [JsonPropertyName("patches")] public PatchEntry[] Patches { get; set; } = [];
+    [JsonPropertyName("relocations")] public RelocationEntry[] Relocations { get; set; } = [];
+}
+
+//to be able to move arrays that are in crammed areas so you can extend then
+public sealed class RelocationEntry
+{
+    [JsonPropertyName("overlay")]
+    [JsonConverter(typeof(StringOrArrayConverter))]
+    public string[] Overlay { get; set; } = [];
+
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("address")] public string Address { get; set; } = "";
+    [JsonPropertyName("size")] public string Size { get; set; } = "";
+    [JsonPropertyName("to")] public string To { get; set; } = "";
+
+    public uint FromAddress => Convert.ToUInt32(Address, 16);
+    public uint ToAddress => Convert.ToUInt32(To, 16);
+
+    public uint ByteSize => Size.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+        ? Convert.ToUInt32(Size, 16)
+        : uint.Parse(Size);
+
+    public string Label => string.IsNullOrEmpty(Name) ? $"0x{FromAddress:X8}" : Name;
+
+    public bool MatchesOverlay(string overlayName)
+    {
+        if (Overlay.Length == 0) return true;
+        foreach (var o in Overlay)
+        {
+            if (o == "*") return true;
+            if (string.Equals(o, overlayName, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        return false;
+    }
 }
 
 public sealed class PatchEntry
 {
     [JsonPropertyName("overlay")]
     [JsonConverter(typeof(StringOrArrayConverter))]
-    public string[] Overlay { get; set; } = []; //list or single one, * for wildcard so can have the same patch being applied in all overlays containing this function
+    public string[] Overlay { get; set; } =
+        []; //list or single one, * for wildcard so can have the same patch being applied in all overlays containing this function
 
     [JsonPropertyName("function")] public string Function { get; set; } = "";
     [JsonPropertyName("address")] public string Address { get; set; } = "";
@@ -41,6 +95,7 @@ public sealed class PatchEntry
             if (o == "*") return true;
             if (string.Equals(o, overlayName, StringComparison.OrdinalIgnoreCase)) return true;
         }
+
         return false;
     }
 
@@ -66,16 +121,22 @@ public sealed class StringOrArrayConverter : JsonConverter<string[]>
                     var s = reader.GetString();
                     if (!string.IsNullOrEmpty(s)) list.Add(s);
                 }
+
             return list.ToArray();
         }
 
         return [];
     }
 
-    
+
     public override void Write(Utf8JsonWriter writer, string[] value, JsonSerializerOptions options)
     {
-        if (value.Length == 1) { writer.WriteStringValue(value[0]); return; }
+        if (value.Length == 1)
+        {
+            writer.WriteStringValue(value[0]);
+            return;
+        }
+
         writer.WriteStartArray();
         foreach (var v in value) writer.WriteStringValue(v);
         writer.WriteEndArray();
@@ -101,10 +162,11 @@ public sealed class OverlayConfig
     [JsonPropertyName("skip")] public int Skip { get; set; } = 0;
     [JsonPropertyName("lba")] public int Lba { get; set; } = -1;
     [JsonPropertyName("size")] public int? Size { get; set; }
-    [JsonPropertyName("decrypt")] public bool Decrypt { get; set; }
+    [JsonPropertyName("compression")] public string? Compression { get; set; }
     [JsonPropertyName("rebase")] public int Rebase { get; set; } = 0;
     [JsonPropertyName("functions")] public FunctionEntry[] Functions { get; set; } = [];
     [JsonPropertyName("linearSweep")] public bool? LinearSweep { get; set; }
+    [JsonPropertyName("pointerScan")] public bool? PointerScan { get; set; }
     [JsonPropertyName("stubs")] public string[] Stubs { get; set; } = [];
     [JsonPropertyName("ignored")] public string[] Ignored { get; set; } = [];
 }
@@ -121,13 +183,13 @@ public static class ConfigLoader
     {
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
-        PropertyNameCaseInsensitive = true,
+        PropertyNameCaseInsensitive = true
     };
 
     public static RecompOneConfig Load(string path)
     {
         using var stream = File.OpenRead(path);
-        return JsonSerializer.Deserialize<RecompOneConfig>(stream, Options)
-            ?? throw new InvalidDataException($"failed to parse config {path}");
+        return JsonSerializer.Deserialize<RecompOneConfig>(stream, Options) ??
+               throw new InvalidDataException($"failed to parse config {path}");
     }
 }

@@ -9,12 +9,16 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\RecompOne.Runtime\RecompOne.Runtime.csproj" />
+        <ProjectReference Include="..\RecompOne.Runtime\RecompOne.Runtime.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="LibObjectFile" Version="2.1.1" />
-      <PackageReference Include="RabbitizerSharp" Version="0.1.0" />
+        <None Include="AutoConfigure\signatures\*.json" CopyToOutputDirectory="PreserveNewest" Link="AutoConfigure\signatures\%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="LibObjectFile" Version="2.1.1"/>
+        <PackageReference Include="RabbitizerSharp" Version="0.1.0"/>
     </ItemGroup>
 
 </Project>

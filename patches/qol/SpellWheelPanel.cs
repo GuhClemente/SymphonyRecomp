@@ -54,7 +54,7 @@ public sealed class SpellWheelPanel : IPanel
 
         ImGui.SeparatorText(Localization.T("spell.spell_list"));
 
-        ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Border);
+        ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
         for (int i = 0; i < SpellWheel.Spells.Length; i++)
         {

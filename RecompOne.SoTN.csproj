@@ -7,7 +7,7 @@
     <AssemblyName>sotn</AssemblyName>
     <ApplicationIcon>assets/icon/SymphonyRecomp.ico</ApplicationIcon>
     <NoWarn>0162</NoWarn>
-    <DefaultItemExcludes>$(DefaultItemExcludes);RecompOne/**;tools/**;ghidra_files/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);RecompOne/**;mods/**;tools/**;ghidra_files/**;tests/**</DefaultItemExcludes>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <EnableSourceLink>false</EnableSourceLink>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
@@ -20,12 +20,10 @@
     <ProjectReference Include="RecompOne/RecompOne.Runtime/RecompOne.Runtime.csproj" UndefineProperties="OutputType" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="assets/tracker/*.png" />
     <EmbeddedResource Include="assets/map/*.png" />
     <EmbeddedResource Include="assets/extension/*.png" />
+    <EmbeddedResource Include="assets/extension/room_fills.json" />
     <EmbeddedResource Include="assets/icon/*.ico" />
     <EmbeddedResource Include="assets/languages.json" />
   </ItemGroup>

@@ -4,15 +4,18 @@ namespace RecompOne.Runtime.Hle;
 
 public sealed class Gl45Vram : IGlVram
 {
-    readonly GL _gl;
-    uint _tex, _fbo;
-    uint _stageTex, _stageFbo;
-    uint _scratchTex;
+    private readonly GL _gl;
+    private uint _tex, _fbo;
+    private uint _stageTex, _stageFbo;
+    private uint _scratchTex;
 
     public uint Texture => _tex;
     public uint Fbo => _fbo;
 
-    public Gl45Vram(GL gl) => _gl = gl;
+    public Gl45Vram(GL gl)
+    {
+        _gl = gl;
+    }
 
     public void Init()
     {
@@ -23,22 +26,22 @@ public sealed class Gl45Vram : IGlVram
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
-    uint CreateTex(int w, int h)
+    private uint CreateTex(int w, int h)
     {
-        uint t = _gl.GenTexture();
+        var t = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, t);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Nearest);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Nearest);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
-        _gl.TexImage2D<ushort>(TextureTarget.Texture2D, 0, InternalFormat.Rgb5A1, (uint)w, (uint)h, 0,
+        _gl.TexImage2D<ushort>(TextureTarget.Texture2D, 0, GlVram.Storage, (uint)w, (uint)h, 0,
             PixelFormat.Rgba, PixelType.UnsignedShort1555Rev, new ushort[w * h].AsSpan());
         return t;
     }
 
-    uint CreateFbo(uint tex)
+    private uint CreateFbo(uint tex)
     {
-        uint f = _gl.GenFramebuffer();
+        var f = _gl.GenFramebuffer();
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, f);
         _gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
             TextureTarget.Texture2D, tex, 0);
@@ -55,6 +58,11 @@ public sealed class Gl45Vram : IGlVram
     {
         _gl.TextureBarrier();
         return targetTex;
+    }
+
+    public void SampleBarrier()
+    {
+        _gl.TextureBarrier();
     }
 
     public void WriteRect(int x, int y, int w, int h, ReadOnlySpan<ushort> px)
@@ -77,10 +85,11 @@ public sealed class Gl45Vram : IGlVram
     public void Fill(int x, int y, int w, int h, ushort color15)
     {
         float r = (color15 & 0x1F) / 31f, g = ((color15 >> 5) & 0x1F) / 31f, b = ((color15 >> 10) & 0x1F) / 31f;
-        float a = (color15 & 0x8000) != 0 ? 1f : 0f;
+        var a = (color15 & 0x8000) != 0 ? 1f : 0f;
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, _fbo);
         _gl.Enable(EnableCap.ScissorTest);
-        _gl.Scissor(x * GlVram.Scale, y * GlVram.Scale, (uint)Math.Max(0, w * GlVram.Scale), (uint)Math.Max(0, h * GlVram.Scale));
+        _gl.Scissor(x * GlVram.Scale, y * GlVram.Scale, (uint)Math.Max(0, w * GlVram.Scale),
+            (uint)Math.Max(0, h * GlVram.Scale));
         _gl.ClearColor(r, g, b, a);
         _gl.Clear(ClearBufferMask.ColorBufferBit);
         _gl.Disable(EnableCap.ScissorTest);
@@ -89,11 +98,12 @@ public sealed class Gl45Vram : IGlVram
     public void CopyRect(int sx, int sy, int dx, int dy, int w, int h)
     {
         int sw = w * GlVram.Scale, sh = h * GlVram.Scale;
-        bool overlap = sx < dx + w && dx < sx + w && sy < dy + h && dy < sy + h;
+        var overlap = sx < dx + w && dx < sx + w && sy < dy + h && dy < sy + h;
         if (!overlap)
         {
             _gl.CopyImageSubData(_tex, CopyImageSubDataTarget.Texture2D, 0, sx * GlVram.Scale, sy * GlVram.Scale, 0,
-                _tex, CopyImageSubDataTarget.Texture2D, 0, dx * GlVram.Scale, dy * GlVram.Scale, 0, (uint)sw, (uint)sh, 1);
+                _tex, CopyImageSubDataTarget.Texture2D, 0, dx * GlVram.Scale, dy * GlVram.Scale, 0, (uint)sw, (uint)sh,
+                1);
             return;
         }
 
@@ -118,7 +128,7 @@ public sealed class Gl45Vram : IGlVram
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, _fbo);
     }
 
-    void EnsureScratch()
+    private void EnsureScratch()
     {
         if (_scratchTex != 0) return;
         _scratchTex = CreateTex(GlVram.Width, GlVram.Height);

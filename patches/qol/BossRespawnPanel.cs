@@ -82,7 +82,7 @@ public sealed class BossRespawnPanel : IPanel
 
         ImGui.Separator();
 
-        ImGui.BeginChild("boss_list_child", Vector2.Zero, ImGuiChildFlags.Border);
+        ImGui.BeginChild("boss_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
         for (int i = 0; i < Bosses.Length; i++)
         {

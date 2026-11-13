@@ -55,7 +55,7 @@ public sealed class HardcoreModePanel : IPanel
 
         if (HardcoreMode.IsHardcore)
         {
-            ImGui.BeginChild("hardcore_warning_child", new Vector2(-1, 80), ImGuiChildFlags.Border);
+            ImGui.BeginChild("hardcore_warning_child", new Vector2(-1, 80), ImGuiChildFlags.Borders);
             ImGui.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), "⚠ AVISO DO MODO HARDCORE:");
             ImGui.TextWrapped("Se o Alucard morrer, o progresso da campanha será permanentemente deletado! Jogue com máxima cautela.");
             ImGui.EndChild();

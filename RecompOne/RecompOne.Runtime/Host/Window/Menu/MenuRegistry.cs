@@ -4,9 +4,9 @@ namespace RecompOne.Runtime.Host.Window;
 
 public static class MenuRegistry
 {
-    static readonly List<MenuNode> _roots = [];
-    static List<MenuNode> _draw = [];
-    static bool _dirty = true;
+    private static readonly List<MenuNode> _roots = [];
+    private static List<MenuNode> _draw = [];
+    private static bool _dirty = true;
 
     public static MenuBuilder Menu(string labelKey)
     {
@@ -30,6 +30,7 @@ public static class MenuRegistry
             _roots.Add(node);
             _dirty = true;
         }
+
         node.OnClick = onClick;
         return new MenuBuilder(node, null);
     }
@@ -43,12 +44,18 @@ public static class MenuRegistry
         }
 
         foreach (var root in _roots)
-            if (root.RemoveByKey(labelKey)) return true;
+            if (root.RemoveByKey(labelKey))
+                return true;
 
         return false;
     }
 
-    internal static void Invalidate() => _dirty = true;
+    internal static void Invalidate()
+    {
+        _dirty = true;
+    }
+
+    public static Action? RightAligned;
 
     internal static void Draw()
     {
@@ -59,15 +66,19 @@ public static class MenuRegistry
             _draw = MenuOrder.Arrange(_roots);
             _dirty = false;
         }
+
         foreach (var menu in _draw) menu.Draw();
+
+        RightAligned?.Invoke();
 
         ImGui.EndMainMenuBar();
     }
 
-    static MenuNode? Find(string labelKey)
+    private static MenuNode? Find(string labelKey)
     {
         foreach (var menu in _roots)
-            if (menu.LabelKey == labelKey) return menu;
+            if (menu.LabelKey == labelKey)
+                return menu;
         return null;
     }
 }
