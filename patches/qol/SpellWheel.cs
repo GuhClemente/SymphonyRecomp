@@ -48,6 +48,7 @@ public static class SpellWheel
     ];
 
     private static volatile int _pendingQuickCast = -1;
+    public static void TriggerQuickCast(int index) => _pendingQuickCast = index;
 
     static SpellWheel()
     {

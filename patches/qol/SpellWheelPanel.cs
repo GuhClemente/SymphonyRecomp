@@ -77,7 +77,7 @@ public sealed class SpellWheelPanel : IPanel
 
             if (ImGui.Button(buttonLabel, new Vector2(-1, 36)))
             {
-                SpellWheel.CastSpell(info, m);
+                SpellWheel.TriggerQuickCast(i);
             }
 
             if (!hasMp)

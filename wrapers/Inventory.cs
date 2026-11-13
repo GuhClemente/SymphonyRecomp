@@ -193,12 +193,14 @@ public static class Inventory
     //rlc
     public static byte GetRelic(int id)
     {
+        if (!Game.Available) return 0;
         if (id == 30) return Progress.GetFlag(GodSpeedRelicFlag);
         return M.ReadU8(S + RelicsOff + (uint)id);
     }
 
     public static void SetRelic(int id, byte value)
     {
+        if (!Game.Available) return;
         if (id == 30)
         {
             Progress.SetFlag(GodSpeedRelicFlag, value);

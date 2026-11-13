@@ -15,10 +15,11 @@ public static class SaturnStages
     public const int GardenBossFlag = 0x167;
 
     public static bool IsInSaturnStage =>
+        Game.Available && (
         Stages.Current == Stage.UndergroundGarden ||
         Stages.Current == Stage.CursedPrison ||
         Stages.Current == Stage.HellGarden ||
-        Stages.Current == Stage.SoulPrison;
+        Stages.Current == Stage.SoulPrison);
 
     public static void WarpToUndergroundGarden()
     {

@@ -16,10 +16,13 @@ public static class Progress
     public const int CastleFlagCount = 0x300;
     public const int TimeAttackCount = 27;
 
-    static IMemory M => RecompOne.Runtime.Runtime.Mem!;
+    static IMemory? M => RecompOne.Runtime.Runtime.Mem;
 
-    public static byte GetFlag(int index) => M.ReadU8(CastleFlagsAddr + (uint)index);
-    public static void SetFlag(int index, byte value) => M.WriteU8(CastleFlagsAddr + (uint)index, value);
+    public static byte GetFlag(int index) => M != null ? M.ReadU8(CastleFlagsAddr + (uint)index) : (byte)0;
+    public static void SetFlag(int index, byte value)
+    {
+        if (M != null) M.WriteU8(CastleFlagsAddr + (uint)index, value);
+    }
 
     public static bool GetShortcut(Shortcut shortcut) => GetFlag((int)shortcut) != 0;
     public static void SetShortcut(Shortcut shortcut, bool on) => SetFlag((int)shortcut, (byte)(on ? 1 : 0));
@@ -57,8 +60,11 @@ public static class Progress
         WarpsSecondCastle = Warp.Entrance | Warp.Mines | Warp.OuterWall | Warp.Keep | Warp.Olrox;
     }
 
-    public static int GetTimeAttack(TimeAttackEvent time) => (int)M.ReadU32(TimeAttackAddr + (uint)((int)time * 4));
-    public static void SetTimeAttack(TimeAttackEvent time, int value) => M.WriteU32(TimeAttackAddr + (uint)((int)time * 4), (uint)value);
+    public static int GetTimeAttack(TimeAttackEvent time) => M != null ? (int)M.ReadU32(TimeAttackAddr + (uint)((int)time * 4)) : 0;
+    public static void SetTimeAttack(TimeAttackEvent time, int value)
+    {
+        if (M != null) M.WriteU32(TimeAttackAddr + (uint)((int)time * 4), (uint)value);
+    }
     public static bool IsDefeated(TimeAttackEvent time) => GetTimeAttack(time) != 0;
 
     public static IEnumerable<TimeAttackEvent> Bosses

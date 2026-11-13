@@ -16,8 +16,8 @@ public static class GodSpeedShoes
     private static bool _isSprinting = false;
     private static int _sprintEffectTimer = 0;
 
-    public static bool HasShoes => Inventory.HasRelic(RelicId);
-    public static bool IsActive => Inventory.IsRelicActive(RelicId);
+    public static bool HasShoes => Game.Available && Inventory.HasRelic(RelicId);
+    public static bool IsActive => Game.Available && Inventory.IsRelicActive(RelicId);
 
     public static void Grant(bool active = true)
     {

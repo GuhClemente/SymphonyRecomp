@@ -54,13 +54,13 @@ public sealed class UltimatePanel : IPanel
         {
             UltimateOptions.Balance = SaturnBalanceMode.Saturn;
             dirty = true;
-            SaturnBalance.ForceReapply(RecompOne.Runtime.Runtime.Mem!);
+            if (Game.Available) SaturnBalance.ForceReapply(RecompOne.Runtime.Runtime.Mem!);
         }
         if (ImGui.RadioButton("Equilíbrio PS1 (Comportamento original do PlayStation)", balance == (int)SaturnBalanceMode.PS1))
         {
             UltimateOptions.Balance = SaturnBalanceMode.PS1;
             dirty = true;
-            SaturnBalance.ForceReapply(RecompOne.Runtime.Runtime.Mem!);
+            if (Game.Available) SaturnBalance.ForceReapply(RecompOne.Runtime.Runtime.Mem!);
         }
 
         ImGui.Spacing();
@@ -116,7 +116,7 @@ public sealed class UltimatePanel : IPanel
         string btnText = GodSpeedShoes.HasShoes ? (GodSpeedShoes.IsActive ? "Desativar" : "Ativar") : "Conceder";
         if (ImGui.Button(btnText))
         {
-            GodSpeedShoes.ToggleActive();
+            if (Game.Available && Game.InGame) GodSpeedShoes.ToggleActive();
         }
 
         bool thirdHand = UltimateOptions.ThirdHandHolder;
@@ -135,7 +135,7 @@ public sealed class UltimatePanel : IPanel
 
         if (ImGui.Button("🎁 Conceder Todo o Arsenal do Sega Saturn"))
         {
-            SaturnItems.GiftAllSaturnGear();
+            if (Game.Available && Game.InGame) SaturnItems.GiftAllSaturnGear();
         }
         ImGui.TextDisabled("Adiciona: Lança de Alucard, Escudo da Floresta, Adaga Astral, Machado Duplo,\nManto Arco-íris, Tecido Brilhante, Letras da Canção e Botas da Velocidade.");
 
@@ -153,22 +153,22 @@ public sealed class UltimatePanel : IPanel
         ImGui.Text("Acesso Direto às Novas Fases:");
         if (ImGui.Button("🌿 Underground Garden (Jardim Subterrâneo)"))
         {
-            SaturnStages.WarpToUndergroundGarden();
+            if (Game.Available && Game.InGame) SaturnStages.WarpToUndergroundGarden();
         }
         ImGui.SameLine();
         if (ImGui.Button("⛓ Cursed Prison (Prisão Amaldiçoada)"))
         {
-            SaturnStages.WarpToCursedPrison();
+            if (Game.Available && Game.InGame) SaturnStages.WarpToCursedPrison();
         }
 
         if (ImGui.Button("🔥 Hell Garden (Jardim do Inferno)"))
         {
-            SaturnStages.WarpToHellGarden();
+            if (Game.Available && Game.InGame) SaturnStages.WarpToHellGarden();
         }
         ImGui.SameLine();
         if (ImGui.Button("💀 Soul Prison (Prisão das Almas)"))
         {
-            SaturnStages.WarpToSoulPrison();
+            if (Game.Available && Game.InGame) SaturnStages.WarpToSoulPrison();
         }
 
         if (dirty) UltimateOptions.Save();
