@@ -42,9 +42,49 @@ if (Array.Find(asm.GetManifestResourceNames(), n => n.EndsWith(".SymphonyRecomp.
 
 const uint RamSize = 0x00800000; //8
 
+// Disc Auto-Discovery: If not configured or missing, search 'disc/' for *.chd or *.cue
+var explicitDisc = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
+if (!string.IsNullOrEmpty(explicitDisc))
+{
+    RecompOne.Runtime.Config.Settings.System.DiscPath = Path.GetFullPath(explicitDisc);
+    RecompOne.Runtime.Config.Settings.Save();
+}
+else if (string.IsNullOrWhiteSpace(RecompOne.Runtime.Config.Settings.System.DiscPath) ||
+         !File.Exists(RecompOne.Runtime.Config.Settings.System.DiscPath))
+{
+    var searchDirs = new[] { "disc", "." };
+    string? candidate = null;
+    foreach (var dir in searchDirs)
+    {
+        if (!Directory.Exists(dir)) continue;
+        var files = Directory.GetFiles(dir, "*.*", SearchOption.TopDirectoryOnly)
+            .Where(f => f.EndsWith(".chd", StringComparison.OrdinalIgnoreCase) ||
+                        f.EndsWith(".cue", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(f => f.EndsWith(".chd", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
+        foreach (var file in files)
+        {
+            var fullPath = Path.GetFullPath(file);
+            if (RecompOne.Runtime.Runtime.ValidateDisc(fullPath) == null)
+            {
+                candidate = fullPath;
+                break;
+            }
+        }
+        if (candidate != null) break;
+    }
+
+    if (candidate != null)
+    {
+        RecompOne.Runtime.Config.Settings.System.DiscPath = candidate;
+        RecompOne.Runtime.Config.Settings.Save();
+        Console.WriteLine($"[Disc] Disco detectado e configurado automaticamente: {candidate}");
+    }
+}
+
 try
 {
-    RecompOne.Runtime.Runtime.Run(() => Entry.Run(new PSMemory(RamSize), args.Length > 0 ? args[0] : null, title));
+    var discArg = explicitDisc ?? (File.Exists(RecompOne.Runtime.Config.Settings.System.DiscPath) ? RecompOne.Runtime.Config.Settings.System.DiscPath : null);
+    RecompOne.Runtime.Runtime.Run(() => Entry.Run(new PSMemory(RamSize), discArg, title));
 }
 catch (Exception ex)
 {
