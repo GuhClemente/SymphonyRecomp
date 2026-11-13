@@ -110,8 +110,12 @@ public static class SpellWheel
         }
 
         var step = Player.Step;
+        // Hellfire is a full multi-phase interactive teleport attack lasting ~240 frames (~4s)
+        // with its own state machine and entity cleanup (func_8010E570).
+        // It must NOT be clamped to the 90-frame simple cast animation timeout, otherwise
+        // it gets aborted mid-teleport while invisible, leaving Alucard permanently invisible.
         bool inCastAnim = step is PlayerStep.DarkMetamorphosis or PlayerStep.SummonSpirit
-            or PlayerStep.Hellfire or PlayerStep.TetraSpirit;
+            or PlayerStep.TetraSpirit;
 
         if (inCastAnim)
         {
