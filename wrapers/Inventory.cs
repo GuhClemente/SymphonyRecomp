@@ -188,9 +188,24 @@ public static class Inventory
         return GetBodyOrder(start + GetEquipTypeCursor(kind));
     }
 
+    public const int GodSpeedRelicFlag = 0x2F0;
+
     //rlc
-    public static byte GetRelic(int id) => M.ReadU8(S + RelicsOff + (uint)id);
-    public static void SetRelic(int id, byte value) => M.WriteU8(S + RelicsOff + (uint)id, value);
+    public static byte GetRelic(int id)
+    {
+        if (id == 30) return Progress.GetFlag(GodSpeedRelicFlag);
+        return M.ReadU8(S + RelicsOff + (uint)id);
+    }
+
+    public static void SetRelic(int id, byte value)
+    {
+        if (id == 30)
+        {
+            Progress.SetFlag(GodSpeedRelicFlag, value);
+            return;
+        }
+        M.WriteU8(S + RelicsOff + (uint)id, value);
+    }
     public static bool HasRelic(int id) => GetRelic(id) != 0;
 
     public static bool IsRelicActive(int id) => (GetRelic(id) & 2) != 0;
@@ -291,7 +306,7 @@ public static class Inventory
 
     public static IEnumerable<Relic> HeldRelics()
     {
-        for (int i = 0; i < RelicCount; i++)
+        for (int i = 0; i <= RelicCount; i++)
             if (HasRelic(i)) yield return (Relic)i;
     }
 }

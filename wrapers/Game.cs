@@ -3,7 +3,7 @@ using RecompOne.Runtime.Memory;
 
 namespace Sotn;
 
-public enum PlayableCharacter { Alucard = 0, Richter = 1 }
+public enum PlayableCharacter { Alucard = 0, Richter = 1, Maria = 2 }
 
 public enum GameState
 {

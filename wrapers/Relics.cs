@@ -32,4 +32,5 @@ public enum Relic
     RibOfVlad = 27,
     RingOfVlad = 28,
     EyeOfVlad = 29,
+    GodSpeedShoes = 30,
 }

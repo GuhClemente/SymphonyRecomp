@@ -183,6 +183,15 @@ public enum HandItem
    LibraryCard = 0x0A6,
    AlucartShield = 0x0A7,
    AlucartSword = 0x0A8,
+
+   // Saturn & PSP Ultimate Items
+   SmellyRice = 0x0A9,
+   DeliciousMeal = 0x0AA,
+   SignedBoard = 0x0AB,
+   AlucardSpear = 0x0AC,
+   WoodlandShield = 0x0AD,
+   AstralDagger = 0x0AE,
+   DoubleBladeAxe = 0x0AF,
 }
 
 public enum BodyItem
@@ -277,4 +286,9 @@ public enum BodyItem
    Nauglamir = 0x57,
    SecretBoots = 0x58,
    AlucartMail = 0x59,
+
+   // Saturn & PSP Ultimate Accessories & Cloaks
+   GlaringCloth = 0x5A,
+   RainbowMantle = 0x5B,
+   LyricsCard = 0x5C,
 }

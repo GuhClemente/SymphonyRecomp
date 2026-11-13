@@ -75,9 +75,13 @@ public enum Stage
     HagiLoad = 0x44,
     TitleScreen = 0x45,
     Test1 = 0x46,
+    UndergroundGarden = 0x46,
     Test2 = 0x47,
+    CursedPrison = 0x47,
     Test3 = 0x48,
+    HellGarden = 0x48,
     Test4 = 0x49,
+    SoulPrison = 0x49,
     Test5 = 0x4A,
     CastleKeepAlt = 0x4B,
 

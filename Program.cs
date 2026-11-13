@@ -27,6 +27,7 @@ CheatMenu.Register();
 QualityOfLifeMenu.Register();
 TrackerMenu.Register();
 RandoMenu.Register();
+Recompiled.Ultimate.UltimateMode.Register();
 AutoUpdater.Register();
 HelpMenu.Register();
 

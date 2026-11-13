@@ -152,6 +152,14 @@
             "zh-CN": "难度设置 & 专家模式",
             "fr-FR": "Difficulté & Hardcore"
         },
+        "panel.ultimate": {
+            "en": "SOTN Ultimate (Saturn & PSP)",
+            "pt-BR": "SOTN Ultimate (Saturn & PSP)",
+            "es-419": "SOTN Ultimate (Saturn y PSP)",
+            "ja-JP": "SOTN アルティメット (サターン & PSP)",
+            "zh-CN": "月下终极版 (土星 & PSP)",
+            "fr-FR": "SOTN Ultimate (Saturne & PSP)"
+        },
         "panel.multiplayer": {
             "en": "Multiplayer Co-op & PvP",
             "pt-BR": "Multiplayer Co-op & PvP",

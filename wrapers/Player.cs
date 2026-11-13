@@ -33,6 +33,7 @@ public static class Player
     public static PlayableCharacter Character => Game.Character;
     public static bool IsAlucard => Character == PlayableCharacter.Alucard;
     public static bool IsRichter => Character == PlayableCharacter.Richter;
+    public static bool IsMaria => Character == PlayableCharacter.Maria;
 
     public static Entity Entity => new(Game.EntitiesAddr);
 
