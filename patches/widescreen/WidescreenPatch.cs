@@ -442,7 +442,7 @@ public static partial class WidescreenPatch
             }
         }
 
-        _layerEvent.Context = null;
+        _layerEvent.Context = null!;
         _layerEvent.Memory = m;
         _layerEvent.Foreground = foreground;
         _layerEvent.Layout = L.Layout;

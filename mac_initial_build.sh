@@ -207,7 +207,7 @@ ok "Arquivo sotn.json encontrado!"
 
 # ======================================== Generate C# Code =========================================
 say "Executando o RecompOne para extrair e recompilar o código do jogo..."
-"$DOTNET_CMD" run --project "$RECOMPILER_PROJ" "$SOTN_JSON" || die "Falha na geração do código C# pelo RecompOne."
+"$DOTNET_CMD" run --project "$RECOMPILER_PROJ" -c Release -- "$SOTN_JSON" || die "Falha na geração do código C# pelo RecompOne."
 ok "Código C# gerado em '$SCRIPT_DIR/generated'!"
 
 # ========================================= Build SymphonyRecomp ====================================
