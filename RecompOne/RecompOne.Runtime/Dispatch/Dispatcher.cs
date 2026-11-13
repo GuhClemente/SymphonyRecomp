@@ -244,6 +244,9 @@ public static class Dispatcher
     {
         if (BiosKernel.TryDispatch(c, m, addr)) return;
 
+        // SOTN Ultimate Entrypoint mapping (DRA.BIN entry shifted by MOD_DRA_STRIP in custom disc)
+        if (addr == 0x800E2E04u) addr = 0x800E3988u;
+
         if (_funcMap.TryGetValue(addr, out var fn))
         {
             fn(c, m);
