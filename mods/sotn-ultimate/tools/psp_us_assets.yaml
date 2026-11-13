@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The PSP Maria's assets (mods/sotn-ultimate/tools/build_mar2.sh) and the PSP Maria boss's
+# (mods/sotn-ultimate/tools/build_cenp.sh) in the US UMD's (ULUS-10277) maria.bin and
+# cen.bin: sotn-decomp's config/assets.pspeu.yaml lists for those two files
+# at the US files' offsets and load addresses. Left out: maria.bin's
+# other-language font and HUD art (not on the US UMD; src/maria/pl_main.c
+# includes them but nothing links them: build_mar2.sh writes empty
+# placeholders) and cen.bin's cutscene scripts (not built by build_cenp.sh).
+# "version: pspeu" names the asset tool's PSP format, not a disc.
+version: pspeu
+files:
+  - target: disks/psp/PSPBIN/maria.bin
+    asset_path: assets/maria
+    src_path: src/maria
+    splat_config_path: config/splat.pspeu.maria.yaml
+    segments:
+      - start: 0
+        vram: 0x09228A00
+        assets:
+          - [0, skip]
+          - [0x138A8, subweaponsdef, subweapons, MarSubweapons, MarBlueprints]
+          - [0x13B28, skip]
+          - [0x13C78, blueprintsdef, blueprints, MarBlueprints, MarEntities]
+          - [0x13E50, skip]
+          - [0x14548, spriteset, maria_spr]
+          - [0x14B18, palette, maria_pal, 16]
+          - [0x15118, spriteset, wpn_owl_spr]
+          - [0x153F0, palette, wpn_owl_pal, 16]
+          - [0x159F0, cmpgfx, wpn_owl_gfx, 128, 128, 4, 0x153F0]
+          - [0x16168, spriteset, wpn_doll_spr]
+          - [0x16360, palette, wpn_doll_pal, 16]
+          - [0x16960, cmpgfx, wpn_doll_gfx, 128, 128, 4, 0x16360]
+          - [0x173A8, spriteset, wpn_turtle_spr]
+          - [0x17498, palette, wpn_turtle_pal, 16]
+          - [0x174B8, palette, wpn_turtle2_pal, 16]
+          - [0x17A98, cmpgfx, wpn_turtle_gfx, 128, 128, 4, 0x17498]
+          - [0x18C58, spriteset, wpn_cardinal_spr]
+          - [0x19770, palette, wpn_cardinal_pal, 16]
+          - [0x19D70, cmpgfx, wpn_cardinal_gfx, 128, 128, 4, 0x19770]
+          - [0x1AC20, spriteset, wpn_cat_spr]
+          - [0x1B038, palette, wpn_cat_pal, 16]
+          - [0x1B058, palette, wpn_cat2_pal, 16]
+          - [0x1B638, cmpgfx, wpn_cat_gfx, 128, 128, 4, 0x1B038]
+          - [0x1C310, spriteset, wpn_dragon_spr]
+          - [0x1C518, palette, wpn_dragon_pal, 16]
+          - [0x1C538, palette, wpn_dragon2_pal, 16]
+          - [0x1CB18, cmpgfx, wpn_dragon_gfx, 128, 128, 4, 0x1C518]
+          - [0x1D750, spritesheet, maria, disks/psp/PSPBIN/maria.bin, 0x14B18]
+          - [0x2D560, cmpgfx, items_gfx, 128, 128, 4]
+          - [0x2E500, cmpgfx, hud_en, 128, 128, 4]
+          - [0x2F2F0, cmpgfx, crash_turtle_gfx, 128, 128, 4, 0x33620]
+          - [0x30248, cmpgfx, crash_dragon_gfx, 128, 128, 4, 0x33640]
+          - [0x314D0, cmpgfx, crash_cardinal_gfx, 128, 128, 4, 0x33660]
+          - [0x32738, cmpgfx, crash_cat_gfx, 128, 128, 4, 0x33600]
+          - [0x33600, palette, crash_cat_pal, 16]
+          - [0x33620, palette, crash_turtle_pal, 16]
+          - [0x33640, palette, crash_dragon_pal, 16]
+          - [0x33660, palette, crash_cardinal_pal, 16]
+          - [0x33C00, skip]
+  - target: disks/psp/PSPBIN/cen.bin
+    asset_path: assets/st/cen
+    src_path: src/st/cen
+    splat_config_path: config/splat.pspeu.stcen.yaml
+    segments:
+      - start: 0x80
+        vram: 0x091CC000
+        assets:
+          - [0x80, skip]
+          - [0x21480, spritesheet, maria, disks/psp/PSPBIN/maria.bin, 0x14B18]
+          - [0x31290, skip]
+          - [0x31438, subweaponsdef, subweapons, MarSubweapons, MarBlueprints]
+          - [0x316B8, skip]
+          - [0x31808, blueprintsdef, blueprints, MarBlueprints, MarEntities]
+          - [0x319E0, skip]
+          - [0x320D8, spriteset, maria_spr]
+          - [0x326A8, palette, maria_pal, 16]
+          - [0x32CA8, spriteset, wpn_owl_spr]
+          - [0x32F80, palette, wpn_owl_pal, 16]
+          - [0x33580, cmpgfx, wpn_owl_gfx, 128, 128, 4, 0x32F80]
+          - [0x33CF8, spriteset, wpn_doll_spr]
+          - [0x33EF0, palette, wpn_doll_pal, 16]
+          - [0x344F0, cmpgfx, wpn_doll_gfx, 128, 128, 4, 0x33EF0]
+          - [0x34F38, spriteset, wpn_turtle_spr]
+          - [0x35028, palette, wpn_turtle_pal, 16]
+          - [0x35048, palette, wpn_turtle2_pal, 16]
+          - [0x35628, cmpgfx, wpn_turtle_gfx, 128, 128, 4, 0x35028]
+          - [0x367E8, spriteset, wpn_cardinal_spr]
+          - [0x37300, palette, wpn_cardinal_pal, 16]
+          - [0x37900, cmpgfx, wpn_cardinal_gfx, 128, 128, 4, 0x37300]
+          - [0x387B0, spriteset, wpn_cat_spr]
+          - [0x38BC8, palette, wpn_cat_pal, 16]
+          - [0x38BE8, palette, wpn_cat2_pal, 16]
+          - [0x391C8, cmpgfx, wpn_cat_gfx, 128, 128, 4, 0x38BC8]
+          - [0x39EA0, spriteset, wpn_dragon_spr]
+          - [0x3A0A8, palette, wpn_dragon_pal, 16]
+          - [0x3A0C8, palette, wpn_dragon2_pal, 16]
+          - [0x3A6A8, cmpgfx, wpn_dragon_gfx, 128, 128, 4, 0x3A0A8]
+          - [0x3B2E0, cmpgfx, crash_turtle_gfx, 128, 128, 4, 0x3F610]
+          - [0x3C238, cmpgfx, crash_dragon_gfx, 128, 128, 4, 0x3F630]
+          - [0x3D4C0, cmpgfx, crash_cardinal_gfx, 128, 128, 4, 0x3F650]
+          - [0x3E728, cmpgfx, crash_cat_gfx, 128, 128, 4, 0x3F5F0]
+          - [0x3F5F0, palette, crash_cat_pal, 16]
+          - [0x3F610, palette, crash_turtle_pal, 16]
+          - [0x3F630, palette, crash_dragon_pal, 16]
+          - [0x3F650, palette, crash_cardinal_pal, 16]
+          - [0x3FBF0, skip]

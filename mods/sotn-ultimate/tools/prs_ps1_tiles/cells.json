@@ -1,0 +1,1518 @@
+{
+"pairs": [
+"P5",
+"P5b"
+],
+"cells": [
+{
+"room": 0,
+"y": 9,
+"x": 2,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 10,
+"x": 2,
+"tile": 1,
+"pair": "P5",
+"pal": 5,
+"old": 16,
+"coll": 131
+},
+{
+"room": 0,
+"y": 11,
+"x": 2,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 11,
+"x": 3,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 11,
+"x": 4,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 12,
+"x": 3,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 12,
+"x": 4,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 12,
+"x": 5,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 13,
+"x": 4,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 13,
+"x": 5,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 27,
+"coll": 131
+},
+{
+"room": 0,
+"y": 13,
+"x": 6,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 14,
+"x": 5,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 0,
+"y": 14,
+"x": 6,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 14,
+"x": 7,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 15,
+"x": 6,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 15,
+"x": 7,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 15,
+"x": 8,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 16,
+"x": 7,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 16,
+"x": 8,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 16,
+"x": 9,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 17,
+"x": 8,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 17,
+"x": 9,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 17,
+"x": 45,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 18,
+"x": 45,
+"tile": 5,
+"pair": "P5",
+"pal": 5,
+"old": 38,
+"coll": 128
+},
+{
+"room": 0,
+"y": 19,
+"x": 43,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 19,
+"x": 44,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 19,
+"x": 45,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 20,
+"x": 42,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 20,
+"x": 43,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 20,
+"x": 44,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 21,
+"x": 41,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 21,
+"x": 42,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 47,
+"coll": 128
+},
+{
+"room": 0,
+"y": 21,
+"x": 43,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 22,
+"x": 40,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 22,
+"x": 41,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 22,
+"x": 42,
+"tile": 8,
+"pair": "P5",
+"pal": 5,
+"old": 48,
+"coll": 129
+},
+{
+"room": 0,
+"y": 23,
+"x": 39,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 23,
+"x": 40,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 23,
+"x": 41,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 24,
+"x": 38,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 24,
+"x": 39,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 24,
+"x": 40,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 25,
+"x": 2,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 25,
+"x": 38,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 25,
+"x": 39,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 26,
+"x": 2,
+"tile": 1,
+"pair": "P5",
+"pal": 5,
+"old": 16,
+"coll": 131
+},
+{
+"room": 0,
+"y": 27,
+"x": 2,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 27,
+"x": 3,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 27,
+"x": 4,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 28,
+"x": 3,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 28,
+"x": 4,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 28,
+"x": 5,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 29,
+"x": 4,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 29,
+"x": 5,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 27,
+"coll": 131
+},
+{
+"room": 0,
+"y": 29,
+"x": 6,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 30,
+"x": 5,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 0,
+"y": 30,
+"x": 6,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 30,
+"x": 7,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 31,
+"x": 6,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 31,
+"x": 7,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 31,
+"x": 8,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 32,
+"x": 7,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 32,
+"x": 8,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 32,
+"x": 9,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 33,
+"x": 8,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 0,
+"y": 33,
+"x": 9,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 0,
+"y": 33,
+"x": 45,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 34,
+"x": 45,
+"tile": 5,
+"pair": "P5",
+"pal": 5,
+"old": 38,
+"coll": 128
+},
+{
+"room": 0,
+"y": 35,
+"x": 43,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 35,
+"x": 44,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 35,
+"x": 45,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 36,
+"x": 42,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 36,
+"x": 43,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 36,
+"x": 44,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 37,
+"x": 41,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 37,
+"x": 42,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 47,
+"coll": 128
+},
+{
+"room": 0,
+"y": 37,
+"x": 43,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 38,
+"x": 40,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 38,
+"x": 41,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 38,
+"x": 42,
+"tile": 8,
+"pair": "P5",
+"pal": 5,
+"old": 48,
+"coll": 129
+},
+{
+"room": 0,
+"y": 39,
+"x": 39,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 39,
+"x": 40,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 39,
+"x": 41,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 40,
+"x": 38,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 0,
+"y": 40,
+"x": 39,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 40,
+"x": 40,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 0,
+"y": 41,
+"x": 38,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 0,
+"y": 41,
+"x": 39,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 1,
+"y": 9,
+"x": 2,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 9,
+"x": 26,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 9,
+"x": 37,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 9,
+"x": 77,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 10,
+"x": 2,
+"tile": 9,
+"pair": "P5",
+"pal": 5,
+"old": 219,
+"coll": 131
+},
+{
+"room": 1,
+"y": 10,
+"x": 3,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 10,
+"x": 25,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 10,
+"x": 26,
+"tile": 10,
+"pair": "P5",
+"pal": 5,
+"old": 220,
+"coll": 128
+},
+{
+"room": 1,
+"y": 10,
+"x": 37,
+"tile": 9,
+"pair": "P5",
+"pal": 5,
+"old": 219,
+"coll": 131
+},
+{
+"room": 1,
+"y": 10,
+"x": 38,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 10,
+"x": 76,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 10,
+"x": 77,
+"tile": 10,
+"pair": "P5",
+"pal": 5,
+"old": 220,
+"coll": 128
+},
+{
+"room": 1,
+"y": 11,
+"x": 2,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 1,
+"y": 11,
+"x": 3,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 1,
+"y": 11,
+"x": 25,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 1,
+"y": 11,
+"x": 26,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 1,
+"y": 11,
+"x": 37,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 23,
+"coll": 130
+},
+{
+"room": 1,
+"y": 11,
+"x": 38,
+"tile": 3,
+"pair": "P5",
+"pal": 5,
+"old": 24,
+"coll": 131
+},
+{
+"room": 1,
+"y": 11,
+"x": 41,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 46,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 49,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 54,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 57,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 62,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 65,
+"tile": 0,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 70,
+"tile": 4,
+"pair": "P5",
+"pal": 5,
+"old": 0,
+"coll": 0
+},
+{
+"room": 1,
+"y": 11,
+"x": 76,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 1,
+"y": 11,
+"x": 77,
+"tile": 7,
+"pair": "P5",
+"pal": 5,
+"old": 42,
+"coll": 129
+},
+{
+"room": 1,
+"y": 12,
+"x": 3,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 1,
+"y": 12,
+"x": 25,
+"tile": 11,
+"pair": "P5",
+"pal": 5,
+"old": 221,
+"coll": 129
+},
+{
+"room": 1,
+"y": 12,
+"x": 38,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 1,
+"y": 12,
+"x": 41,
+"tile": 9,
+"pair": "P5",
+"pal": 5,
+"old": 219,
+"coll": 131
+},
+{
+"room": 1,
+"y": 12,
+"x": 46,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 1,
+"y": 12,
+"x": 49,
+"tile": 9,
+"pair": "P5",
+"pal": 5,
+"old": 219,
+"coll": 131
+},
+{
+"room": 1,
+"y": 12,
+"x": 54,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 1,
+"y": 12,
+"x": 57,
+"tile": 9,
+"pair": "P5",
+"pal": 5,
+"old": 219,
+"coll": 131
+},
+{
+"room": 1,
+"y": 12,
+"x": 62,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 1,
+"y": 12,
+"x": 65,
+"tile": 9,
+"pair": "P5",
+"pal": 5,
+"old": 219,
+"coll": 131
+},
+{
+"room": 1,
+"y": 12,
+"x": 70,
+"tile": 6,
+"pair": "P5",
+"pal": 5,
+"old": 41,
+"coll": 128
+},
+{
+"room": 1,
+"y": 12,
+"x": 76,
+"tile": 11,
+"pair": "P5",
+"pal": 5,
+"old": 221,
+"coll": 129
+},
+{
+"room": 1,
+"y": 13,
+"x": 41,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 1,
+"y": 13,
+"x": 46,
+"tile": 11,
+"pair": "P5",
+"pal": 5,
+"old": 221,
+"coll": 129
+},
+{
+"room": 1,
+"y": 13,
+"x": 49,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 1,
+"y": 13,
+"x": 54,
+"tile": 11,
+"pair": "P5",
+"pal": 5,
+"old": 221,
+"coll": 129
+},
+{
+"room": 1,
+"y": 13,
+"x": 57,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 1,
+"y": 13,
+"x": 62,
+"tile": 11,
+"pair": "P5",
+"pal": 5,
+"old": 221,
+"coll": 129
+},
+{
+"room": 1,
+"y": 13,
+"x": 65,
+"tile": 2,
+"pair": "P5",
+"pal": 5,
+"old": 28,
+"coll": 130
+},
+{
+"room": 1,
+"y": 13,
+"x": 70,
+"tile": 11,
+"pair": "P5",
+"pal": 5,
+"old": 221,
+"coll": 129
+},
+{
+"room": 1,
+"y": 3,
+"x": 28,
+"tile": 12,
+"pair": "P5b",
+"pal": 5,
+"old": 206,
+"coll": 131
+},
+{
+"room": 1,
+"y": 3,
+"x": 35,
+"tile": 13,
+"pair": "P5b",
+"pal": 5,
+"old": 207,
+"coll": 134
+},
+{
+"room": 1,
+"y": 3,
+"x": 76,
+"tile": 12,
+"pair": "P5b",
+"pal": 5,
+"old": 206,
+"coll": 131
+},
+{
+"room": 1,
+"y": 4,
+"x": 2,
+"tile": 14,
+"pair": "P5b",
+"pal": 5,
+"old": 209,
+"coll": 134
+},
+{
+"room": 1,
+"y": 4,
+"x": 3,
+"tile": 15,
+"pair": "P5b",
+"pal": 5,
+"old": 210,
+"coll": 135
+},
+{
+"room": 1,
+"y": 4,
+"x": 28,
+"tile": 16,
+"pair": "P5b",
+"pal": 5,
+"old": 211,
+"coll": 132
+},
+{
+"room": 1,
+"y": 4,
+"x": 29,
+"tile": 17,
+"pair": "P5b",
+"pal": 5,
+"old": 212,
+"coll": 131
+},
+{
+"room": 1,
+"y": 4,
+"x": 34,
+"tile": 14,
+"pair": "P5b",
+"pal": 5,
+"old": 209,
+"coll": 134
+},
+{
+"room": 1,
+"y": 4,
+"x": 35,
+"tile": 15,
+"pair": "P5b",
+"pal": 5,
+"old": 210,
+"coll": 135
+},
+{
+"room": 1,
+"y": 4,
+"x": 76,
+"tile": 16,
+"pair": "P5b",
+"pal": 5,
+"old": 211,
+"coll": 132
+},
+{
+"room": 1,
+"y": 4,
+"x": 77,
+"tile": 17,
+"pair": "P5b",
+"pal": 5,
+"old": 212,
+"coll": 131
+},
+{
+"room": 1,
+"y": 5,
+"x": 2,
+"tile": 18,
+"pair": "P5b",
+"pal": 5,
+"old": 215,
+"coll": 135
+},
+{
+"room": 1,
+"y": 5,
+"x": 29,
+"tile": 19,
+"pair": "P5b",
+"pal": 5,
+"old": 216,
+"coll": 132
+},
+{
+"room": 1,
+"y": 5,
+"x": 34,
+"tile": 18,
+"pair": "P5b",
+"pal": 5,
+"old": 215,
+"coll": 135
+},
+{
+"room": 1,
+"y": 5,
+"x": 77,
+"tile": 19,
+"pair": "P5b",
+"pal": 5,
+"old": 216,
+"coll": 132
+}
+]
+}

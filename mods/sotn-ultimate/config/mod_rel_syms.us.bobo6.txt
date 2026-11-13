@@ -1,0 +1,19 @@
+/* mods/sotn-ultimate/tools/check_abs_syms.py --write: splat's absolute
+   addresses inside a symbol, relative to it */
+D_us_801812B9 = D_us_801812B8 + 0x1; /* retail 0x801812B9 */
+D_us_801812BA = D_us_801812B8 + 0x2; /* retail 0x801812BA */
+D_us_801812BB = D_us_801812B8 + 0x3; /* retail 0x801812BB */
+D_us_8018189E = D_us_8018189C + 0x2; /* retail 0x8018189E */
+D_us_801824EE = D_us_801824EC + 0x2; /* retail 0x801824EE */
+D_us_8018250A = D_us_80182508 + 0x2; /* retail 0x8018250A */
+D_us_80182526 = D_us_80182524 + 0x2; /* retail 0x80182526 */
+D_us_8018255E = D_us_8018255C + 0x2; /* retail 0x8018255E */
+D_us_80182892 = D_us_80182890 + 0x2; /* retail 0x80182892 */
+D_us_80182896 = D_us_80182894 + 0x2; /* retail 0x80182896 */
+D_us_8018289A = D_us_80182898 + 0x2; /* retail 0x8018289A */
+D_us_8018299E = D_us_8018299C + 0x2; /* retail 0x8018299E */
+D_us_8019A2E1 = D_us_8019A0D0 + 0x211; /* retail 0x8019A2E1 */
+D_us_8019A2FB = D_us_8019A0D0 + 0x22B; /* retail 0x8019A2FB */
+D_us_801D080E = D_us_801D080C + 0x2; /* retail 0x801D080E */
+D_us_801D084E = D_us_801D084C + 0x2; /* retail 0x801D084E */
+D_us_801D10D2 = D_us_801D10D0 + 0x2; /* retail 0x801D10D2 */

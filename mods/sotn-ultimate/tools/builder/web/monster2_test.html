@@ -1,0 +1,142 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Builder Disc Test</title>
+<style>
+:root { --bg: #f6f5f2; --fg: #1d1d1f; --muted: #6b6b70; --card: #fff; --line: #dedcd6;
+        --ok: #1f7a3a; --bad: #b3261e; --accent: #5b3fa6; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151517; --fg: #ececee; --muted: #9a9aa2; --card: #1f1f23; --line: #34343a;
+          --ok: #5fcf83; --bad: #ff7b72; --accent: #b39dfa; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+       font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+p.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+        padding: 16px; margin-bottom: 16px; }
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 22px; text-align: center;
+        color: var(--muted); }
+.drop.over { border-color: var(--accent); color: var(--fg); }
+.disc { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.disc:last-child { border-bottom: 0; }
+.mark { width: 22px; flex: none; font-weight: 700; }
+.small { color: var(--muted); font-size: 13px; word-break: break-all; }
+button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 0;
+         background: var(--accent); color: #fff; cursor: pointer; margin-top: 12px; }
+button:disabled { opacity: .5; cursor: default; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td.h { font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+#verdict { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SOTN Ultimate builder — disc test</h1>
+  <p class="sub">Reads your three discs and rebuilds the Saturn bestiary pictures, entirely in this page, offline.
+    Nothing leaves your PC.</p>
+
+  <div class="card">
+    <div class="drop" id="drop">Drop the three disc files here (or <label style="text-decoration:underline;cursor:pointer">pick them<input type="file" id="pick" multiple hidden></label>)<br>
+      <span class="small">PS1 USA Track 1 <code>.bin</code> · Saturn Japan Track 1 <code>.bin</code> · PSP USA <code>.iso</code></span></div>
+    <div id="discs"></div>
+    <button id="build" disabled>Build the bestiary pictures</button>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <div id="verdict"></div>
+    <table><thead><tr><th>File</th><th>md5</th><th>vs reference</th></tr></thead><tbody id="rows"></tbody></table>
+    <p class="small" id="time"></p>
+  </div>
+</main>
+
+<script>/*__BUNDLE__*/</script>
+<script>
+const MANIFEST = /*__MANIFEST__*/;
+const { IsoFs } = SotnBuilder.disc;
+const { identify, NEEDED } = SotnBuilder.identify;
+const { buildMonster2 } = SotnBuilder.monster2;
+const { md5 } = SotnBuilder.md5;
+const $ = (id) => document.getElementById(id);
+const found = {};
+
+const fileSource = (file) => ({
+  size: file.size,
+  read: async (offset, length) => new Uint8Array(await file.slice(offset, offset + length).arrayBuffer()),
+});
+
+function render() {
+  $("discs").innerHTML = "";
+  for (const kind of ["ps1", "saturn", "psp"]) {
+    const d = found[kind];
+    const row = document.createElement("div");
+    row.className = "disc";
+    row.innerHTML = d
+      ? `<span class="mark ${d.ok ? "ok" : "bad"}">${d.ok ? "✓" : "✗"}</span><div>${d.note}` +
+        `<div class="small">${d.file} · ${d.serial}</div></div>`
+      : `<span class="mark small">·</span><div class="small">waiting for: ${NEEDED[kind].name}</div>`;
+    $("discs").appendChild(row);
+  }
+  $("build").disabled = !["ps1", "saturn", "psp"].every((k) => found[k] && found[k].ok);
+}
+
+async function add(files) {
+  for (const f of files) {
+    const info = await identify(fileSource(f));
+    info.file = f.name;
+    if (info.kind) {
+      found[info.kind] = info;
+    } else {
+      alert(f.name + ": " + info.note);
+    }
+  }
+  render();
+}
+
+$("build").onclick = async () => {
+  $("build").disabled = true;
+  const t0 = performance.now();
+  try {
+    const r = buildMonster2({
+      oyaji: await found.saturn.fs.readFile("OYAJI.CHR"),
+      library: await found.saturn.fs.readFile("LIBRARY.PRG"),
+      monster: await found.ps1.fs.readFile("BIN/MONSTER.BIN"),
+      pspMaria: await found.psp.fs.readFile("PSP_GAME/USRDIR/res/ps/hdbin/mo_139.bin"),
+      bits: MANIFEST.bestiaryBits,
+    });
+    $("rows").innerHTML = "";
+    let good = 0;
+    for (const [name, data] of [["MONSTER2.BIN", r.monster2], ["MONSTER.BIN", r.monster]]) {
+      const h = md5(data), same = h === MANIFEST.expect[name];
+      good += same;
+      $("rows").insertAdjacentHTML("beforeend", `<tr><td>${name}</td><td class="h">${h}</td>` +
+        `<td class="${same ? "ok" : "bad"}">${same ? "MATCH" : "DIFFERENT"}</td></tr>`);
+    }
+    $("verdict").className = good === 2 ? "ok" : "bad";
+    $("verdict").textContent = good === 2 ? "Both files identical to the release build ✓" : "Mismatch ✗";
+  } catch (e) {
+    $("verdict").className = "bad";
+    $("verdict").textContent = String(e.message || e);
+  }
+  $("time").textContent = "Took " + Math.round(performance.now() - t0) + " ms · " + navigator.userAgent;
+  $("result").hidden = false;
+  $("build").disabled = false;
+};
+
+$("pick").onchange = (e) => add(e.target.files);
+const drop = $("drop");
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); add(e.dataTransfer.files); };
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,578 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!--
+==============================================================================
+  Hello, developer. You opened the source; this part is for you.
+
+  SOTN Ultimate (PS1 Version): how it was made, and how this page works.
+==============================================================================
+
+  The short version: the Sega Saturn's exclusive content and the PSP's
+  English dub, running on a PlayStation, on one CD, built in your browser
+  from your own three discs. Below is the longer one.
+
+------------------------------------------------------------------------------
+1. Standing on the decompilation
+------------------------------------------------------------------------------
+
+  None of this would exist without the sotn-decomp project (Xeeynamo and
+  contributors), which turned Symphony of the Night back into C that
+  recompiles to the exact retail binaries, for the PS1, and in part for
+  the Saturn and the PSP too.
+
+  The mod is C written on top of that tree. It builds with the decomp's
+  own toolchain into the same overlays the retail game loads (the main
+  game, the stages, the bosses, the characters), so the disc keeps the
+  retail layout and only the files that change are swapped in.
+
+------------------------------------------------------------------------------
+2. Bringing the Saturn over
+------------------------------------------------------------------------------
+
+  - Stages. The Underground Garden, the Cursed Prison and their inverted
+    twins are Saturn rooms rebuilt as PS1 stages. The Saturn draws 320
+    pixels across, the PS1 256, so every room is narrowed, then each tile
+    is matched against PS1 tile sets. Where narrowing made stairs and
+    slopes uneven, the Garden takes the matching Castle Entrance tiles and
+    the Prisons the Underground Caverns' stairs, recoloured.
+  - Enemies and the boss. Their Saturn code (SH-2 assembly) was read and
+    translated into C, entity by entity, then tuned side by side with the
+    Saturn version.
+  - Sprites. Saturn sprites are converted and repacked into PS1 texture
+    pages, and recompressed with the game's own sprite codec.
+  - Items, relics, Saturn Maria. The Saturn's inventory sizes (176 hand,
+    93 body items) fit inside the retail save block, which keeps its
+    size; retail saves are converted on load.
+  - Music. The Saturn tracks are decoded from the Saturn's IMA ADPCM and
+    re-encoded to the PS1's XA, and loop inside the stream.
+
+------------------------------------------------------------------------------
+3. Bringing the PSP over
+------------------------------------------------------------------------------
+
+  The Dracula X Chronicles' English dub and revised script, and its Maria:
+  playable, and as an optional boss. The PSP's ATRAC3 voices are decoded
+  and re-encoded to XA, and its script is rebuilt into the PS1's text
+  format.
+
+------------------------------------------------------------------------------
+4. Two Marias
+------------------------------------------------------------------------------
+
+  Maria Renard is playable twice here, and fought twice, and each one took
+  a different road onto the PlayStation.
+
+  The Saturn Maria
+
+  - On the Saturn she is her own program, the same size as Richter's but
+    laid out differently. The PS1 has no such character, so she is built
+    on the PS1's Richter player code, and everything that makes her
+    Maria was ported across from the Saturn's.
+  - Finding the differences: the two Saturn programs were compared entity
+    by entity (moves, throws, sub-weapons, effects), and the rest was read
+    straight from the SH-2 code. Her backdash, for example, turned up as
+    one more button test at the end of her input check; the slide kick's
+    bounce off enemies as a branch in the kick's step code.
+  - What came over: the double jump, the dart shot and its charged
+    fireball, energy ball and laser, the kicks, the specials (Guardian
+    Knuckle, Genbu, Byakko, Seiryuu, Suzaku and Four Beasts, with the
+    countdown digits behind her head), a throw pose per sub-weapon, the
+    Saturn sub-weapon limits, the purple holy-water flames and the
+    vibhuti's puff.
+  - Sprites, narrowed from Saturn to PS1 proportions, and her HUD.
+  - Video memory. Her extra art lives in VRAM blocks the game leaves
+    free, but a few screens (loading a save, for one) draw over them. So
+    she checks those rows every 32 frames and loads her art again when
+    something has written there.
+  - Sound memory. The PS1's sound RAM holds a few banks at a time, so her
+    sounds go into the slots that Richter's voice bank and the familiars'
+    bank use. To fit at full quality, Seiryuu's dragon rumble is a short
+    loop played in code for as long as the dragon flies.
+  - The boss. Her Saturn fight in the Castle Center was rebuilt in the PS1
+    stage, and every sound it plays was checked against the Saturn
+    stage's code, call by call.
+
+  The PSP Maria
+
+  - The decompilation already had her: The Dracula X Chronicles' Maria,
+    decompiled from the PSP, compiling for the PS1. Her sprites,
+    palettes and tables come from the PSP's own files, and she loads as
+    a character of her own, apart from the Saturn Maria. Her owl, her
+    animal sub-weapons, the two sub-weapon slots and the L1 / R1 dashes
+    are the PSP code, unchanged.
+  - The boss. Her PSP Castle Center fight is built as a stage of its own,
+    with her PSP stats. Two port bugs worth telling: she froze after
+    taking hits, because a palette value differs between the two
+    versions and set a state bit that sent her into a player state with
+    no code behind it; and she never slide-jumped, because the button
+    bit her fight logic pressed means Down on the PS1, not Cross.
+  - Both were found live: a debugger attached to the emulator stops on her
+    fight logic every frame and logs what she thinks she is doing.
+
+  Both get Maria's ending, and both show up as "Maria" on the File Select
+  screen.
+
+------------------------------------------------------------------------------
+5. One CD, real hardware
+------------------------------------------------------------------------------
+
+  - Space. Music and voices are streamed XA (no CD-audio track), the empty
+    filler is gone, unused lines are silence, and voices that were the
+    same on both channels are stored mono. The result is 683,034,912
+    bytes, 290,406 sectors: it fits a 74-minute CD-R.
+  - Memory. Everything runs inside the PS1's own limits. The main game
+    keeps its retail memory layout (unreachable debug and dev-kit code was
+    removed to make room), and the new stages use free stage slots on the
+    disc.
+  - The disc. Moving files around breaks the XA sector headers that point
+    at them; the build rewrites them, and recomputes every sector's
+    EDC/ECC, so a burned disc reads like a pressed one.
+
+------------------------------------------------------------------------------
+6. This page: the bring-your-own-discs builder
+------------------------------------------------------------------------------
+
+  The first release was a plain 193 MB xdelta, and most of those bytes
+  were Saturn and PSP audio. That is not ours to hand out. Since v1.1, the
+  release ships only the mod's own changes, and this page rebuilds
+  everything else from the discs you own. Nothing leaves your PC.
+
+  How the patch is made:
+
+  1. Every tool that turned Saturn or PSP data into the release disc
+     (Python, Go and Rust, about thirty of them: sound banks, sprites,
+     tiles, script, dubs, music, tables) was ported to TypeScript. The
+     two heavy ones run as WebAssembly: the audio core (ATRAC3 and XA)
+     and the Saturn asset converter, a Rust program compiled with
+     Emscripten.
+  2. Each port has to rebuild its part of the release disc bit for bit.
+     Close is not enough: the final check is one MD5 of the whole disc.
+  3. A "hollow" image is made from the finished disc: every byte a
+     converter can reproduce from your discs is blanked, along with its
+     sectors' EDC/ECC. Data compiled into C arrays is found through the
+     linker maps; audio is found by matching each stream sector by
+     sector, including every copy of it.
+  4. The patch is an xdelta (VCDIFF) from the retail PS1 track to the
+     hollow image: 4,643,989 bytes, down from 193,034,254.
+  5. An audit scans the hollow image for any run of 32 or more bytes
+     still found as-is in the Saturn or PSP files, and those are rebuilt
+     from your discs too.
+
+  What runs when you press "Build the disc":
+
+  - Your disc images are read as ISO 9660 file systems, in place; nothing
+    is unpacked to disk.
+  - The patch (embedded below, base64) is applied to your PS1 track.
+  - The converters run and write their output into the blanked sectors.
+  - EDC/ECC is recomputed, and the MD5 of the whole disc must match the
+    release, or you are not offered the file.
+
+  Things that bite when you want bit-exact output on every machine:
+
+  - Floating point. musl's pow() and log10() (WebAssembly) can differ
+    from glibc's in the last bit, enough to change a sample. The
+    TypeScript ports are the reference, and the release is made with them.
+  - Python's round() rounds halves to even; JavaScript's does not.
+  - Tie-breaks that depend on dictionary order must keep the same order.
+  - Symbol tables: nm guesses a symbol's type from its section and got
+    some read-only arrays wrong; objdump -t reads the section itself.
+
+  The page itself: one HTML file with five scripts inlined, in order: the
+  audio core (WebAssembly), the Saturn converter (WebAssembly), the
+  builder (TypeScript bundled into one script), the manifest (where
+  each converter's bytes go), and the patch.
+
+------------------------------------------------------------------------------
+7. Thanks
+------------------------------------------------------------------------------
+
+  - Konami, for the three games. Buy them, dump them, keep them.
+  - The sotn-decomp project (Xeeynamo and contributors).
+  - Xeeynamo, for the first PSP Maria on the PS1 (mariapsp-forpsx), which
+    this mod's PSP Maria is adapted from, and sozud, for her voice
+    (maria-sfx).
+  - Knight0fDragon, for the Saturn English fan translation.
+  - Redump, for the reference checksums.
+
+  SOTN Ultimate (PS1 Version) by belaLugosiIsDead.
+
+  "What is a man? A miserable little pile of secrets."
+  This page is the opposite. Read on.
+
+==============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>SOTN Ultimate Builder</title>
+<style>
+:root {
+  --night: #05040a; --ink: #f1ece0; --dim: #9196bd; --faint: #5d6190;
+  --gold: #e9c45b; --gold-deep: #9c7a26; --blood: #d23a45; --blood-deep: #5e0d16;
+  --frame-hi: #d9dce6; --frame-mid: #7c8098; --frame-lo: #1a1b2a;
+  --win-top: #1d2c93; --win-mid: #0c1456; --win-bot: #03062a;
+  --cursor: 120, 168, 255;
+  --serif: "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", Georgia, serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html { background: var(--night); }
+body {
+  margin: 0; min-height: 100vh; color: var(--ink); font: 16px/1.45 var(--serif);
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -8%, rgba(120, 14, 30, .55), transparent 70%),
+    radial-gradient(ellipse 70% 40% at 50% 108%, rgba(30, 20, 80, .5), transparent 70%),
+    var(--night);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .7);
+}
+main { max-width: 720px; margin: 0 auto; padding: 40px 16px 56px; }
+
+/* title */
+header { text-align: center; margin-bottom: 30px; }
+.over { font-variant: small-caps; letter-spacing: .32em; color: var(--dim); font-size: 13px; }
+h1 {
+  margin: 6px 0 4px; font-weight: 400; font-size: clamp(34px, 8vw, 54px); letter-spacing: .06em; line-height: 1.05;
+  background: linear-gradient(180deg, #ffffff 0%, #eef0f6 40%, #a9aec4 50%, #f4f5f9 62%, #c9ccd8 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 #000) drop-shadow(0 0 18px rgba(160, 20, 40, .45));
+}
+.edition { font-variant: small-caps; letter-spacing: .2em; color: var(--gold); font-size: 15px; }
+.rule { display: flex; align-items: center; gap: 12px; margin: 16px auto 0; max-width: 360px; color: var(--gold-deep); }
+.rule::before, .rule::after { content: ""; flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-deep), transparent); }
+.lede { color: var(--dim); max-width: 520px; margin: 14px auto 0; font-size: 15px; }
+
+/* menu windows */
+.win {
+  position: relative; margin: 0 0 28px; padding: 22px 18px 18px;
+  background: linear-gradient(180deg, var(--win-top) 0%, var(--win-mid) 42%, var(--win-bot) 100%);
+  border: 2px solid var(--frame-hi);
+  box-shadow: 0 0 0 2px var(--frame-lo), 0 0 0 4px var(--frame-mid), 0 0 0 6px var(--frame-lo),
+              inset 0 0 0 2px rgba(0, 0, 0, .55), inset 0 0 0 3px rgba(150, 165, 255, .25),
+              0 18px 40px rgba(0, 0, 0, .6);
+}
+.win > .label {
+  position: absolute; top: -13px; left: 16px; padding: 1px 12px;
+  background: linear-gradient(180deg, #2a2c3e, #0d0e18); border: 1px solid var(--frame-mid);
+  font-variant: small-caps; letter-spacing: .22em; font-size: 14px; color: var(--gold);
+}
+.hint { color: var(--dim); font-size: 14px; margin: 0 0 12px; }
+.hint label { color: var(--ink); text-decoration: underline; text-decoration-color: var(--gold-deep);
+  text-underline-offset: 3px; cursor: pointer; }
+.hint label:hover { color: var(--gold); }
+
+/* file slots */
+.slot {
+  display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: 14px;
+  padding: 10px 10px; margin: 0 -6px; border: 1px solid transparent;
+}
+.slot + .slot { border-top-color: rgba(150, 165, 255, .14); }
+.tag {
+  height: 40px; display: grid; place-items: center; font: 600 13px/1 var(--mono); letter-spacing: .08em;
+  color: var(--dim); border: 1px solid var(--faint); background: rgba(0, 0, 0, .35);
+}
+.slot.ready .tag { color: var(--gold); border-color: var(--gold-deep);
+  box-shadow: inset 0 0 12px rgba(233, 196, 91, .18); }
+.slot.bad .tag { color: var(--blood); border-color: var(--blood); }
+.name { font-size: 17px; overflow-wrap: anywhere; }
+.slot.wait .name { color: var(--dim); }
+.meta { color: var(--faint); font: 12.5px/1.4 var(--mono); overflow-wrap: anywhere; margin-top: 2px; }
+.slot.ready .meta { color: var(--dim); }
+.state { font-variant: small-caps; letter-spacing: .16em; font-size: 14px; color: var(--faint); white-space: nowrap; }
+.slot.ready .state { color: var(--gold); }
+.slot.bad .state { color: var(--blood); }
+.slot.wait .state::after { content: ""; display: inline-block; width: 1.2em; text-align: left;
+  animation: dots 1.6s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+#notice { margin: 10px 0 0; color: var(--blood); font-size: 14px; }
+#notice:empty { display: none; }
+#added { margin: 10px 0 0; color: var(--dim); font-size: 14px; }
+#added:empty { display: none; }
+.pick1 { font: inherit; font-variant: small-caps; letter-spacing: .12em; font-size: 13px;
+         color: var(--ink); background: transparent; border: 1px solid var(--gold-deep);
+         border-radius: 3px; padding: 2px 10px; margin-left: 10px; cursor: pointer; }
+.pick1:hover, .pick1:focus { color: var(--gold); border-color: var(--gold); }
+
+/* the page takes dropped files anywhere */
+#veil { position: fixed; inset: 0; display: none; place-items: center; z-index: 5;
+  background: rgba(3, 4, 20, .78); pointer-events: none; }
+body.dragging #veil { display: grid; }
+#veil div { padding: 22px 34px; font-variant: small-caps; letter-spacing: .25em; color: var(--gold);
+  border: 2px solid var(--frame-hi); box-shadow: 0 0 0 2px var(--frame-lo), 0 0 0 4px var(--frame-mid);
+  background: linear-gradient(180deg, var(--win-top), var(--win-bot)); }
+
+/* menu options, with the blinking cursor */
+.menu { display: flex; flex-direction: column; gap: 2px; }
+.menu button {
+  position: relative; text-align: left; font: 19px/1.3 var(--serif); color: var(--ink);
+  background: transparent; border: 1px solid transparent; padding: 8px 12px 8px 34px; cursor: pointer;
+  text-shadow: inherit;
+}
+.menu button::before { content: "\25B6"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; color: var(--gold); opacity: 0; }
+.menu button:not(:disabled):hover, .menu button:not(:disabled):focus {
+  outline: none; border-color: rgba(var(--cursor), .55);
+  background: linear-gradient(90deg, rgba(var(--cursor), .38), rgba(var(--cursor), .06));
+  animation: glow 1.1s ease-in-out infinite alternate;
+}
+.menu button:not(:disabled):hover::before, .menu button:not(:disabled):focus::before {
+  opacity: 1; animation: blink .9s steps(2, jump-none) infinite; }
+@keyframes glow { to { background: linear-gradient(90deg, rgba(var(--cursor), .2), rgba(var(--cursor), .02)); } }
+@keyframes blink { 50% { opacity: .15; } }
+.menu button:disabled { color: var(--faint); cursor: default; }
+.menu .sub { display: block; font-size: 13px; color: var(--dim); font-family: var(--mono); margin-top: 1px; }
+.menu button:disabled .sub { color: var(--faint); }
+
+/* progress, framed like a status gauge */
+#progress { margin-top: 16px; }
+.now { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; margin-bottom: 6px; }
+.now span:last-child { font-family: var(--mono); color: var(--gold); }
+.gauge { height: 14px; padding: 2px; background: #000; border: 1px solid var(--frame-hi);
+  box-shadow: 0 0 0 1px var(--frame-lo), 0 0 0 2px var(--frame-mid); }
+.gauge > div { height: 100%; width: 0; transition: width .12s;
+  background: linear-gradient(180deg, #ff8a8f 0%, var(--blood) 35%, var(--blood-deep) 100%); }
+#steps { margin-top: 12px; max-height: 190px; overflow: auto; font-size: 14px; color: var(--dim);
+  padding-right: 6px; scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
+#steps div { padding: 1px 0; }
+#steps .tick { color: var(--gold); display: inline-block; width: 1.4em; }
+#steps .cur { color: var(--ink); }
+#steps .bad { color: var(--blood); }
+
+/* the result */
+#done { margin-top: 18px; }
+#verdict { margin: 0 0 4px; font-size: 18px; color: var(--gold); }
+#verdict.bad { color: var(--blood); }
+.md5 { font: 12.5px/1.4 var(--mono); color: var(--dim); overflow-wrap: anywhere; margin: 0 0 12px; }
+.small { color: var(--dim); font-size: 14px; margin: 10px 0 0; }
+
+footer { text-align: center; color: var(--faint); font-size: 13px; margin-top: 8px; }
+
+@media (max-width: 480px) {
+  .slot { grid-template-columns: 44px 1fr; }
+  .state { grid-column: 2; }
+  .tag { height: 34px; font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="veil"><div>Release to add</div></div>
+<main>
+  <header>
+    <div class="over">a disc builder for</div>
+    <h1>SOTN Ultimate</h1>
+    <div class="edition" id="edition">PS1 Version</div>
+    <div class="rule">&#x2766;</div>
+    <p class="lede">Builds the patched disc from your own three discs. Everything runs in this page,
+      on your device; nothing is uploaded. Works best on a PC with Chrome, Edge or Firefox. On a phone,
+      add the discs one at a time with their choose buttons; the build holds the whole disc in memory,
+      so it needs a phone with plenty of free memory.</p>
+  </header>
+
+  <section class="win" id="drop">
+    <div class="label">Your discs</div>
+    <p class="hint">Drop the disc images anywhere on this page, or
+      <label id="pick" tabindex="0">pick them</label>, or choose each one below.</p>
+    <div id="items"></div>
+    <p id="added"></p>
+    <p id="notice"></p>
+  </section>
+
+  <section class="win">
+    <div class="label">Build</div>
+    <div class="menu">
+      <button id="build" disabled>Build the disc<span class="sub" id="buildSub">waiting for your discs</span></button>
+    </div>
+    <div id="progress" hidden>
+      <div class="now"><span id="cur"></span><span id="pct"></span></div>
+      <div class="gauge"><div id="fill"></div></div>
+      <div id="steps"></div>
+    </div>
+    <div id="done" hidden>
+      <p id="verdict"></p>
+      <p class="md5" id="md5"></p>
+      <div class="menu">
+        <button id="saveBin">Save the .bin</button>
+        <button id="saveCue">Save the .cue</button>
+      </div>
+      <p class="small">Keep the .bin and .cue together in one folder; burn or load the .cue.</p>
+    </div>
+  </section>
+
+  <footer>Works offline &middot; your discs never leave this PC</footer>
+</main>
+
+<script>/*__AUDIO__*/</script>
+<script>/*__SATCONV__*/</script>
+<script>/*__BUNDLE__*/</script>
+<script>
+const MANIFEST = /*__MANIFEST__*/;
+const { IsoFs } = SotnBuilder.disc;
+const { identify, NEEDED } = SotnBuilder.identify;
+const { buildDisc } = SotnBuilder.build;
+const $ = (id) => document.getElementById(id);
+// the patch, embedded in the page (base64; make_builder_page.ts)
+const PATCH_B64 = "/*__PATCH__*/";
+const patchBytes = () => Uint8Array.from(atob(PATCH_B64), (c) => c.charCodeAt(0));
+const found = {};
+let result = null, building = false;
+
+const SLOTS = { ps1: ["PS1", "PlayStation"], saturn: ["SAT", "Sega Saturn"], psp: ["PSP", "PSP"] };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const edition = MANIFEST.name.match(/\(([^)]*)\)\s*(.*)$/);
+if (edition) {
+  $("edition").textContent = edition[1] + (edition[2] ? " · " + edition[2] : "");
+}
+
+const fileSource = (file) => ({
+  size: file.size,
+  read: async (offset, length) => new Uint8Array(await file.slice(offset, offset + length).arrayBuffer()),
+});
+
+const slot = (cls, tag, name, meta, state) =>
+  `<div class="slot ${cls}"><div class="tag">${tag}</div>` +
+  `<div><div class="name">${name}</div><div class="meta">${meta}</div></div>` +
+  `<div class="state">${state}</div></div>`;
+
+function render() {
+  const rows = [];
+  for (const kind of ["ps1", "saturn", "psp"]) {
+    const d = found[kind];
+    const [tag, system] = SLOTS[kind];
+    const btn = building ? "" : `<button class="pick1">${d ? "change" : "choose"}</button>`;
+    rows.push(!d ? slot("wait", tag, esc(NEEDED[kind].name), esc(system + " · " + NEEDED[kind].serial), "waiting" + btn)
+      : slot(d.ok ? "ready" : "bad", tag, esc(d.note), esc(d.file + " · " + d.serial), (d.ok ? "ready" : "wrong disc") + btn));
+  }
+  $("items").innerHTML = rows.join("");
+  const missing = ["ps1", "saturn", "psp"].filter((k) => !(found[k] && found[k].ok)).length;
+  $("build").disabled = building || missing > 0;
+  $("buildSub").textContent = building ? "working…" : missing ? `waiting for ${missing} more` : "all set";
+}
+
+const ROW = { ps1: "PS1", saturn: "Saturn", psp: "PSP" };
+
+// files: a copy (the input's live list changes with the next pick)
+async function add(files) {
+  const notes = [], added = [];
+  for (const f of files) {
+    let info;
+    try {
+      info = await identify(fileSource(f));
+    } catch (err) {
+      notes.push(f.name + ": could not be read (" + (err && err.message || err) +
+                 "). On a phone, copy the file into the phone's own storage and pick it from there.");
+      continue;
+    }
+    info.file = f.name;
+    info.source = fileSource(f);
+    if (info.kind) {
+      const before = found[info.kind];
+      added.push(before && before.file !== f.name
+        ? f.name + " took the place of " + before.file + " in the " + ROW[info.kind] + " row"
+        : f.name + " → " + ROW[info.kind] + " row");
+      found[info.kind] = info;
+    } else {
+      notes.push(f.name + ": " + info.note);
+    }
+  }
+  $("added").textContent = added.join(" · ");
+  $("notice").textContent = notes.join(" — ");
+  render();
+}
+
+// a new input every time: some phone browsers drop or reuse the previous
+// selection when the same input opens again
+function pickFiles() {
+  if (building) return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.onchange = () => add([...input.files]);
+  input.click();
+}
+
+$("build").onclick = async () => {
+  building = true;
+  render();
+  $("progress").hidden = false;
+  $("done").hidden = true;
+  const t0 = performance.now();
+  const lines = [];
+  let cur = "";
+  const show = () => {
+    $("steps").innerHTML = lines.map((l, i) => i < lines.length - 1 || l === "Done"
+      ? `<div><span class="tick">✓</span>${esc(l)}</div>`
+      : `<div class="cur"><span class="tick">…</span>${esc(l)}</div>`).join("");
+    $("steps").scrollTop = $("steps").scrollHeight;
+  };
+  const log = (step, a, b) => {
+    if (step !== cur) {
+      lines.push(step);
+      cur = step;
+      $("cur").textContent = step;
+      show();
+    }
+    const p = b ? 100 * a / b : 0;
+    $("fill").style.width = p + "%";
+    $("pct").textContent = b ? Math.floor(p) + "%" : "";
+  };
+  try {
+    const patch = patchBytes();
+    const tools = { audio: () => AudioCore({ print: () => {}, printErr: () => {} }),
+                    satconv: () => SaturnAssets({ print: () => {}, printErr: () => {},
+                                                  preRun: [(m) => { m.ENV.SOTN_MOD_UNCAPPED = "1"; }] }) };
+    result = await buildDisc({ ps1: found.ps1.source, ps1Fs: found.ps1.fs, saturn: found.saturn.fs, psp: found.psp.fs },
+                             patch, MANIFEST, tools, log);
+    lines.push("Done");
+    show();
+    $("cur").textContent = "Done";
+    $("fill").style.width = "100%";
+    $("pct").textContent = Math.round((performance.now() - t0) / 1000) + " s";
+    $("verdict").className = "";
+    $("verdict").textContent = "Your disc is ready and verified.";
+    $("md5").textContent = "md5 " + MANIFEST.target.md5;
+    $("done").hidden = false;
+    $("saveBin").focus();
+  } catch (e) {
+    $("steps").insertAdjacentHTML("beforeend", `<div class="bad"><span class="tick">✗</span>${esc(e.message || e)}</div>`);
+    $("steps").scrollTop = $("steps").scrollHeight;
+  }
+  building = false;
+  render();
+};
+
+function save(name, blob) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+}
+$("saveBin").onclick = () => save(MANIFEST.name + ".bin", new Blob([result], { type: "application/octet-stream" }));
+$("saveCue").onclick = () => save(MANIFEST.name + ".cue", new Blob([
+  `FILE "${MANIFEST.name}.bin" BINARY\r\n  TRACK 01 MODE2/2352\r\n    INDEX 01 00:00:00\r\n`], { type: "text/plain" }));
+
+$("pick").onclick = pickFiles;
+$("pick").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickFiles(); } };
+$("items").onclick = (e) => { if (e.target.closest(".pick1")) pickFiles(); };
+let depth = 0;
+document.addEventListener("dragenter", (e) => { e.preventDefault(); depth++; document.body.classList.add("dragging"); });
+document.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; document.body.classList.remove("dragging"); } });
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  depth = 0;
+  document.body.classList.remove("dragging");
+  if (!building) {
+    add([...e.dataTransfer.files]);
+  }
+});
+render();
+</script>
+</body>
+</html>

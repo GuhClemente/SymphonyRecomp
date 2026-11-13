@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# the mod tools (mods/sotn-ultimate/tools) on top of tools/requirements-python.txt
+numpy>=2.0
+PyYAML>=6.0
+pillow>=11.0

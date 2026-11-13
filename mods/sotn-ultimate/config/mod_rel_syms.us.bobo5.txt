@@ -1,0 +1,6 @@
+/* mods/sotn-ultimate/tools/check_abs_syms.py --write: splat's absolute
+   addresses inside a symbol, relative to it */
+D_us_801B5546 = D_us_801B5544 + 0x2; /* retail 0x801B5546 */
+D_us_801B554A = D_us_801B5548 + 0x2; /* retail 0x801B554A */
+D_us_801B5552 = D_us_801B5550 + 0x2; /* retail 0x801B5552 */
+D_us_801B5553 = D_us_801B5550 + 0x3; /* retail 0x801B5553 */
