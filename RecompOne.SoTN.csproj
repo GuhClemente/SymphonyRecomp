@@ -33,4 +33,8 @@
     <EmbeddedResource Include="assets/icon/*.ico" />
     <EmbeddedResource Include="assets/languages.json" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- SOTN Ultimate character overlays / sound banks, loaded at runtime by patches/ultimate -->
+    <Content Include="assets/characters/*.BIN" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

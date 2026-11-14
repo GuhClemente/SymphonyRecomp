@@ -49,6 +49,7 @@ foreach (var overlay in config.Overlays)
     overlay.Elf = ResolvePath(overlay.Elf);
     overlay.Map = ResolvePath(overlay.Map);
     overlay.FuncMap = ResolvePath(overlay.FuncMap);
+    overlay.LocalFile = ResolvePath(overlay.LocalFile);
 }
 
 var cuePath = Path.GetFullPath(Path.Combine(configDir, config.Cue));

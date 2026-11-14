@@ -88,7 +88,7 @@ public sealed class SpellWheelPanel : IPanel
                 if (!canCast) ImGui.BeginDisabled();
                 if (ImGui.Button($"{name} ({cost} Corações)##richter_{i}", new Vector2(-1, 36)))
                 {
-                    SpellWheel.CastRichterCrash(sub, name, cost);
+                    SpellWheel.TriggerQuickCast(i); // runs on the game thread
                 }
                 if (!canCast)
                 {
@@ -102,11 +102,11 @@ public sealed class SpellWheelPanel : IPanel
             ImGui.SeparatorText("🥋 Artes Marciais de Richter");
             if (ImGui.Button("Blade Dash [6] (Avanço Cortante)##dash", new Vector2(-1, 36)))
             {
-                SpellWheel.CastRichterBladeDash();
+                SpellWheel.TriggerQuickCast(5);
             }
             if (ImGui.Button("Super Jump (Super Salto)##sjump", new Vector2(-1, 36)))
             {
-                SpellWheel.CastRichterSuperJump();
+                SpellWheel.TriggerQuickCast(6);
             }
 
             ImGui.EndChild();
@@ -116,25 +116,15 @@ public sealed class SpellWheelPanel : IPanel
             ImGui.SeparatorText("🌟 Invocações & Especiais da Maria (Saturn)");
             ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
-            (string name, int cost, int sfx)[] mariaMoves =
-            [
-                ("Soco Guardião (Guardian Knuckle) [1]", 40, 0x8A1),
-                ("Suzaku - Pássaro Carmesim [2]", 60, 0x8A2),
-                ("Genbu - Tartaruga Sagrada [3]", 80, 0x887),
-                ("Byakko - Tigre Branco [4]", 100, 0x888),
-                ("Seiryuu - Dragão Azul [5]", 120, 0x889),
-                ("As Quatro Bestas Sagradas [6]", 150, 0x87E)
-            ];
-
-            for (int i = 0; i < mariaMoves.Length; i++)
+            for (int i = 0; i < SpellWheel.MariaSpecials.Length; i++)
             {
-                var (name, cost, sfx) = mariaMoves[i];
-                bool canCast = SpellWheel.InfiniteMana || Player.Mp >= cost;
+                var special = SpellWheel.MariaSpecials[i];
+                bool canCast = SpellWheel.InfiniteMana || Player.Mp >= special.MpCost;
 
                 if (!canCast) ImGui.BeginDisabled();
-                if (ImGui.Button($"{name} ({cost} MP)##maria_{i}", new Vector2(-1, 36)))
+                if (ImGui.Button($"{special.Name} [{i + 1}] ({special.MpCost} MP)##maria_{i}", new Vector2(-1, 36)))
                 {
-                    SpellWheel.CastMariaSpecial(name, cost, sfx);
+                    SpellWheel.TriggerQuickCast(i); // runs on the game thread
                 }
                 if (!canCast)
                 {

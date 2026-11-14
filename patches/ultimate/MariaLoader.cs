@@ -10,53 +10,147 @@ namespace Recompiled.Ultimate;
 
 public static class MariaLoader
 {
-    private static bool _isLoaded = false;
-    public static bool IsLoaded => _isLoaded;
-    private static bool _soundsLoaded = false;
+    public const string OverlayName = "maria";
+
+    // The player overlay slot (RIC.BIN in retail). Stage overlays start at 0x80180000.
+    private const uint PlayerOverlayBase = 0x8013C000u;
+    private const uint PlayerOverlayLimit = 0x80180000u;
+    private const uint MarInitAddr = 0x80161DA8u; // MarInit (RicInit in RIC.BIN)
+
+    // VAB header buffers inside DRA and the sound RAM windows DRA transfers their bodies to
+    // (mods/sotn-ultimate/tools/gen_mar_sounds.py)
+    private const uint Vab1HeaderAddr = 0x800B407Cu;
+    private const uint Vab2HeaderAddr = 0x800B807Cu;
+    private const int Vab1SpuAddr = 0x42CC0;
+    private const int Vab2SpuAddr = 0x50E50;
+    private const int Vab1BodyMax = 0xE190;
+    private const int Vab2BodyMax = 0xFBF0;
+
+    // g_SfxData: 7 bytes per sound {vabid, prog, note, volume, mode, tone, priority}
+    private const uint SfxDataBase = 0x800BF554u;
+    private const int SfxStart = 0x600;
+    private const uint SfxModeOff = 4;
+    private const uint SfxPrioOff = 6;
+    private const byte SfxModeChannels12_19 = 0;
+    private const byte SfxModeChannels22_23 = 1;
+
+    // g_ModMarSfxPrio (mods/sotn-ultimate/src/disc/cd_mod_files.h): id, retail, Saturn Maria
+    private static readonly (ushort Id, byte Retail, byte Maria)[] SfxPrio =
+    [
+        (0x6F9, 80, 90), (0x6FA, 80, 90), (0x6FB, 80, 90), // grunts
+        (0x6FC, 80, 90), (0x702, 81, 90),                  // kick, hurt
+        (0x703, 81, 90), (0x704, 81, 90),                  // hurt
+        (0x678, 40, 65), (0x62D, 30, 65), (0x62E, 32, 65), // her hits
+        (0x6FD, 80, 60), (0x6FE, 80, 60), (0x700, 80, 60), // shot, fire, ball
+        (0x6F4, 80, 60), (0x6F5, 80, 60),                  // lunge, beasts end
+        (0x6F7, 50, 60), (0x887, 90, 70), (0x888, 90, 70), // flap, Genbu, Byakko
+        (0x889, 90, 70), (0x88A, 90, 70),                  // Seiryuu, its roar
+        (0x707, 40, 85), (0x617, 30, 85),                  // slide skid, scrape
+    ];
+    private const ushort SeiryuuSfx = 0x889;
+
+    private static bool _soundsLoaded;
+    private static bool _sfxPatched;
+
+    public static bool OverlayAvailable => Dispatcher.Overlays.ContainsKey(OverlayName);
+
+    /// <summary>True while the running session is actually playing as Maria.</summary>
+    public static bool IsActive => Game.Available && Player.IsMaria;
+
     public static bool SoundsLoaded => _soundsLoaded;
 
-    public static bool TransformToMaria(IMemory m)
+    /// <summary>Safe from any thread: the transformation runs on the game thread next frame.</summary>
+    public static void RequestTransform() => GameThread.Post((c, m) =>
+    {
+        if (Game.InGame && !Game.IsLoading) TransformToMaria(c, m);
+    });
+
+    /// <summary>Safe from any thread.</summary>
+    public static void RequestReloadSounds() => GameThread.Post((c, m) => LoadMariaSounds(c, m));
+
+    private static string? ResolveAsset(string name)
+    {
+        string relative = Path.Combine("assets", "characters", name);
+        foreach (string root in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            string path = Path.Combine(root, relative);
+            if (File.Exists(path)) return path;
+        }
+        return null;
+    }
+
+    // Runs a recompiled function on the live game context and puts every register back afterwards.
+    // The stack pointer is moved below the interrupted frame so the callee cannot touch it.
+    private static uint Invoke(CpuContext c, IMemory m, Action<CpuContext, IMemory> fn,
+        uint a0 = 0, uint a1 = 0, uint a2 = 0)
+    {
+        var snap = c.Snapshot();
+        try
+        {
+            c.SP -= 0x40u;
+            c.A0 = a0;
+            c.A1 = a1;
+            c.A2 = a2;
+            fn(c, m);
+            return c.V0;
+        }
+        finally
+        {
+            c.Restore(snap);
+        }
+    }
+
+    /// <summary>Must be called on the game thread (see <see cref="RequestTransform"/>).</summary>
+    public static bool TransformToMaria(CpuContext c, IMemory m)
     {
         try
         {
-            string binPath = Path.GetFullPath("assets/characters/MARIA.BIN");
-            if (!File.Exists(binPath))
+            if (!OverlayAvailable)
             {
-                Console.WriteLine($"[MariaLoader] Arquivo não encontrado: {binPath}");
+                Console.WriteLine("[MariaLoader] Overlay 'maria' não foi gerado. Rode o build inicial novamente (config/sotn.json -> overlay 'maria').");
+                ToastNotifications.ShowText("Maria Renard", "Overlay da Maria ausente: refaça o build inicial.", null, 5f);
+                return false;
+            }
+
+            string? binPath = ResolveAsset("MARIA.BIN");
+            if (binPath == null)
+            {
+                Console.WriteLine("[MariaLoader] Arquivo não encontrado: assets/characters/MARIA.BIN");
+                ToastNotifications.ShowText("Maria Renard", "assets/characters/MARIA.BIN não encontrado.", null, 5f);
                 return false;
             }
 
             byte[] mariaBin = File.ReadAllBytes(binPath);
-            Console.WriteLine($"[MariaLoader] Carregando {mariaBin.Length} bytes de MARIA.BIN em 0x8013C000...");
-
-            // 1. Grava os bytes de dados (sprites LZSS, tabelas de animação e paletas) na RAM do PS1
-            for (int i = 0; i < mariaBin.Length; i++)
+            if (mariaBin.Length > PlayerOverlayLimit - PlayerOverlayBase)
             {
-                m.WriteU8(0x8013C000u + (uint)i, mariaBin[i]);
+                Console.WriteLine($"[MariaLoader] MARIA.BIN grande demais ({mariaBin.Length} bytes) para o slot do personagem.");
+                return false;
             }
 
-            // 2. Carrega a tabela de dispatch remapeada para a Maria no Dispatcher
-            Dispatcher.Load("maria");
+            Console.WriteLine($"[MariaLoader] Carregando {mariaBin.Length} bytes de MARIA.BIN em 0x{PlayerOverlayBase:X8}...");
 
-            // 3. Define a flag de personagem para Maria (2)
+            // 1. Dados do overlay (sprites, tabelas de animação, paletas) no slot do personagem
+            for (int i = 0; i < mariaBin.Length; i++)
+                m.WriteU8(PlayerOverlayBase + (uint)i, mariaBin[i]);
+
+            // 2. Código recompilado da Maria no lugar do RIC
+            Dispatcher.Load(OverlayName);
+
+            // 3. Personagem jogável = Maria
             m.WriteU32(Game.PlayableCharacterAddr, (uint)PlayableCharacter.Maria);
 
-            // 4. Executa a rotina de inicialização MarInit (func_80161DA8)
-            var ctx = new CpuContext
-            {
-                SP = 0x801FFF00u, // stack válida
-                A0 = 0
-            };
-            SoTN_maria.func_80161DA8(ctx, m);
+            // 4. MarInit
+            Invoke(c, m, (cc, mm) => Dispatcher.Call(cc, mm, MarInitAddr));
 
-            // 5. Carrega os bancos de áudio autênticos (MARIA_SD.BIN) na SPU e tabelas do jogo
-            LoadMariaSounds(m);
+            // 5. Bancos de áudio (MARIA_SD.BIN)
+            bool sounds = LoadMariaSounds(c, m);
 
-            _isLoaded = true;
-            Console.WriteLine("[MariaLoader] Maria Renard carregada e inicializada com sucesso!");
+            Console.WriteLine("[MariaLoader] Maria Renard carregada e inicializada.");
             ToastNotifications.ShowText(
                 "🌟 Maria Renard (Saturn)",
-                "Transformação concluída! Sprites, paletas, rotinas e áudio ativados.",
+                sounds
+                    ? "Transformação concluída! Sprites, paletas, rotinas e áudio ativados."
+                    : "Transformação concluída, mas os sons da Maria não puderam ser carregados.",
                 null,
                 4f);
             return true;
@@ -68,110 +162,115 @@ public static class MariaLoader
         }
     }
 
-    public static bool LoadMariaSounds(IMemory m)
+    /// <summary>Must be called on the game thread (see <see cref="RequestReloadSounds"/>).</summary>
+    public static bool LoadMariaSounds(CpuContext c, IMemory m)
     {
         try
         {
-            string sdPath = Path.GetFullPath("assets/characters/MARIA_SD.BIN");
-            if (!File.Exists(sdPath))
+            string? sdPath = ResolveAsset("MARIA_SD.BIN");
+            if (sdPath == null)
             {
-                Console.WriteLine($"[MariaLoader] Arquivo de áudio não encontrado: {sdPath}");
+                Console.WriteLine("[MariaLoader] Arquivo de áudio não encontrado: assets/characters/MARIA_SD.BIN");
+                return false;
+            }
+
+            var spu = RecompOne.Runtime.Runtime.Spu;
+            if (spu == null)
+            {
+                Console.WriteLine("[MariaLoader] SPU indisponível, sons da Maria não carregados.");
                 return false;
             }
 
             byte[] sd = File.ReadAllBytes(sdPath);
-            Console.WriteLine($"[MariaLoader] Carregando bancos de som da Maria ({sd.Length} bytes de MARIA_SD.BIN)...");
-
-            // 1. Grava os cabeçalhos VAB na RAM do PS1
-            // SD_RIH.VH: offset 0x0, tamanho 0x1800 (3 setores = 6144 bytes) -> 0x800B407C
-            int vh1Len = Math.Min(0x1800, sd.Length);
-            for (int i = 0; i < vh1Len; i++)
+            // SD_RIH.VH @0 (3 setores), SD_RIH.VB @0x1800, SD_MAR.VH @0x10000 (2 setores), SD_MAR.VB @0x11000
+            if (sd.Length < 0x11000)
             {
-                m.WriteU8(0x800B407Cu + (uint)i, sd[i]);
+                Console.WriteLine($"[MariaLoader] MARIA_SD.BIN inválido ({sd.Length} bytes).");
+                return false;
             }
 
-            // SD_MAR.VH: offset 0x10000, tamanho 0x1000 (2 setores = 4096 bytes) -> 0x800B807C
-            if (sd.Length >= 0x10000)
-            {
-                int vh2Len = Math.Min(0x1000, sd.Length - 0x10000);
-                for (int i = 0; i < vh2Len; i++)
-                {
-                    m.WriteU8(0x800B807Cu + (uint)i, sd[0x10000 + i]);
-                }
-            }
+            Console.WriteLine($"[MariaLoader] Carregando bancos de som da Maria ({sd.Length} bytes)...");
 
-            // 2. Transfere os samples de som ADPCM diretamente para a SPU RAM
-            var spu = RecompOne.Runtime.Runtime.Spu;
-            if (spu != null)
-            {
-                // VAB 1 Body (SD_RIH.VB): offset 0x1800, tamanho 0xE190 -> SPU RAM 0x42CC0
-                if (sd.Length >= 0x1800)
-                {
-                    int vb1Len = Math.Min(0xE190, sd.Length - 0x1800);
-                    Array.Copy(sd, 0x1800, spu.Ram, 0x42CC0, vb1Len);
-                }
+            bool ok = OpenVab(c, m, spu.Ram, sd, 1, 0x0, 0x1800, Vab1HeaderAddr, Vab1SpuAddr, Vab1BodyMax)
+                      & OpenVab(c, m, spu.Ram, sd, 2, 0x10000, 0x1000, Vab2HeaderAddr, Vab2SpuAddr, Vab2BodyMax);
 
-                // VAB 2 Body (SD_MAR.VB): offset 0x11000, tamanho 0xFBF0 -> SPU RAM 0x50E50
-                if (sd.Length >= 0x11000)
-                {
-                    int vb2Len = Math.Min(0xFBF0, sd.Length - 0x11000);
-                    Array.Copy(sd, 0x11000, spu.Ram, 0x50E50, vb2Len);
-                }
-                Console.WriteLine("[MariaLoader] SPU RAM populada com samples de áudio da Maria (0x42CC0 e 0x50E50).");
-            }
+            ApplySfxPriorities(m, maria: true);
+            _sfxPatched = true;
 
-            // 3. Atualiza os registros do driver de som da PsyQ
-            var ctx = new CpuContext { SP = 0x801FFF00u };
-
-            // Fechar e reabrir VAB 1 (Voz e ataques)
-            ctx.A0 = 1u;
-            SoTN_main.SsVabClose(ctx, m);
-
-            ctx.A0 = 0x800B407Cu;
-            ctx.A1 = 1u;
-            ctx.A2 = 0x42CC0u; // Endereço de SPU RAM para VAB 1
-            SoTN_main.SsVabOpenHeadSticky(ctx, m);
-
-            // Fechar e reabrir VAB 2 (Especiais e invocações)
-            ctx.A0 = 2u;
-            SoTN_main.SsVabClose(ctx, m);
-
-            ctx.A0 = 0x800B807Cu;
-            ctx.A1 = 2u;
-            ctx.A2 = 0x50E50u; // Endereço de SPU RAM para VAB 2
-            SoTN_main.SsVabOpenHeadSticky(ctx, m);
-
-            // 4. Aplica a tabela de prioridades da Maria (g_ModMarSfxPrio) em g_SfxData
-            const uint sfxDataBase = 0x800BF554u;
-            const ushort sfxStart = 0x600;
-
-            (ushort id, byte prio)[] marSfxPrio =
-            [
-                (0x6F9, 90), (0x6FA, 90), (0x6FB, 90), // grunts
-                (0x6FC, 90), (0x702, 90), (0x703, 90), (0x704, 90), // kick, hurt
-                (0x678, 65), (0x62D, 65), (0x62E, 65), // hits
-                (0x6FD, 60), (0x6FE, 60), (0x700, 60), // shot, fire, ball
-                (0x6F4, 60), (0x6F5, 60), (0x6F7, 60), // lunge, beasts end, flap
-                (0x887, 70), (0x888, 70), (0x889, 70), (0x88A, 70), // Genbu, Byakko, Seiryuu, Dragon roar
-                (0x707, 85), (0x617, 85) // slide skid, scrape
-            ];
-
-            foreach (var (id, prio) in marSfxPrio)
-            {
-                uint entry = sfxDataBase + (uint)(id - sfxStart) * 7;
-                m.WriteU8(entry + 6, prio);
-            }
-            // Modo de canais do Seiryuu (canais 22 e 23)
-            m.WriteU8(sfxDataBase + (uint)(0x889 - sfxStart) * 7 + 0, 9);
-
-            _soundsLoaded = true;
-            Console.WriteLine("[MariaLoader] Bancos de som e prioridades da Maria ativados com sucesso!");
-            return true;
+            _soundsLoaded = ok;
+            Console.WriteLine(ok
+                ? "[MariaLoader] Bancos de som e prioridades da Maria ativados."
+                : "[MariaLoader] Falha ao abrir os bancos de som da Maria.");
+            return ok;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[MariaLoader] Erro ao carregar sons da Maria: {ex}");
             return false;
+        }
+    }
+
+    private static bool OpenVab(CpuContext c, IMemory m, byte[] spuRam, byte[] sd, uint vabId,
+        int headerOff, int headerLen, uint headerAddr, int spuAddr, int bodyMax)
+    {
+        int bodyOff = headerOff + headerLen;
+        int bodyLen = Math.Min(bodyMax, (vabId == 1 ? 0x10000 : sd.Length) - bodyOff);
+        if (bodyLen <= 0 || spuAddr + bodyLen > spuRam.Length) return false;
+
+        // Cabeçalho VAB no buffer do DRA
+        for (int i = 0; i < headerLen; i++)
+            m.WriteU8(headerAddr + (uint)i, sd[headerOff + i]);
+
+        // Samples ADPCM direto na sound RAM
+        Array.Copy(sd, bodyOff, spuRam, spuAddr, bodyLen);
+
+        Invoke(c, m, SoTN_main.SsVabClose, vabId);
+        int opened = (int)Invoke(c, m, SoTN_main.SsVabOpenHeadSticky, headerAddr, vabId, (uint)spuAddr);
+        if (opened < 0)
+        {
+            Console.WriteLine($"[MariaLoader] SsVabOpenHeadSticky falhou para o VAB {vabId}.");
+            return false;
+        }
+
+        // The body is already in sound RAM: without this the VAB stays "head only" (2) and
+        // SpuVmVSetUp refuses every key-on for it, which mutes all of her sounds.
+        int ready = (int)Invoke(c, m, SoTN_main.SsVabFakeBody, vabId);
+        if (ready < 0)
+        {
+            Console.WriteLine($"[MariaLoader] SsVabFakeBody falhou para o VAB {vabId}.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void ApplySfxPriorities(IMemory m, bool maria)
+    {
+        foreach (var (id, retail, mar) in SfxPrio)
+            m.WriteU8(SfxEntry(id) + SfxPrioOff, maria ? mar : retail);
+
+        // Seiryuu is a loop for her: channels 22/23, which her dragon releases
+        m.WriteU8(SfxEntry(SeiryuuSfx) + SfxModeOff, maria ? SfxModeChannels22_23 : SfxModeChannels12_19);
+    }
+
+    private static uint SfxEntry(ushort id) => SfxDataBase + (uint)(id - SfxStart) * 7;
+
+    /// <summary>
+    /// Called when the session stops playing as Maria. DRA keeps g_SfxData for the whole session, so
+    /// the retail priorities have to be put back; the game reloads Richter's own VABs with RIC.BIN.
+    /// </summary>
+    public static void OnMariaLeft(IMemory m)
+    {
+        _soundsLoaded = false;
+        if (!_sfxPatched) return;
+        _sfxPatched = false;
+        try
+        {
+            ApplySfxPriorities(m, maria: false);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MariaLoader] Erro ao restaurar prioridades de SFX: {ex.Message}");
         }
     }
 }

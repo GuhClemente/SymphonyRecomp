@@ -100,53 +100,59 @@ public sealed class UltimatePanel : IPanel
         {
             UltimateOptions.CharacterMode = (CharacterSelection)charChoice;
             dirty = true;
-            if (charChoice == (int)CharacterSelection.SaturnMaria && Game.Available && Game.InGame)
-            {
-                MariaLoader.TransformToMaria(RecompOne.Runtime.Runtime.Mem!);
-            }
+            // The game thread picks the new choice up on its next frame (MariaCharacter.Update)
+            MariaCharacter.ResetState();
         }
+        if (UltimateOptions.CharacterMode is CharacterSelection.RichterSaturnCoat or CharacterSelection.PSPMaria)
+            ImGui.TextDisabled("Ainda não portado: precisa do RIC2.BIN / MARIA2.BIN e do DRA do SOTN Ultimate.");
 
+        // Everything below runs recompiled game code, so it is posted to the game thread
+        bool inGame = Game.Available && Game.InGame;
+        if (!inGame) ImGui.BeginDisabled();
         if (ImGui.Button("🌟 Ativar Maria Renard no Gameplay (Saturn)"))
         {
-            if (Game.Available && Game.InGame)
-            {
-                MariaLoader.TransformToMaria(RecompOne.Runtime.Runtime.Mem!);
-            }
+            MariaCharacter.ResetState();
+            MariaLoader.RequestTransform();
         }
         ImGui.SameLine();
         if (ImGui.Button("🚀 Pular para Entrada com Maria"))
         {
-            if (Game.Available && Game.InGame)
+            UltimateOptions.CharacterMode = CharacterSelection.SaturnMaria;
+            dirty = true;
+            MariaCharacter.ResetState();
+            GameThread.Post((c, m) =>
             {
-                UltimateOptions.CharacterMode = CharacterSelection.SaturnMaria;
+                if (!Player.CanTeleport) return;
                 Player.TeleportTo(Stage.CastleEntrance, 8, 38, 128, 128);
-                MariaLoader.TransformToMaria(RecompOne.Runtime.Runtime.Mem!);
-            }
+                if (!Player.IsMaria) MariaLoader.TransformToMaria(c, m);
+            });
         }
+        if (!inGame) ImGui.EndDisabled();
+        if (Game.Available && !MariaLoader.OverlayAvailable)
+            ImGui.TextColored(new Vector4(0.9f, 0.5f, 0.3f, 1f), "Overlay 'maria' não gerado: rode o build inicial novamente.");
 
         // Teste de Sons e Vozes Autênticas da Maria (Saturn)
         if (Player.IsMaria || UltimateOptions.CharacterMode == CharacterSelection.SaturnMaria)
         {
             ImGui.Spacing();
             ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "🔊 Teste de Voz e Áudio da Maria (Saturn):");
-            if (ImGui.Button("Recarregar Sons da Maria"))
-            {
-                if (Game.Available) MariaLoader.LoadMariaSounds(RecompOne.Runtime.Runtime.Mem!);
-            }
+            if (!inGame) ImGui.BeginDisabled();
+            if (ImGui.Button("Recarregar Sons da Maria")) MariaLoader.RequestReloadSounds();
             ImGui.SameLine();
-            if (ImGui.Button("Grito Ataque 1")) GameApi.PlaySfx(0x6F9);
+            if (ImGui.Button("Grito Ataque 1")) PlaySfx(0x6F9);
             ImGui.SameLine();
-            if (ImGui.Button("Grito Ataque 2")) GameApi.PlaySfx(0x6FA);
+            if (ImGui.Button("Grito Ataque 2")) PlaySfx(0x6FA);
             ImGui.SameLine();
-            if (ImGui.Button("Chute (Yell)")) GameApi.PlaySfx(0x6FC);
+            if (ImGui.Button("Chute (Yell)")) PlaySfx(0x6FC);
 
-            if (ImGui.Button("Voz: Guardian Knuckle")) GameApi.PlaySfx(0x8A1);
+            if (ImGui.Button("Voz: Guardian Knuckle")) PlaySfx(0x8A1);
             ImGui.SameLine();
-            if (ImGui.Button("Genbu (Tartaruga)")) GameApi.PlaySfx(0x887);
+            if (ImGui.Button("Genbu (Tartaruga)")) PlaySfx(0x887);
             ImGui.SameLine();
-            if (ImGui.Button("Byakko (Tigre)")) GameApi.PlaySfx(0x888);
+            if (ImGui.Button("Byakko (Tigre)")) PlaySfx(0x888);
             ImGui.SameLine();
-            if (ImGui.Button("Seiryuu (Dragão)")) GameApi.PlaySfx(0x889);
+            if (ImGui.Button("Seiryuu (Dragão)")) PlaySfx(0x889);
+            if (!inGame) ImGui.EndDisabled();
         }
 
         bool skipPrologue = QualityOfLife.SkipPrologue;
@@ -170,7 +176,7 @@ public sealed class UltimatePanel : IPanel
         string btnText = GodSpeedShoes.HasShoes ? (GodSpeedShoes.IsActive ? "Desativar" : "Ativar") : "Conceder";
         if (ImGui.Button(btnText))
         {
-            if (Game.Available && Game.InGame) GodSpeedShoes.ToggleActive();
+            if (inGame) GameThread.Post(GodSpeedShoes.ToggleActive);
         }
 
         bool thirdHand = UltimateOptions.ThirdHandHolder;
@@ -187,11 +193,13 @@ public sealed class UltimatePanel : IPanel
             dirty = true;
         }
 
-        if (ImGui.Button("🎁 Conceder Todo o Arsenal do Sega Saturn"))
+        if (ImGui.Button("🎁 Conceder Arsenal do Sega Saturn"))
         {
-            if (Game.Available && Game.InGame) SaturnItems.GiftAllSaturnGear();
+            if (inGame) GameThread.Post(SaturnItems.GiftAllSaturnGear);
         }
-        ImGui.TextDisabled("Adiciona: Lança de Alucard, Escudo da Floresta, Adaga Astral, Machado Duplo,\nManto Arco-íris, Tecido Brilhante, Letras da Canção e Botas da Velocidade.");
+        ImGui.TextDisabled(SaturnItems.ItemsSupported
+            ? "Adiciona: Lança de Alucard, Escudo da Floresta, Adaga Astral, Machado Duplo,\nManto Arco-íris, Tecido Brilhante, Letras da Canção e Botas da Velocidade."
+            : "Por enquanto só as Botas da Velocidade: as armas e mantos do Saturn (ids 169-175 / 90-92)\nnão existem nas tabelas de itens do DRA retail.");
 
         ImGui.Spacing();
 
@@ -204,30 +212,31 @@ public sealed class UltimatePanel : IPanel
             dirty = true;
         }
 
+        bool stagesReady = SaturnStages.Available;
+        if (Game.Available && !stagesReady)
+            ImGui.TextColored(new Vector4(0.9f, 0.5f, 0.3f, 1f),
+                "Fases do Saturn ainda não portadas (overlays GDN/PRS/RGDN/RPRS ausentes).\nNo disco retail esses ids são as salas de teste TE1-TE4.");
+
         ImGui.Text("Acesso Direto às Novas Fases:");
+        if (!stagesReady || !inGame) ImGui.BeginDisabled();
         if (ImGui.Button("🌿 Underground Garden (Jardim Subterrâneo)"))
-        {
-            if (Game.Available && Game.InGame) SaturnStages.WarpToUndergroundGarden();
-        }
+            GameThread.Post(SaturnStages.WarpToUndergroundGarden);
         ImGui.SameLine();
         if (ImGui.Button("⛓ Cursed Prison (Prisão Amaldiçoada)"))
-        {
-            if (Game.Available && Game.InGame) SaturnStages.WarpToCursedPrison();
-        }
+            GameThread.Post(SaturnStages.WarpToCursedPrison);
 
         if (ImGui.Button("🔥 Hell Garden (Jardim do Inferno)"))
-        {
-            if (Game.Available && Game.InGame) SaturnStages.WarpToHellGarden();
-        }
+            GameThread.Post(SaturnStages.WarpToHellGarden);
         ImGui.SameLine();
         if (ImGui.Button("💀 Soul Prison (Prisão das Almas)"))
-        {
-            if (Game.Available && Game.InGame) SaturnStages.WarpToSoulPrison();
-        }
+            GameThread.Post(SaturnStages.WarpToSoulPrison);
+        if (!stagesReady || !inGame) ImGui.EndDisabled();
 
         if (dirty) UltimateOptions.Save();
 
         IsOpen = open;
         ImGui.End();
     }
+
+    private static void PlaySfx(int id) => GameThread.Post(() => GameApi.PlaySfx(id));
 }

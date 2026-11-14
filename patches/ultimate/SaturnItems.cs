@@ -46,34 +46,51 @@ public static class SaturnItems
         }
     }
 
+    // The Saturn's hand items 169-175 and body items 90-92 only fit SOTN Ultimate's expanded
+    // PlayerStatus and item tables. In the retail layout this recomp runs, those slots are the next
+    // arrays of g_Status (body counts / hand order), so they cannot be granted yet.
+    public static bool ItemsSupported =>
+        Inventory.IsHandItem((int)HandItem.DoubleBladeAxe) && Inventory.IsBodyItem((int)BodyItem.LyricsCard);
+
+    /// <summary>Game thread only.</summary>
     public static void GiftAllSaturnGear()
     {
         if (!Game.Available || !Game.InGame) return;
 
-        // Weapons
-        Inventory.GrantHandItem((int)HandItem.AlucardSpear, 1);
-        Inventory.GrantHandItem((int)HandItem.WoodlandShield, 1);
-        Inventory.GrantHandItem((int)HandItem.AstralDagger, 1);
-        Inventory.GrantHandItem((int)HandItem.DoubleBladeAxe, 1);
+        if (ItemsSupported)
+        {
+            // Weapons
+            Inventory.GrantHandItem((int)HandItem.AlucardSpear, 1);
+            Inventory.GrantHandItem((int)HandItem.WoodlandShield, 1);
+            Inventory.GrantHandItem((int)HandItem.AstralDagger, 1);
+            Inventory.GrantHandItem((int)HandItem.DoubleBladeAxe, 1);
 
-        // Food & Consumables
-        Inventory.GrantHandItem((int)HandItem.SmellyRice, 3);
-        Inventory.GrantHandItem((int)HandItem.DeliciousMeal, 3);
-        Inventory.GrantHandItem((int)HandItem.SignedBoard, 1);
+            // Food & Consumables
+            Inventory.GrantHandItem((int)HandItem.SmellyRice, 3);
+            Inventory.GrantHandItem((int)HandItem.DeliciousMeal, 3);
+            Inventory.GrantHandItem((int)HandItem.SignedBoard, 1);
 
-        // Accessories & Cloaks
-        Inventory.GrantBodyItem((int)BodyItem.GlaringCloth, 1);
-        Inventory.GrantBodyItem((int)BodyItem.RainbowMantle, 1);
-        Inventory.GrantBodyItem((int)BodyItem.LyricsCard, 1);
+            // Accessories & Cloaks
+            Inventory.GrantBodyItem((int)BodyItem.GlaringCloth, 1);
+            Inventory.GrantBodyItem((int)BodyItem.RainbowMantle, 1);
+            Inventory.GrantBodyItem((int)BodyItem.LyricsCard, 1);
+        }
 
-        // Also grant God Speed Shoes
+        // God Speed Shoes are implemented by the recomp itself, so they always work
         GodSpeedShoes.Grant(true);
 
-        ToastNotifications.ShowText(
-            "🎁 Arsenal do Sega Saturn Entregue!",
-            "Lança de Alucard, Escudo da Floresta, Adaga Astral, Machado Duplo, Manto do Arco-íris, Tecido Brilhante e Botas da Velocidade adicionados ao seu inventário!",
-            null,
-            5.0f);
+        if (ItemsSupported)
+            ToastNotifications.ShowText(
+                "🎁 Arsenal do Sega Saturn Entregue!",
+                "Lança de Alucard, Escudo da Floresta, Adaga Astral, Machado Duplo, Manto do Arco-íris, Tecido Brilhante e Botas da Velocidade adicionados ao seu inventário!",
+                null,
+                5.0f);
+        else
+            ToastNotifications.ShowText(
+                "🎁 Arsenal do Sega Saturn",
+                "Botas da Velocidade entregues. As armas e mantos do Saturn ainda não existem nas tabelas de itens do DRA retail.",
+                null,
+                5.0f);
     }
 
     public static void Update(CpuContext c, IMemory m)

@@ -88,6 +88,7 @@ internal class QualityOfLife
     //note to eldrich from flaffy, later if possible try using the Pallete class, it has some helper functions to easy this out!
     public static void Apply(CpuContext c, IMemory m)
     {
+        Sotn.GameThread.Drain(c, m);
         TelemetryRecorder.Update(c, m);
         FunctionFixes.AlucardEffectPoolFix(c, m);
         QuickWeaponSwap.Update(c, m);

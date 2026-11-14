@@ -55,8 +55,15 @@ public static class Inventory
     public const int AccessoryCount = 32;
 
     //hnd
-    public static int GetHandCount(int id) => M.ReadU8(S + HandCountOff + (uint)id);
-    public static void SetHandCount(int id, int n) => M.WriteU8(S + HandCountOff + (uint)id, (byte)n);
+    //ids past the retail tables (the Saturn items of SOTN Ultimate) would land in the next array of g_Status
+    public static bool IsHandItem(int id) => (uint)id < HandItemCount;
+    public static bool IsBodyItem(int id) => (uint)id < BodyItemCount;
+
+    public static int GetHandCount(int id) => IsHandItem(id) ? M.ReadU8(S + HandCountOff + (uint)id) : 0;
+    public static void SetHandCount(int id, int n)
+    {
+        if (IsHandItem(id)) M.WriteU8(S + HandCountOff + (uint)id, (byte)n);
+    }
     public static bool HasHandItem(int id) => GetHandCount(id) > 0;
     public static void AddHandItem(int id, int n = 1) => SetHandCount(id, System.Math.Clamp(GetHandCount(id) + n, 0, 255));
     public static void RemoveHandItem(int id, int n = 1) => AddHandItem(id, -n);
@@ -68,8 +75,11 @@ public static class Inventory
     public static void RemoveHandItem(HandItem item, int n = 1) => RemoveHandItem((int)item, n);
 
     //bdy
-    public static int GetBodyCount(int id) => M.ReadU8(S + BodyCountOff + (uint)id);
-    public static void SetBodyCount(int id, int n) => M.WriteU8(S + BodyCountOff + (uint)id, (byte)n);
+    public static int GetBodyCount(int id) => IsBodyItem(id) ? M.ReadU8(S + BodyCountOff + (uint)id) : 0;
+    public static void SetBodyCount(int id, int n)
+    {
+        if (IsBodyItem(id)) M.WriteU8(S + BodyCountOff + (uint)id, (byte)n);
+    }
     public static bool HasBodyItem(int id) => GetBodyCount(id) > 0;
     public static void AddBodyItem(int id, int n = 1) => SetBodyCount(id, System.Math.Clamp(GetBodyCount(id) + n, 0, 255));
     public static void RemoveBodyItem(int id, int n = 1) => AddBodyItem(id, -n);

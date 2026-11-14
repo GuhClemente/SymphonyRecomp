@@ -98,7 +98,9 @@ public static class Game
 
     public static bool Available => RecompOne.Runtime.Runtime.Mem != null; //game is only available when mem is instantiated, adding this so no one tries to do stuff before it can
 
-    public static PlayableCharacter Character => (PlayableCharacter)(int)M.ReadU32(PlayableCharacterAddr);
+    //panels are drawn before the game memory exists, so this one has to be safe to read early
+    public static PlayableCharacter Character =>
+        Available ? (PlayableCharacter)(int)M.ReadU32(PlayableCharacterAddr) : PlayableCharacter.Alucard;
 
     public static Entity CurrentEntity => new(M.ReadU32(CurrentEntityAddr));
 

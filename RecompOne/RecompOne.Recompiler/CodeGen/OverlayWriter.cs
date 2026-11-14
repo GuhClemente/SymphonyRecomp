@@ -422,6 +422,21 @@ public static class OverlayWriter
     {
         try
         {
+            if (cfg.LocalFile != null)
+            {
+                if (!File.Exists(cfg.LocalFile))
+                {
+                    Console.WriteLine($"[Recompiler] WARNING: local file not found: {cfg.LocalFile}");
+                    return (null, -1);
+                }
+
+                //not on the disc, so there is no lba, the game code has to load it by name
+                var local = File.ReadAllBytes(cfg.LocalFile);
+                var from = cfg.Offset + cfg.Skip;
+                var count = cfg.Size ?? local.Length - from;
+                return (Unpack(local.AsSpan(from, count).ToArray(), cfg), -1);
+            }
+
             if (cfg.Lba >= 0)
             {
                 var sz = cfg.Size ?? throw new InvalidOperationException($"'size' is required when using 'lba' for overlay '{cfg.Name}'");

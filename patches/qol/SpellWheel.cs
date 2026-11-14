@@ -42,8 +42,8 @@ public static class SpellWheel
         new(Spell.SoulSteal, "spell.soul_steal", "Soul Steal", 5, 0x8010FBF4u),
     ];
 
-    private static volatile int _pendingQuickCast = -1;
-    public static void TriggerQuickCast(int index) => _pendingQuickCast = index;
+    private static int _pendingQuickCast = -1; // written by the UI / keyboard threads, taken by the game thread
+    public static void TriggerQuickCast(int index) => System.Threading.Volatile.Write(ref _pendingQuickCast, index);
 
     private static ushort _simulatedPadMask = 0xFFFF;
     private static int _simulatedPadFrames = 0;
@@ -80,10 +80,7 @@ public static class SpellWheel
                     else if (e.Key == (int)Silk.NET.Input.Key.Number5) num = 4;
                     else if (e.Key == (int)Silk.NET.Input.Key.Number6) num = 5;
 
-                    if (num >= 0)
-                    {
-                        _pendingQuickCast = num;
-                    }
+                    if (num >= 0) TriggerQuickCast(num);
                 }
             }
         });
@@ -113,8 +110,7 @@ public static class SpellWheel
     {
         if (!Enabled || !Game.Available || !Game.InGame || Game.IsLoading) return;
 
-        int castIndex = _pendingQuickCast;
-        _pendingQuickCast = -1;
+        int castIndex = System.Threading.Interlocked.Exchange(ref _pendingQuickCast, -1);
 
         if (castIndex >= 0)
         {
@@ -206,33 +202,69 @@ public static class SpellWheel
         return true;
     }
 
+    // Maria's command specials, in hotkey order. Move is the overlay's own index (mar_sp_cost /
+    // mar_sp_anims in mods/sotn-ultimate/src/maria_saturn/mar_specials.h).
+    public readonly record struct MariaSpecial(string Name, int Move, int MpCost);
+
+    public static readonly MariaSpecial[] MariaSpecials =
+    [
+        new("Soco Guardião (Guardian Knuckle)", 0, 40),
+        new("Suzaku (Pássaro Carmesim)", 4, 60),
+        new("Genbu (Tartaruga Sagrada)", 1, 80),
+        new("Byakko (Tigre Branco)", 2, 100),
+        new("Seiryuu (Dragão Azul)", 3, 120),
+        new("As Quatro Bestas Sagradas", 5, 150),
+    ];
+
+    // MarSetSpecial(n) in MARIA.BIN: animation, step 0x30 + n, her voice and the beast's factory
+    const uint MarSetSpecialAddr = 0x8016CB10u;
+    const uint PlayerAttackBusyAddr = 0x80072F66u; // g_Player.unk46
+    const uint PlayerCeilingAddr = 0x80072F92u;    // g_Player.unk72
+    const ushort MariaStepCrouch = 2;              // PL_S_STAND / PL_S_WALK / PL_S_CROUCH
+
     public static void TriggerMariaCast(int index)
     {
-        switch (index)
-        {
-            case 0: CastMariaSpecial("Soco Guardião (Guardian Knuckle)", 40, 0x8A1); break;
-            case 1: CastMariaSpecial("Suzaku (Pássaro Carmesim)", 60, 0x8A2); break;
-            case 2: CastMariaSpecial("Genbu (Tartaruga Sagrada)", 80, 0x887); break;
-            case 3: CastMariaSpecial("Byakko (Tigre Branco)", 100, 0x888); break;
-            case 4: CastMariaSpecial("Seiryuu (Dragão Azul)", 120, 0x889); break;
-            case 5: CastMariaSpecial("As Quatro Bestas Sagradas", 150, 0x87E); break;
-        }
+        if (index >= 0 && index < MariaSpecials.Length) CastMariaSpecial(MariaSpecials[index]);
     }
 
-    public static bool CastMariaSpecial(string name, int mpCost, int sfxId)
+    // Game thread only. Does what MarCheckCombo does once her pad command is recognised: same
+    // conditions, same MP cost, then the overlay's own MarSetSpecial.
+    public static bool CastMariaSpecial(MariaSpecial special)
     {
-        if (!Game.InGame) return false;
-        if (!InfiniteMana && Player.Mp < mpCost)
+        var c = RecompOne.Runtime.Runtime.Cpu;
+        var m = RecompOne.Runtime.Runtime.Mem;
+        if (c == null || m == null || !Game.InGame || !Player.IsMaria) return false;
+
+        if ((ushort)Player.Step > MariaStepCrouch || !Player.HasControl ||
+            m.ReadU16(PlayerAttackBusyAddr) != 0 || m.ReadU16(PlayerCeilingAddr) != 0)
         {
-            ToastNotifications.ShowText(name, $"MP insuficiente! ({Player.Mp}/{mpCost})", null, 2f);
+            ToastNotifications.ShowText(special.Name, "Só é possível invocar parada, andando ou agachada.", null, 2f);
             return false;
         }
+
         if (!InfiniteMana)
         {
-            Player.Mp = Math.Max(0, Player.Mp - mpCost);
+            if (Player.Mp < special.MpCost)
+            {
+                ToastNotifications.ShowText(special.Name, $"MP insuficiente! ({Player.Mp}/{special.MpCost})", null, 2f);
+                return false;
+            }
+            Player.Mp -= special.MpCost;
         }
-        GameApi.PlaySfx(sfxId);
-        ToastNotifications.ShowText(name, InfiniteMana ? "Invocação Ativada! (Infinito)" : $"MP -{mpCost} | Invocação Ativada!", null, 2.5f);
+
+        // MarSetSpecial works on g_CurrentEntity, which is only the player during her own update
+        uint savedEntity = m.ReadU32(Game.CurrentEntityAddr);
+        m.WriteU32(Game.CurrentEntityAddr, Game.EntitiesAddr);
+        try
+        {
+            GameApi.Call(c, m, MarSetSpecialAddr, (uint)special.Move);
+        }
+        finally
+        {
+            m.WriteU32(Game.CurrentEntityAddr, savedEntity);
+        }
+
+        ToastNotifications.ShowText(special.Name, InfiniteMana ? "Invocação! (Infinito)" : $"MP -{special.MpCost} | Invocação!", null, 2.5f);
         return true;
     }
 

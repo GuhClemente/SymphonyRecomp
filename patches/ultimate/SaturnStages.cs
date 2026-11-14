@@ -14,7 +14,25 @@ public static class SaturnStages
     public const int PrisonSwitchFlag = 0xF9;
     public const int GardenBossFlag = 0x167;
 
+    // The stage overlays SOTN Ultimate adds (ST/GDN, PRS, RGDN, RPRS). Until they are recompiled the
+    // ids below are still the retail disc's test stages TE1-TE4, so nothing may warp there.
+    private static readonly string[] StageOverlays = ["gdn", "prs", "rgdn", "rprs"];
+
+    public static bool Available
+    {
+        get
+        {
+            var overlays = RecompOne.Runtime.Dispatch.Dispatcher.Overlays;
+            foreach (string name in StageOverlays)
+                if (!overlays.ContainsKey(name)) return false;
+            return true;
+        }
+    }
+
+    private static bool CanWarp => Available && Player.CanTeleport;
+
     public static bool IsInSaturnStage =>
+        Available &&
         Game.Available && (
         Stages.Current == Stage.UndergroundGarden ||
         Stages.Current == Stage.CursedPrison ||
@@ -23,7 +41,7 @@ public static class SaturnStages
 
     public static void WarpToUndergroundGarden()
     {
-        if (!Player.CanTeleport) return;
+        if (!CanWarp) return;
         ToastNotifications.ShowText(
             "🌿 Underground Garden (Jardim Subterrâneo)",
             "Viajando para o Jardim Subterrâneo exclusivo do Sega Saturn...",
@@ -34,7 +52,7 @@ public static class SaturnStages
 
     public static void WarpToCursedPrison()
     {
-        if (!Player.CanTeleport) return;
+        if (!CanWarp) return;
         ToastNotifications.ShowText(
             "⛓ Cursed Prison (Prisão Amaldiçoada)",
             "Viajando para a Prisão Amaldiçoada exclusiva do Sega Saturn...",
@@ -45,7 +63,7 @@ public static class SaturnStages
 
     public static void WarpToHellGarden()
     {
-        if (!Player.CanTeleport) return;
+        if (!CanWarp) return;
         ToastNotifications.ShowText(
             "🔥 Hell Garden (Jardim do Inferno)",
             "Viajando para o Jardim do Inferno (Castelo Invertido Saturn)...",
@@ -56,7 +74,7 @@ public static class SaturnStages
 
     public static void WarpToSoulPrison()
     {
-        if (!Player.CanTeleport) return;
+        if (!CanWarp) return;
         ToastNotifications.ShowText(
             "💀 Soul Prison (Prisão das Almas)",
             "Viajando para a Prisão das Almas (Castelo Invertido Saturn)...",
@@ -67,7 +85,7 @@ public static class SaturnStages
 
     public static void Update(CpuContext c, IMemory m)
     {
-        if (!UltimateOptions.UltimateEnabled || !UltimateOptions.SaturnStages) return;
+        if (!UltimateOptions.UltimateEnabled || !UltimateOptions.SaturnStages || !Available) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading) return;
 
         // Entrance shaft detection:

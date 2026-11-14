@@ -27,6 +27,12 @@
       "base": "0x8013C000"
     },
     {
+      "name": "maria",
+      "localFile": "../assets/characters/MARIA.BIN",
+      "base": "0x8013C000",
+      "linearSweep": true
+    },
+    {
       "name": "cen",
       "file": "ST/CEN/CEN.BIN",
       "funcMap": "funcmaps/stcen.json",
@@ -1540,6 +1546,16 @@
   ],
   "stubs": [],
   "ignored": [],
+  "relocations": [
+    {
+      "comment": "MARIA.BIN was built against SOTN Ultimate's PlayerStatus (inventory arrays grown by 0x14); map saveName..statsFamiliars back onto the retail g_Status",
+      "overlay": "maria",
+      "name": "g_Status (Ultimate layout -> retail)",
+      "address": "0x80097BA4",
+      "size": "0xF0",
+      "to": "0x80097B90"
+    }
+  ],
   "patches": [
     {
       "overlay": "dra",

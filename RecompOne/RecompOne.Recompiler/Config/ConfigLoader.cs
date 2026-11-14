@@ -158,6 +158,8 @@ public sealed class OverlayConfig
     [JsonPropertyName("funcMap")] public string? FuncMap { get; set; }
     [JsonPropertyName("base")] public string? Base { get; set; }
     [JsonPropertyName("file")] public string? File { get; set; }
+    //a file on the host, relative to the config, for overlays that are not on the disc (mod binaries)
+    [JsonPropertyName("localFile")] public string? LocalFile { get; set; }
     [JsonPropertyName("offset")] public int Offset { get; set; } = 0;
     [JsonPropertyName("skip")] public int Skip { get; set; } = 0;
     [JsonPropertyName("lba")] public int Lba { get; set; } = -1;
