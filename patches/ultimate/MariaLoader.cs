@@ -192,8 +192,8 @@ public static class MariaLoader
 
             Console.WriteLine($"[MariaLoader] Carregando bancos de som da Maria ({sd.Length} bytes)...");
 
-            bool ok = OpenVab(c, m, spu.Ram, sd, 1, 0x0, 0x1800, Vab1HeaderAddr, Vab1SpuAddr, Vab1BodyMax)
-                      & OpenVab(c, m, spu.Ram, sd, 2, 0x10000, 0x1000, Vab2HeaderAddr, Vab2SpuAddr, Vab2BodyMax);
+            bool ok = OpenVab(c, m, spu.Ram, 1, sd.AsSpan(0x0, 0x1800), sd.AsSpan(0x1800, 0x10000 - 0x1800))
+                      & OpenVab(c, m, spu.Ram, 2, sd.AsSpan(0x10000, 0x1000), sd.AsSpan(0x11000));
 
             // g_ModMarSfxPrio is the Saturn Maria's only: the PSP one keeps the retail priorities
             ApplySfxPriorities(m, maria: saturnPriorities);
@@ -212,19 +212,57 @@ public static class MariaLoader
         }
     }
 
-    private static bool OpenVab(CpuContext c, IMemory m, byte[] spuRam, byte[] sd, uint vabId,
-        int headerOff, int headerLen, uint headerAddr, int spuAddr, int bodyMax)
+    /// <summary>
+    /// Puts the retail voice banks back from the disc (VAB/SD_RIH or SD_ALK in slot 1, VAB/SD_MAR in
+    /// slot 2), which is what the game has loaded for Richter / Alucard before a Maria replaced them.
+    /// Game thread only.
+    /// </summary>
+    public static bool RestoreRetailSounds(CpuContext c, IMemory m, bool alucard)
     {
-        int bodyOff = headerOff + headerLen;
-        int bodyLen = Math.Min(bodyMax, (vabId == 1 ? 0x10000 : sd.Length) - bodyOff);
-        if (bodyLen <= 0 || spuAddr + bodyLen > spuRam.Length) return false;
+        try
+        {
+            var fs = RecompOne.Runtime.Runtime.Cd?.Fs;
+            var spu = RecompOne.Runtime.Runtime.Spu;
+            if (fs == null || spu == null) return false;
+
+            string voice = alucard ? "VAB/SD_ALK" : "VAB/SD_RIH";
+            byte[]? vh1 = fs.ReadFile(voice + ".VH"), vb1 = fs.ReadFile(voice + ".VB");
+            byte[]? vh2 = fs.ReadFile("VAB/SD_MAR.VH"), vb2 = fs.ReadFile("VAB/SD_MAR.VB");
+            if (vh1 == null || vb1 == null || vh2 == null || vb2 == null)
+            {
+                Console.WriteLine("[MariaLoader] Bancos de voz retail não encontrados no disco (VAB/).");
+                return false;
+            }
+
+            bool ok = OpenVab(c, m, spu.Ram, 1, vh1, vb1) & OpenVab(c, m, spu.Ram, 2, vh2, vb2);
+            _soundsLoaded = false;
+            Console.WriteLine(ok
+                ? $"[MariaLoader] Bancos de voz retail restaurados ({voice}, VAB/SD_MAR)."
+                : "[MariaLoader] Falha ao restaurar os bancos de voz retail.");
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MariaLoader] Erro ao restaurar bancos de voz retail: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool OpenVab(CpuContext c, IMemory m, byte[] spuRam, uint vabId,
+        ReadOnlySpan<byte> header, ReadOnlySpan<byte> body)
+    {
+        uint headerAddr = vabId == 1 ? Vab1HeaderAddr : Vab2HeaderAddr;
+        int headerMax = vabId == 1 ? 0x2000 : 0x1000; // DRA's header buffers
+        int spuAddr = vabId == 1 ? Vab1SpuAddr : Vab2SpuAddr;
+        int bodyLen = Math.Min(body.Length, vabId == 1 ? Vab1BodyMax : Vab2BodyMax);
+        if (header.Length > headerMax || bodyLen <= 0 || spuAddr + bodyLen > spuRam.Length) return false;
 
         // Cabeçalho VAB no buffer do DRA
-        for (int i = 0; i < headerLen; i++)
-            m.WriteU8(headerAddr + (uint)i, sd[headerOff + i]);
+        for (int i = 0; i < header.Length; i++)
+            m.WriteU8(headerAddr + (uint)i, header[i]);
 
         // Samples ADPCM direto na sound RAM
-        Array.Copy(sd, bodyOff, spuRam, spuAddr, bodyLen);
+        body[..bodyLen].CopyTo(spuRam.AsSpan(spuAddr));
 
         Invoke(c, m, SoTN_main.SsVabClose, vabId);
         int opened = (int)Invoke(c, m, SoTN_main.SsVabOpenHeadSticky, headerAddr, vabId, (uint)spuAddr);

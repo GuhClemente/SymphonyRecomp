@@ -81,7 +81,7 @@ O mod *SOTN Ultimate* une conteúdos do Sega Saturn e do PSP (*Dracula X Chronic
 
 | Item | Binário | Status | Próximo Passo |
 | :--- | :--- | :--- | :--- |
-| **Richter Saturn Coat** | `RIC2.BIN` | Overlay `ric2` jogável (seção 11) | Aplicar as cores/braços do figurino (`ModRicCostumeApply` só existe no DRA do Ultimate) |
+| **Richter Saturn Coat** | `RIC2.BIN` | Overlay `ric2` jogável, figurino aplicado (seção 11) | Patches de widescreen do `ric` para o `ric2` |
 | **Maria PSP** | `MARIA2.BIN` | Overlay `maria2` jogável, HUD de dois ícones (seções 11 e 14) | Validar ícones/voz contra o mod original; quick-cast próprio |
 | **Arsenal do Saturn** | N/A | Aguardando | Expandir tabelas de itens do `DRA` retail (IDs 169–175 e 90–92) |
 | **Fases do Saturn** | N/A | Aguardando | Portar e recompilar overlays `GDN`, `PRS`, `RGDN`, `RPRS` |
@@ -128,7 +128,7 @@ Todos os personagens que não são o Alucard usam o mesmo slot de overlay, `0x80
 2. Carrega a folha de gráficos: `BIN/F_GAME2.BIN` (todos menos Alucard) ou `BIN/F_GAME.BIN`.
 3. Grava o binário em `0x8013C000`, ativa o overlay no `Dispatcher` e grava `g_PlayableCharacter`.
 4. Chama o `Init` do overlay, lido da tabela `PlayerOvl` no início do arquivo (`0x8013C004`).
-5. Carrega os bancos de som (só as Marias).
+5. Carrega os bancos de som: os da Maria, ou, ao sair de uma Maria, os originais do disco (`MariaLoader.RestoreRetailSounds`: `VAB/SD_RIH` para o Richter ou `VAB/SD_ALK` para o Alucard no slot 1, `VAB/SD_MAR` no slot 2).
 6. `RedrawHud`: libera as primitivas do HUD e chama `DrawHud` + `DrawHudSubweapon`.
 
 **Alucard** não tem overlay próprio: o init dele é o `AluInit` do DRA, chamado no lugar do passo 4 (`MariaCharacter.InitAlucard`). Ele recria a entidade do jogador (banco de sprites, paleta `0x8100`) e preenche as paletas que as partes do sprite usam (capa etc.), que em `F_GAME.BIN` são só placeholders verdes (`0x03E0`). Sem essa chamada ele voltava como uma silhueta verde. `AluInit` também põe o jogador em x = 32, então posição e direção são guardadas antes e devolvidas depois.
@@ -157,7 +157,7 @@ Todos os personagens que não são o Alucard usam o mesmo slot de overlay, `0x80
 ### Richter Saturn Coat (`RIC2.BIN`)
 * Mesmo código do Richter recompilado contra o layout do Ultimate; só precisa da relocação de status.
 * A mágica `"RIC2"` é gravada em `g_Status.D_80097C40` (`0x80097964 + 0x2DC`).
-* As cores e braços do figurino são aplicados por `ModRicCostumeApply`, que só existe no DRA do Ultimate. Ainda não portado.
+* As cores e os braços do figurino ficam no fim da folha de sprites do `RIC2.BIN`: `{mágica "RIC2", ponteiro}` em `0x8013C000 + 0x170AC - 8`, e o ponteiro leva a `{n, {id de paleta, 16 cores}...}` (8 paletas) e `{n, {retângulo de VRAM, pixels}...}` (9 blocos). No Ultimate quem aplica é o `ModRicCostumeApply` do DRA; aqui é `MariaCharacter.ApplyRichterCostume`, chamado logo depois do init do overlay.
 
 ---
 
@@ -228,8 +228,6 @@ SOTN_TEST_MARIA=1 SOTN_TEST_DIR=/tmp/sotn-shots ./mac_run.sh
 ## 16. Pendências Conhecidas
 | Problema | Estado |
 | :--- | :--- |
-| Richter fala com a voz da Maria após passar por ela | Falta recarregar os VABs 1/2 do Richter do disco |
-| Figurino do Richter Saturn Coat | `ModRicCostumeApply` não portado |
 | HUD próprio da Saturn Maria (placa "MARIA", barra de MP) | É desenhado pelo DRA do Ultimate com arte do `F_GAME2.BIN` modificado; aqui ela usa o HUD do Richter sem a placa |
 | Ícones da PSP Maria | Aparecem no lugar certo, mas não foram comparados com o mod rodando |
 | Patches de widescreen/cheats do `ric` | Não se aplicam a `ric2`, `maria` e `maria2` (sem mapa de funções) |

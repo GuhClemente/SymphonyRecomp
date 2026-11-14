@@ -125,6 +125,8 @@ public static class MariaCharacter
         {
             UltimateOptions.CharacterMode = selection;
             _autoTransformFailed = false;
+            // a Maria swaps the two voice banks: the next Richter / Alucard gets the disc's own back
+            bool hadMariaVoice = MariaLoader.SoundsLoaded;
             MariaLoader.OnMariaLeft(m);
             ReleasePspHud(m);
 
@@ -155,6 +157,7 @@ public static class MariaCharacter
                     m.WriteU32(CostumeMagicAddr, RicSaturnCoatMagic);
                     LoadGameGraphics(m, "BIN/F_GAME2.BIN");
                     ok = LoadPlayerOverlay(c, m, "ric2", "RIC2.BIN", PlayableCharacter.Richter);
+                    if (ok) ApplyRichterCostume(m);
                     if (ok) ToastNotifications.ShowText("Richter (Saturn)", "Richter com casaco longo do Saturn ativado!", null, 3f);
                     break;
 
@@ -176,6 +179,9 @@ public static class MariaCharacter
                 Console.WriteLine($"[CharacterSwitcher] Troca para {selection} falhou.");
                 return;
             }
+
+            if (hadMariaVoice && selection is not (CharacterSelection.SaturnMaria or CharacterSelection.PSPMaria))
+                MariaLoader.RestoreRetailSounds(c, m, alucard: selection == CharacterSelection.Alucard);
 
             Player.Step = PlayerStep.Standing;
             Player.StepSub = 0;
@@ -606,6 +612,69 @@ public static class MariaCharacter
     }
 
     private const uint ClutRamAddr = 0x8006CBCCu; // g_Clut
+
+    // RIC2.BIN ends its sprite sheet with {magic "RIC2", pointer}; the pointer leads to
+    // {count, {palette id, 16 colours}...} and {count, {VRAM rect, pixels}...}: the coat's colours and
+    // the whip-brandish arms that live in F_GAME2's part of VRAM. SOTN Ultimate's DRA applies them
+    // after every load of the overlay (ModRicCostumeApply); the retail DRA does not, so it is done here.
+    private const uint Ric2HeaderAddr = PlayerOverlayBase + 0x170ACu - 8u;
+    private const uint PlayerOverlayEnd = 0x80180000u;
+
+    private static void ApplyRichterCostume(IMemory m)
+    {
+        try
+        {
+            if (m.ReadU32(Ric2HeaderAddr) != RicSaturnCoatMagic) return;
+            uint p = m.ReadU32(Ric2HeaderAddr + 4);
+            if (p < PlayerOverlayBase || p >= PlayerOverlayEnd) return;
+
+            Span<ushort> pal = stackalloc ushort[Palette.Colors];
+            uint count = m.ReadU32(p);
+            p += 4;
+            if (count > 0x100) return;
+            for (uint n = 0; n < count; n++)
+            {
+                int id = (int)m.ReadU32(p);
+                p += 4;
+                if (id < 0x100 || id >= 0x200) return;
+                uint ram = ClutRamAddr + (uint)(id * Palette.Colors * 2);
+                for (int i = 0; i < Palette.Colors; i++)
+                {
+                    pal[i] = m.ReadU16(p + (uint)(i * 2));
+                    m.WriteU16(ram + (uint)(i * 2), pal[i]);
+                }
+                Palette.Write(id, pal);
+                p += Palette.Colors * 2;
+            }
+
+            var gpu = RecompOne.Runtime.Runtime.Gpu;
+            var backend = RecompOne.Runtime.Hle.GpuHle.Backend;
+            uint rects = m.ReadU32(p);
+            p += 4;
+            if (rects > 0x100) return;
+            for (uint n = 0; n < rects; n++)
+            {
+                int x = m.ReadU16(p), y = m.ReadU16(p + 2), w = m.ReadU16(p + 4), h = m.ReadU16(p + 6);
+                p += 8;
+                if (w <= 0 || h <= 0 || x + w > 1024 || y + h > 512 || p + (uint)(w * h * 2) > PlayerOverlayEnd) return;
+
+                var pixels = new ushort[w * h];
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    pixels[i] = m.ReadU16(p + (uint)(i * 2));
+                    if (gpu != null) gpu.Shadow[x + i % w, y + i / w] = pixels[i];
+                }
+                if (RecompOne.Runtime.Hle.GpuHle.Active && backend is { Ready: true })
+                    backend.WriteVram(x, y, w, h, pixels);
+                p += (uint)((w * h + 1) / 2 * 4);
+            }
+            Console.WriteLine($"[CharacterSwitcher] Figurino do Richter (Saturn) aplicado: {count} paletas, {rects} blocos de VRAM.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CharacterSwitcher] Erro ao aplicar o figurino do Richter: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// Does what the game's CD loader does with BIN/F_GAME.BIN (Alucard) or BIN/F_GAME2.BIN (everyone
