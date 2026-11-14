@@ -14,6 +14,7 @@ public sealed class UltimatePanel : IPanel
 
     public void Draw()
     {
+        ImGui.SetNextWindowPos(new Vector2(720, 40), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowSize(new Vector2(520, 640), ImGuiCond.FirstUseEver);
         bool open = IsOpen;
         if (!ImGui.Begin(this.Title(), ref open))
@@ -100,11 +101,12 @@ public sealed class UltimatePanel : IPanel
         {
             UltimateOptions.CharacterMode = (CharacterSelection)charChoice;
             dirty = true;
-            // The game thread picks the new choice up on its next frame (MariaCharacter.Update)
-            MariaCharacter.ResetState();
+            MariaCharacter.RequestCharacterSwitch((CharacterSelection)charChoice);
         }
-        if (UltimateOptions.CharacterMode is CharacterSelection.RichterSaturnCoat or CharacterSelection.PSPMaria)
-            ImGui.TextDisabled("Ainda não portado: precisa do RIC2.BIN / MARIA2.BIN e do DRA do SOTN Ultimate.");
+        if (UltimateOptions.CharacterMode is CharacterSelection.PSPMaria)
+            ImGui.TextColored(new Vector4(0.4f, 1f, 0.6f, 1f), "🌟 Maria PSP ativada! Pássaros, invocação de animais celestiais e voz PSP.");
+        else if (UltimateOptions.CharacterMode is CharacterSelection.RichterSaturnCoat)
+            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), "🥋 Richter Saturn Coat ativado com casaco longo e física do Saturn.");
 
         // Everything below runs recompiled game code, so it is posted to the game thread
         bool inGame = Game.Available && Game.InGame;

@@ -7,7 +7,7 @@ public static class SymbolRelocator
 {
     public static Dictionary<uint, uint> Plan(List<MipsFunction> funcs, RelocationEntry[] entries, string overlayName)
     {
-        var active = entries.Where(e => e.MatchesOverlay(overlayName)).ToArray();
+        var active = entries.Where(e => !e.Runtime && e.MatchesOverlay(overlayName)).ToArray();
         var sites = new Dictionary<uint, uint>();
         if (active.Length == 0) return sites;
 

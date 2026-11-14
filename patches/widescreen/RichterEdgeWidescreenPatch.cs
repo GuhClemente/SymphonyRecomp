@@ -3782,7 +3782,7 @@ public static partial class WidescreenPatch
         c.V0 = c.V1 < 0x00000005u ? 1u : 0u;
         if (c.V0 == 0u) {
             c.V0 = c.V1 << 2;
-            SoTN_ric.func_8016DCB8(c, m);
+            Dispatcher.Call(c, m, 0x8016DCB8u);
             return;
         }
         c.V0 = c.V1 << 2;

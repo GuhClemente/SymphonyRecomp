@@ -81,7 +81,7 @@ public static class MariaLoader
 
     // Runs a recompiled function on the live game context and puts every register back afterwards.
     // The stack pointer is moved below the interrupted frame so the callee cannot touch it.
-    private static uint Invoke(CpuContext c, IMemory m, Action<CpuContext, IMemory> fn,
+    internal static uint Invoke(CpuContext c, IMemory m, Action<CpuContext, IMemory> fn,
         uint a0 = 0, uint a1 = 0, uint a2 = 0)
     {
         var snap = c.Snapshot();
@@ -163,14 +163,15 @@ public static class MariaLoader
     }
 
     /// <summary>Must be called on the game thread (see <see cref="RequestReloadSounds"/>).</summary>
-    public static bool LoadMariaSounds(CpuContext c, IMemory m)
+    public static bool LoadMariaSounds(CpuContext c, IMemory m, string filename = "MARIA_SD.BIN",
+        bool saturnPriorities = true)
     {
         try
         {
-            string? sdPath = ResolveAsset("MARIA_SD.BIN");
+            string? sdPath = ResolveAsset(filename);
             if (sdPath == null)
             {
-                Console.WriteLine("[MariaLoader] Arquivo de áudio não encontrado: assets/characters/MARIA_SD.BIN");
+                Console.WriteLine($"[MariaLoader] Arquivo de áudio não encontrado: assets/characters/{filename}");
                 return false;
             }
 
@@ -194,8 +195,9 @@ public static class MariaLoader
             bool ok = OpenVab(c, m, spu.Ram, sd, 1, 0x0, 0x1800, Vab1HeaderAddr, Vab1SpuAddr, Vab1BodyMax)
                       & OpenVab(c, m, spu.Ram, sd, 2, 0x10000, 0x1000, Vab2HeaderAddr, Vab2SpuAddr, Vab2BodyMax);
 
-            ApplySfxPriorities(m, maria: true);
-            _sfxPatched = true;
+            // g_ModMarSfxPrio is the Saturn Maria's only: the PSP one keeps the retail priorities
+            ApplySfxPriorities(m, maria: saturnPriorities);
+            _sfxPatched = saturnPriorities;
 
             _soundsLoaded = ok;
             Console.WriteLine(ok

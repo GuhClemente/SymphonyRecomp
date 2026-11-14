@@ -118,7 +118,7 @@ public static class SpellWheel
             {
                 TriggerRichterCast(castIndex);
             }
-            else if (Player.IsMaria)
+            else if (Recompiled.Ultimate.MariaCharacter.IsSaturnMaria)
             {
                 TriggerMariaCast(castIndex);
             }
@@ -233,7 +233,8 @@ public static class SpellWheel
     {
         var c = RecompOne.Runtime.Runtime.Cpu;
         var m = RecompOne.Runtime.Runtime.Mem;
-        if (c == null || m == null || !Game.InGame || !Player.IsMaria) return false;
+        // MarSetSpecial's address is MARIA.BIN's: never call it with the PSP Maria (MARIA2.BIN) loaded
+        if (c == null || m == null || !Game.InGame || !Recompiled.Ultimate.MariaCharacter.IsSaturnMaria) return false;
 
         if ((ushort)Player.Step > MariaStepCrouch || !Player.HasControl ||
             m.ReadU16(PlayerAttackBusyAddr) != 0 || m.ReadU16(PlayerCeilingAddr) != 0)

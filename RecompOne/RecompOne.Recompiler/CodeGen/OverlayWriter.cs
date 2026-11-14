@@ -275,7 +275,8 @@ public static class OverlayWriter
             EmitOverlayFile(result.Name, overlayParts[result.Name], knownFuncs, config.Debug,
                 config.AddressComments, config.DisasmComments, result.LbaStart, result.Base, result.Size,
                 result.Instructions, outDir,
-                SymbolRelocator.Plan(result.Functions, config.Relocations, result.Name));
+                SymbolRelocator.Plan(result.Functions, config.Relocations, result.Name),
+                config.Relocations.Where(r => r.Runtime && r.MatchesOverlay(result.Name)).ToArray());
         }
 
         Console.WriteLine("[Recompiler] Emitting Entry.cs");
@@ -325,8 +326,13 @@ public static class OverlayWriter
     private static void EmitOverlayFile(string overlayName, List<OverlayPart> parts,
         Dictionary<uint, string> knownFuncs, bool debug, bool addressComments,
         bool disasmComments, int lbaStart, uint ovlBase, uint ovlSize, MipsInstruction[] instrs, string outDir,
-        Dictionary<uint, uint> relocations)
+        Dictionary<uint, uint> relocations, RelocationEntry[] runtimeRelocations)
     {
+        InstructionEmitter.AddrWrap = runtimeRelocations.Length > 0 ? "Rm" : null;
+        if (runtimeRelocations.Length > 0)
+            Console.WriteLine(
+                $"[Recompiler] {overlayName}: {runtimeRelocations.Length} run time relocation(s) on every memory access");
+
         var funcs = parts.SelectMany(p => p.Functions).ToList();
         var partClass = new Dictionary<uint, string>();
         foreach (var part in parts)
@@ -344,6 +350,14 @@ public static class OverlayWriter
         {
             sb.AppendLine($"public static partial class {part.Class}");
             sb.AppendLine("{");
+            if (runtimeRelocations.Length > 0)
+            {
+                var expr = "a";
+                foreach (var r in Enumerable.Reverse(runtimeRelocations))
+                    expr = $"a - 0x{r.FromAddress:X8}u < 0x{r.ByteSize:X}u ? a + 0x{unchecked(r.ToAddress - r.FromAddress):X8}u : {expr}";
+                sb.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine($"    private static uint Rm(uint a) => unchecked({expr});");
+            }
 
             foreach (var func in part.Functions)
             {
@@ -388,6 +402,7 @@ public static class OverlayWriter
         sb.AppendLine("        };");
         sb.AppendLine("}");
 
+        InstructionEmitter.AddrWrap = null;
         File.WriteAllText(Path.Combine(outDir, $"{overlayName}.cs"), sb.ToString());
     }
 

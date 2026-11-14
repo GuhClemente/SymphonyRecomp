@@ -53,6 +53,10 @@ public sealed class RelocationEntry
     [JsonPropertyName("size")] public string Size { get; set; } = "";
     [JsonPropertyName("to")] public string To { get; set; } = "";
 
+    //remap at run time, on every memory access of the overlay, instead of patching lui pairs: for code
+    //that keeps the base of a struct in a register and reaches the moved fields through offsets
+    [JsonPropertyName("runtime")] public bool Runtime { get; set; }
+
     public uint FromAddress => Convert.ToUInt32(Address, 16);
     public uint ToAddress => Convert.ToUInt32(To, 16);
 

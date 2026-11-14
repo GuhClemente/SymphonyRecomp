@@ -14,6 +14,7 @@ public sealed class SpellWheelPanel : IPanel
 
     public void Draw()
     {
+        ImGui.SetNextWindowPos(new Vector2(860, 40), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowSize(new Vector2(380, 520), ImGuiCond.FirstUseEver);
         bool open = IsOpen;
         if (!ImGui.Begin(this.Title(), ref open))
@@ -33,7 +34,7 @@ public sealed class SpellWheelPanel : IPanel
         }
 
         bool isRichter = Player.IsRichter || Game.InPrologue();
-        bool isMaria = Player.IsMaria;
+        bool isMaria = Recompiled.Ultimate.MariaCharacter.IsSaturnMaria;
 
         // Resource Status Bar
         if (isRichter)

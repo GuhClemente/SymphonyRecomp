@@ -27,13 +27,18 @@ public static class InstructionEmitter
             };
     }
 
+    //name of the overlay's run time remap helper, set while an overlay with "runtime" relocations is emitted
+    public static string? AddrWrap;
+
     private static string Addr(int rs, short imm, bool moved = false, uint reloc = 0)
     {
         if (moved) return $"0x{reloc:X8}u";
         if (rs == 0) return $"0x{(uint)(int)imm:X8}u";
-        if (imm == 0) return R(rs);
-        if (imm > 0) return $"({R(rs)} + 0x{(uint)imm:X}u)";
-        return $"({R(rs)} - 0x{unchecked((uint)-(int)imm):X}u)";
+        var addr = imm == 0 ? R(rs)
+            : imm > 0 ? $"({R(rs)} + 0x{(uint)imm:X}u)"
+            : $"({R(rs)} - 0x{unchecked((uint)-(int)imm):X}u)";
+        //the stack is never inside a remapped range
+        return AddrWrap != null && rs != 29 ? $"{AddrWrap}({addr})" : addr;
     }
 
     private static string Cop0Read(int rd)

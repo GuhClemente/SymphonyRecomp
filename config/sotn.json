@@ -33,6 +33,18 @@
       "linearSweep": true
     },
     {
+      "name": "ric2",
+      "localFile": "../assets/characters/RIC2.BIN",
+      "base": "0x8013C000",
+      "linearSweep": true
+    },
+    {
+      "name": "maria2",
+      "localFile": "../assets/characters/MARIA2.BIN",
+      "base": "0x8013C000",
+      "linearSweep": true
+    },
+    {
       "name": "cen",
       "file": "ST/CEN/CEN.BIN",
       "funcMap": "funcmaps/stcen.json",
@@ -1549,11 +1561,43 @@
   "relocations": [
     {
       "comment": "MARIA.BIN was built against SOTN Ultimate's PlayerStatus (inventory arrays grown by 0x14); map saveName..statsFamiliars back onto the retail g_Status",
-      "overlay": "maria",
+      "overlay": ["maria", "ric2"],
       "name": "g_Status (Ultimate layout -> retail)",
       "address": "0x80097BA4",
       "size": "0xF0",
       "to": "0x80097B90"
+    },
+    {
+      "comment": "MARIA2.BIN (PSP Maria) keeps &g_Status in a register and reaches the fields through offsets, so the same move is applied at run time",
+      "overlay": "maria2",
+      "name": "g_Status (Ultimate layout -> retail, run time)",
+      "address": "0x80097BA4",
+      "size": "0xF0",
+      "to": "0x80097B90",
+      "runtime": true
+    },
+    {
+      "comment": "MarPsxInit swaps DRA's item sprite bank (D_800A3B70[3]); SOTN Ultimate's DRA has that table 0x168 lower. Left as is it overwrites DRA's graphics load table",
+      "overlay": "maria2",
+      "name": "D_800A3B70 (Ultimate DRA -> retail DRA)",
+      "address": "0x800A3A08",
+      "size": "0x40",
+      "to": "0x800A3B70"
+    },
+    {
+      "comment": "g_ModSubwpnIcons / g_ModMar2HudIcons only exist in SOTN Ultimate's DRA; parked in g_api's unused slots (0x134, 0x138), where patches/ultimate reads them",
+      "overlay": "maria2",
+      "name": "g_ModSubwpnIcons",
+      "address": "0x800A2F10",
+      "size": "4",
+      "to": "0x8003C8A8"
+    },
+    {
+      "overlay": "maria2",
+      "name": "g_ModMar2HudIcons",
+      "address": "0x800A2DEC",
+      "size": "4",
+      "to": "0x8003C8AC"
     }
   ],
   "patches": [

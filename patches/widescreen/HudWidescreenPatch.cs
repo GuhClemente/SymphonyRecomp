@@ -69,8 +69,11 @@ public static partial class WidescreenPatch
     static bool RichterHudActive(IMemory m) =>
         m.ReadU32(StageIdAddr) == 0x1F || m.ReadU32(PlayableCharAddr) != 0;
 
-    static uint HudPrim(IMemory m, uint indexAddr) =>
-        PrimBufAddr + m.ReadU32(indexAddr) * PrimStride;
+    static uint HudPrim(IMemory m, uint indexAddr)
+    {
+        uint idx = m.ReadU32(indexAddr);
+        return idx == 0 ? 0 : PrimBufAddr + idx * PrimStride;
+    }
 
     static void ShiftPrimX(IMemory m, uint prim, int dx)
     {
@@ -92,7 +95,9 @@ public static partial class WidescreenPatch
 
     public static void PostDrawHud(CpuContext c, IMemory m)
     {
-        _hudMargin = RichterHudActive(m) ? 0 : HudMargin();
+        if (RichterHudActive(m)) return;
+        _richterHudMargin = 0;
+        _hudMargin = HudMargin();
         if (_hudMargin == 0) return;
         for (uint prim = HudPrim(m, PlayerHudAddr + 4); prim != 0; prim = m.ReadU32(prim))
             ShiftPrimX(m, prim, -_hudMargin);
@@ -122,6 +127,7 @@ public static partial class WidescreenPatch
 
     public static void PostDrawRichterHud(CpuContext c, IMemory m)
     {
+        _hudMargin = 0;
         _richterHudMargin = HudMargin();
         if (_richterHudMargin == 0) return;
         uint prim = HudPrim(m, PlayerHudAddr + 4);
@@ -154,6 +160,13 @@ public static partial class WidescreenPatch
     public static void PostDrawRichterHudSubweapon(CpuContext c, IMemory m)
     {
         FixRichterHud(m);
+        ShiftRedrawnRichterPrims(m);
+        //last, so what she draws is not shifted again
+        DrawMariaHud(c, m);
+    }
+
+    static void ShiftRedrawnRichterPrims(IMemory m)
+    {
         int margin = HudMargin();
         if (margin == 0) return;
         if (m.ReadU32(BossBarStateAddr) == 5) return;
@@ -170,6 +183,10 @@ public static partial class WidescreenPatch
             if (redrawn) ShiftPrimX(m, prim, RichterHudShift(i) * margin);
         }
     }
+
+    //maria hides richter's plate, and the psp one draws her two subweapon icons herself, in 4:3 coordinates
+    static void DrawMariaHud(CpuContext c, IMemory m) =>
+        Recompiled.Ultimate.MariaCharacter.DrawMariaHud(c, m, HudMargin());
 
     const uint CornerTextTimerAddr = 0x80097410;
     const uint CornerTextPrimsAddr = 0x80097414;
