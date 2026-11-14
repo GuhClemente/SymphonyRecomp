@@ -22,6 +22,7 @@ Esta documentação detalha a integração do mod **Castlevania: Symphony of the
 15. [Teste Automatizado dos 5 Personagens](#15-teste-automatizado-dos-5-personagens)
 16. [Pendências Conhecidas](#16-pendências-conhecidas)
 17. [Checklist para Portar Outro Binário do Ultimate](#17-checklist-para-portar-outro-binário-do-ultimate)
+18. [HUD Próprio da Saturn Maria](#18-hud-próprio-da-saturn-maria)
 
 ---
 
@@ -207,7 +208,7 @@ Tudo em `"relocations"` no `config/sotn.json`.
 * **Não esconda primitivas à mão.** A barra do Drácula fica além da borda direita (deslize `0x80137980 = 48`) até a luta do prólogo; o patch de widescreen empurra mais `+margem`.
 * No dump de primitivas: `+0x0E` é o CLUT, `+0x26` é a **prioridade** (`0x1EF`/`0x1F0`), `+0x32` é o `drawMode` (`8` = escondido).
 * `RedrawHud` só libera as primitivas e chama `DrawHud` / `DrawHudSubweapon`. Não redesenhe em mudança de estágio: o jogo já faz isso, e os índices antigos podem pertencer a outra entidade.
-* **Marias:** `MariaCharacter.DrawMariaHud`, chamado no fim de `WidescreenPatch.PostDrawRichterHudSubweapon`, esconde a placa (prim 8).
+* **Marias:** `MariaCharacter.DrawMariaHud`, chamado no fim de `WidescreenPatch.PostDrawRichterHudSubweapon`. A Saturn Maria ganha o HUD próprio (seção 18); sem a arte dele, ou para a PSP Maria, só a placa (prim 8) é escondida.
 * **PSP Maria:** o mesmo hook chama `Mar2HudIcons` do `MARIA2.BIN` (ponteiro em `0x8003C8AC`). A rotina desenha o subweapon da frente em `prim` e o de trás em `prim->next`; como o HUD retail não tem essa primitiva extra, a prim 4 é emprestada só durante a chamada. Depois os dois ícones recebem `-margem`.
 * O hook da Maria roda **depois** dos deslocamentos de widescreen, senão os ícones são deslocados duas vezes.
 
@@ -228,7 +229,6 @@ SOTN_TEST_MARIA=1 SOTN_TEST_DIR=/tmp/sotn-shots ./mac_run.sh
 ## 16. Pendências Conhecidas
 | Problema | Estado |
 | :--- | :--- |
-| HUD próprio da Saturn Maria (placa "MARIA", barra de MP) | É desenhado pelo DRA do Ultimate com arte do `F_GAME2.BIN` modificado; aqui ela usa o HUD do Richter sem a placa |
 | Ícones da PSP Maria | Aparecem no lugar certo, mas não foram comparados com o mod rodando |
 | Patches de widescreen/cheats do `ric` | Não se aplicam a `ric2`, `maria` e `maria2` (sem mapa de funções) |
 | Áudio | Só confirmado pelo log (bancos abrem); ninguém ouviu no teste |
@@ -242,4 +242,31 @@ SOTN_TEST_MARIA=1 SOTN_TEST_DIR=/tmp/sotn-shots ./mac_run.sh
 4. Conferir escritas em `g_api` além de `+0x128`.
 5. Regenerar tudo com o config completo (um config parcial muda nomes de funções entre overlays).
 6. Rodar o teste da seção 15 e olhar os screenshots — o log sozinho não mostra corrupção gráfica.
+
+---
+
+## 18. HUD Próprio da Saturn Maria
+O HUD compacto do Saturn: suporte de vinhas, barra de HP (roxa) e de MP nos dois tubos, dígitos de corações na caixa verde e a placa **MARIA**, cujas letras brilham conforme a carga dela.
+
+* **Código:** `patches/ultimate/MariaSaturnHud.cs`. Referência: `mods/sotn-ultimate/src/maria_saturn/5F60C_mod_maria_hud.h` (no Ultimate isso é desenhado pelo DRA).
+* **De onde vem a arte:** do `BIN/F_GAME2.BIN` **do disco SOTN Ultimate**, que o `gen_mar_hud.py` do mod preenche numa área que o arquivo retail deixa vazia: tpage `0x18`, u 128–255, v 136–231 (VRAM x 544–575, y 392–487; no arquivo, bloco 3, linhas 8–103).
+* **Como é encontrada:** na primeira vez, o jogo procura em `disc/` um `.cue`/`.chd` que não seja o disco em uso e que contenha `BIN/MARIA.BIN`, e copia só esse bloco de 32×96 para a memória. O disco Ultimate **não** é usado para mais nada.
+* **Sem o disco Ultimate em `disc/`:** ela fica com o HUD do Richter, sem a placa dele. O log diz qual dos dois casos ocorreu (`[MariaHud] ...`).
+
+**Como é desenhado.** Não aloca primitivas: reescreve, todo quadro, as 9 do HUD estilo Richter, depois do `DrawRichterHudSubweapon` retail e dos deslocamentos de widescreen.
+
+| Prim | Vira | Posição (4:3) | Paleta |
+| :---: | :--- | :--- | :---: |
+| 0 | Suporte de vinhas | (2, 24) 38×96 | `0x108` |
+| 1 | Barra de HP (sobe de y 116; até 90 px) | x 6, largura 4 | `0x103` |
+| 2 | Barra de MP (até 57 px), atrás do vidro do tubo | x 21, largura 3 | `0x107` |
+| 3–5 | Corações: unidades, dezenas (a partir de 10), centenas (a partir de 100) | x 27, 20, 13; y 29 | `0x103` |
+| 6 | Escondida | — | — |
+| 7 | Ícone do subweapon: continua sendo o do próprio jogo | — | — |
+| 8 | Placa MARIA, ou os quadros da animação de pausa (arte do Richter, tpage `0x1B`) | (36, 21) 64×24 | `0x106` |
+
+* **HP mostrado** segue o HP real em passos de 5 por quadro.
+* **Paletas `0x106`–`0x108`** são regravadas em `g_Clut` e na VRAM só quando mudam: brilho da placa acima de 100/200/300 quadros de carga (`g_Player.unk24`, `0x80072F44`), e a barra de MP azul ou, com MP cheio, piscando de vermelho a branco.
+* **A arte é reenviada à VRAM a cada 120 quadros**, porque o `F_GAME2.BIN` retail é recarregado em toda troca de personagem e apaga essa área.
+* Diferença para o mod: o ícone do subweapon não é descido 2 px para dentro do anel de vinhas.
 

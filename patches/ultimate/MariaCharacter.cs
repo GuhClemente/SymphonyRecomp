@@ -261,6 +261,7 @@ public static class MariaCharacter
 
             m.WriteU32(PlayerHudAddr + 0x24u, 0);
             if (!Player.IsAlucard) m.WriteU32(BossBarStateAddr, 0u);
+            MariaSaturnHud.Reset();
 
             if (Player.HpMax <= 0) Player.HpMax = 50;
             if (Player.Hp <= 0) Player.Hp = Player.HpMax;
@@ -319,7 +320,11 @@ public static class MariaCharacter
     {
         if (!_mariaHud) return;
 
-        // the plate is Richter's name: neither Maria shows it
+        // the Saturn Maria has her own HUD when its art is available (SOTN Ultimate disc in disc/)
+        if (!_pspMariaLoaded && UltimateOptions.CharacterMode != CharacterSelection.PSPMaria &&
+            MariaSaturnHud.Draw(m, margin)) return;
+
+        // otherwise the Richter HUD stays; its plate is his name, which neither Maria shows
         uint plate = HudPrimAt(m, HudPlatePrim);
         if (plate != 0) m.WriteU16(plate + 0x32u, DrawHide);
 
