@@ -36,6 +36,8 @@ public static class HostWindow
 
     private const int RedockCooldownFrames = 8;
     private static int _redockCooldown;
+    private static string? _screenshotPath = Environment.GetEnvironmentVariable("SOTN_SCREENSHOT_PATH");
+    private static int _screenshotFrameCount = int.TryParse(Environment.GetEnvironmentVariable("SOTN_SCREENSHOT_FRAME"), out var f) ? f : 30;
 
     public static void RequestLayout()
     {
@@ -703,6 +705,60 @@ public static class HostWindow
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         gl.Viewport(0, 0, (uint)fbDef.X, (uint)fbDef.Y);
         _imgui.Render();
+
+        if (!string.IsNullOrEmpty(_screenshotPath) && _gpu != null && _gpu.DisplayEnabled)
+        {
+            if (--_screenshotFrameCount <= 0)
+            {
+                try
+                {
+                    int w = fbDef.X, h = fbDef.Y;
+                    byte[] rgba = new byte[w * h * 4];
+                    unsafe
+                    {
+                        fixed (byte* p = rgba)
+                        {
+                            gl.ReadPixels(0, 0, (uint)w, (uint)h, PixelFormat.Rgba, PixelType.UnsignedByte, p);
+                        }
+                    }
+                    SaveBmp(_screenshotPath, w, h, rgba);
+                    Console.WriteLine($"[HostWindow] Screenshot captured to {_screenshotPath} (size {w}x{h})");
+                    _screenshotPath = null;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[HostWindow] Screenshot error: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    private static void SaveBmp(string path, int width, int height, byte[] rgba)
+    {
+        int rowStride = (width * 3 + 3) & ~3;
+        byte[] bmp = new byte[54 + rowStride * height];
+        bmp[0] = (byte)'B'; bmp[1] = (byte)'M';
+        int fileSize = bmp.Length;
+        bmp[2] = (byte)fileSize; bmp[3] = (byte)(fileSize >> 8); bmp[4] = (byte)(fileSize >> 16); bmp[5] = (byte)(fileSize >> 24);
+        bmp[10] = 54;
+        bmp[14] = 40;
+        bmp[18] = (byte)width; bmp[19] = (byte)(width >> 8); bmp[20] = (byte)(width >> 16); bmp[21] = (byte)(width >> 24);
+        bmp[22] = (byte)height; bmp[23] = (byte)(height >> 8); bmp[24] = (byte)(height >> 16); bmp[25] = (byte)(height >> 24);
+        bmp[26] = 1;
+        bmp[28] = 24;
+        for (int y = 0; y < height; y++)
+        {
+            int rowStart = 54 + y * rowStride;
+            for (int x = 0; x < width; x++)
+            {
+                int srcIdx = (y * width + x) * 4;
+                int dstIdx = rowStart + x * 3;
+                bmp[dstIdx] = rgba[srcIdx + 2];
+                bmp[dstIdx + 1] = rgba[srcIdx + 1];
+                bmp[dstIdx + 2] = rgba[srcIdx];
+            }
+        }
+        File.WriteAllBytes(path, bmp);
     }
 
     private static void DrawDockspace(bool overlay)
