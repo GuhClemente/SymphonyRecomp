@@ -113,7 +113,8 @@ public sealed class PSMemory : IMemory
     {
         var phys = MemoryMap.ToPhysical(address);
 
-        if (phys < MemoryMap.RamWindow)
+        // PS1 bus RAM mirror window (0x00000000 - 0x1EFFFFFF)
+        if (phys < 0x1F000000u)
             return _ram.AsSpan((int)(phys & _ramMask), size);
 
         if (phys >= MemoryMap.ScratchpadBase && phys < MemoryMap.ScratchpadBase + MemoryMap.ScratchpadWindow)

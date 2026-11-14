@@ -100,6 +100,60 @@ public sealed class UltimatePanel : IPanel
         {
             UltimateOptions.CharacterMode = (CharacterSelection)charChoice;
             dirty = true;
+            if (charChoice == (int)CharacterSelection.SaturnMaria && Game.Available && Game.InGame)
+            {
+                MariaLoader.TransformToMaria(RecompOne.Runtime.Runtime.Mem!);
+            }
+        }
+
+        if (ImGui.Button("🌟 Ativar Maria Renard no Gameplay (Saturn)"))
+        {
+            if (Game.Available && Game.InGame)
+            {
+                MariaLoader.TransformToMaria(RecompOne.Runtime.Runtime.Mem!);
+            }
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("🚀 Pular para Entrada com Maria"))
+        {
+            if (Game.Available && Game.InGame)
+            {
+                UltimateOptions.CharacterMode = CharacterSelection.SaturnMaria;
+                Player.TeleportTo(Stage.CastleEntrance, 8, 38, 128, 128);
+                MariaLoader.TransformToMaria(RecompOne.Runtime.Runtime.Mem!);
+            }
+        }
+
+        // Teste de Sons e Vozes Autênticas da Maria (Saturn)
+        if (Player.IsMaria || UltimateOptions.CharacterMode == CharacterSelection.SaturnMaria)
+        {
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "🔊 Teste de Voz e Áudio da Maria (Saturn):");
+            if (ImGui.Button("Recarregar Sons da Maria"))
+            {
+                if (Game.Available) MariaLoader.LoadMariaSounds(RecompOne.Runtime.Runtime.Mem!);
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Grito Ataque 1")) GameApi.PlaySfx(0x6F9);
+            ImGui.SameLine();
+            if (ImGui.Button("Grito Ataque 2")) GameApi.PlaySfx(0x6FA);
+            ImGui.SameLine();
+            if (ImGui.Button("Chute (Yell)")) GameApi.PlaySfx(0x6FC);
+
+            if (ImGui.Button("Voz: Guardian Knuckle")) GameApi.PlaySfx(0x8A1);
+            ImGui.SameLine();
+            if (ImGui.Button("Genbu (Tartaruga)")) GameApi.PlaySfx(0x887);
+            ImGui.SameLine();
+            if (ImGui.Button("Byakko (Tigre)")) GameApi.PlaySfx(0x888);
+            ImGui.SameLine();
+            if (ImGui.Button("Seiryuu (Dragão)")) GameApi.PlaySfx(0x889);
+        }
+
+        bool skipPrologue = QualityOfLife.SkipPrologue;
+        if (ImGui.Checkbox("Pular Prelúdio (Novo Jogo começa direto na Entrada do Castelo)", ref skipPrologue))
+        {
+            QualityOfLife.SkipPrologue = skipPrologue;
+            QualityOfLifeOptions.SkipPrologue.Value = skipPrologue;
         }
 
         ImGui.Spacing();

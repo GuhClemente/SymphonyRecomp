@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using RecompOne.Runtime.Context;
+using RecompOne.Runtime.Events;
 using RecompOne.Runtime.Host.Window;
 using RecompOne.Runtime.Memory;
 using Sotn;
@@ -32,12 +33,6 @@ public static class SpellWheel
         int RequiredForm = 0 // 0 = Human, 1 = Bat, 2 = Wolf, 3 = Sword Familiar
     );
 
-    // Each entry here was verified individually against the real per-spell check function in
-    // Ghidra (CheckSummonSpiritInput, CheckTetraSpiritInput, CheckDarkMetamorphosisInput,
-    // CheckHellfireInput, CheckSoulStealInput -- there is no shared dispatcher, they're five
-    // separate functions). Two of the original addresses in this table (Summon Spirit, Dark
-    // Metamorphosis) turned out to point at unrelated helper functions with no MP check or cast
-    // logic at all -- not just a timing bug, the previous table was simply wrong for those two.
     public static readonly SpellInfo[] Spells =
     [
         new(Spell.SummonSpirit, "spell.summon_spirit", "Summon Spirit", 1, 0x8010FC50u),
@@ -50,20 +45,45 @@ public static class SpellWheel
     private static volatile int _pendingQuickCast = -1;
     public static void TriggerQuickCast(int index) => _pendingQuickCast = index;
 
+    private static ushort _simulatedPadMask = 0xFFFF;
+    private static int _simulatedPadFrames = 0;
+
+    public static void PressButton(Button btn, int frames = 4)
+    {
+        _simulatedPadMask = (ushort)~(ushort)btn;
+        _simulatedPadFrames = frames;
+    }
+
     static SpellWheel()
     {
-        RecompOne.Runtime.Events.Event.AddListener<RecompOne.Runtime.Events.KeyboardEvent>(e =>
+        Event.AddListener<PadReadEvent>(e =>
+        {
+            if (e.Port == 0 && _simulatedPadFrames > 0)
+            {
+                e.Buttons = (ushort)(e.Buttons & _simulatedPadMask);
+                _simulatedPadFrames--;
+            }
+        });
+
+        Event.AddListener<KeyboardEvent>(e =>
         {
             if (e.Pressed && !e.Repeat)
             {
-                // Number keys 1-5 for instant quick casting if enabled
+                // Number keys 1-6 for instant quick casting if enabled
                 if (QuickCastHotkeys)
                 {
-                    if (e.Key == (int)Silk.NET.Input.Key.Number1) _pendingQuickCast = 0; // Summon Spirit
-                    else if (e.Key == (int)Silk.NET.Input.Key.Number2) _pendingQuickCast = 1; // Tetra Spirit
-                    else if (e.Key == (int)Silk.NET.Input.Key.Number3) _pendingQuickCast = 2; // Dark Metamorphosis
-                    else if (e.Key == (int)Silk.NET.Input.Key.Number4) _pendingQuickCast = 3; // Hellfire
-                    else if (e.Key == (int)Silk.NET.Input.Key.Number5) _pendingQuickCast = 4; // Soul Steal
+                    int num = -1;
+                    if (e.Key == (int)Silk.NET.Input.Key.Number1) num = 0;
+                    else if (e.Key == (int)Silk.NET.Input.Key.Number2) num = 1;
+                    else if (e.Key == (int)Silk.NET.Input.Key.Number3) num = 2;
+                    else if (e.Key == (int)Silk.NET.Input.Key.Number4) num = 3;
+                    else if (e.Key == (int)Silk.NET.Input.Key.Number5) num = 4;
+                    else if (e.Key == (int)Silk.NET.Input.Key.Number6) num = 5;
+
+                    if (num >= 0)
+                    {
+                        _pendingQuickCast = num;
+                    }
                 }
             }
         });
@@ -86,64 +106,139 @@ public static class SpellWheel
         RecompOne.Runtime.Runtime.SaveView();
     }
 
-    // Safety net: reported live, casting via CastSpell can leave Player.Step stuck in the
-    // spell's own cast-animation state (e.g. TetraSpirit) indefinitely -- control only came back
-    // after a teleport (full stage reload) or casting a *different* spell (which forces a new
-    // Step). Calling the spell's execute function directly (see CastSpell) clearly sets Player.Step
-    // into the cast animation the same way the normal input path does, but something the normal
-    // path also does to time that animation out again isn't happening here -- root cause still
-    // under investigation. Until that's found, force Player.Step back to Standing if it's been
-    // sitting in one of these four states for too long to be a real cast animation.
     const int StuckCastFrameLimit = 90; // 1.5s at 60fps -- generous for any real cast animation
     static int _stuckCastFrames;
 
     public static void Update(CpuContext c, IMemory m)
     {
         if (!Enabled || !Game.Available || !Game.InGame || Game.IsLoading) return;
-        if (!Player.IsAlucard) return;
 
         int castIndex = _pendingQuickCast;
         _pendingQuickCast = -1;
 
-        if (castIndex >= 0 && castIndex < Spells.Length)
+        if (castIndex >= 0)
         {
-            CastSpell(Spells[castIndex], m);
+            if (Player.IsRichter || Game.InPrologue())
+            {
+                TriggerRichterCast(castIndex);
+            }
+            else if (Player.IsMaria)
+            {
+                TriggerMariaCast(castIndex);
+            }
+            else if (Player.IsAlucard && castIndex < Spells.Length)
+            {
+                CastSpell(Spells[castIndex], m);
+            }
         }
 
-        var step = Player.Step;
-        // Hellfire is a full multi-phase interactive teleport attack lasting ~240 frames (~4s)
-        // with its own state machine and entity cleanup (func_8010E570).
-        // It must NOT be clamped to the 90-frame simple cast animation timeout, otherwise
-        // it gets aborted mid-teleport while invisible, leaving Alucard permanently invisible.
-        bool inCastAnim = step is PlayerStep.DarkMetamorphosis or PlayerStep.SummonSpirit
-            or PlayerStep.TetraSpirit;
-
-        if (inCastAnim)
+        if (Player.IsAlucard && !Game.InPrologue())
         {
-            _stuckCastFrames++;
-            if (_stuckCastFrames > StuckCastFrameLimit)
+            var step = Player.Step;
+            bool inCastAnim = step is PlayerStep.DarkMetamorphosis or PlayerStep.SummonSpirit
+                or PlayerStep.TetraSpirit;
+
+            if (inCastAnim)
             {
-                Console.WriteLine($"[SpellWheel] Player.Step stuck in {step} for {_stuckCastFrames} frames, forcing back to Standing");
-                Player.Step = PlayerStep.Standing;
+                _stuckCastFrames++;
+                if (_stuckCastFrames > StuckCastFrameLimit)
+                {
+                    Console.WriteLine($"[SpellWheel] Player.Step stuck in {step} for {_stuckCastFrames} frames, forcing back to Standing");
+                    Player.Step = PlayerStep.Standing;
+                    _stuckCastFrames = 0;
+                }
+            }
+            else
+            {
                 _stuckCastFrames = 0;
             }
         }
-        else
+    }
+
+    public static void TriggerRichterCast(int index)
+    {
+        switch (index)
         {
-            _stuckCastFrames = 0;
+            case 0: CastRichterCrash(Subweapon.HolyWater, "Hydro Storm", 15); break;
+            case 1: CastRichterCrash(Subweapon.Cross, "Grand Cross", 20); break;
+            case 2: CastRichterCrash(Subweapon.Dagger, "Thousand Blades", 10); break;
+            case 3: CastRichterCrash(Subweapon.Axe, "Axe Rain", 10); break;
+            case 4: CastRichterCrash(Subweapon.Bible, "Burning Bible", 15); break;
+            case 5: CastRichterBladeDash(); break;
+            case 6: CastRichterSuperJump(); break;
         }
+    }
+
+    public static bool CastRichterCrash(Subweapon subweapon, string name, int heartCost)
+    {
+        if (!Game.InGame) return false;
+        if (!InfiniteMana && Player.Hearts < heartCost)
+        {
+            ToastNotifications.ShowText(name, $"Corações insuficientes! ({Player.Hearts}/{heartCost})", null, 2f);
+            return false;
+        }
+        if (!InfiniteMana)
+        {
+            Player.Hearts = Math.Max(0, Player.Hearts - heartCost);
+        }
+        Player.SubWeapon = (int)subweapon;
+        PressButton(Button.Triangle, 6);
+        ToastNotifications.ShowText(name, InfiniteMana ? "Item Crash! (Infinito)" : $"Corações -{heartCost} | Item Crash!", null, 2f);
+        return true;
+    }
+
+    public static bool CastRichterBladeDash()
+    {
+        if (!Game.InGame) return false;
+        Player.VelocityX = Player.FacingLeft ? -0x00080000 : 0x00080000;
+        GameApi.PlaySfx(0x6FC); // Richter attack yell
+        ToastNotifications.ShowText("Blade Dash", "Avanço Cortante executado!", null, 2f);
+        return true;
+    }
+
+    public static bool CastRichterSuperJump()
+    {
+        if (!Game.InGame) return false;
+        Player.VelocityY = -0x000A0000;
+        Player.Step = PlayerStep.AirJump;
+        GameApi.PlaySfx(0x6FA); // High jump sound
+        ToastNotifications.ShowText("Super Jump", "Super Salto executado!", null, 2f);
+        return true;
+    }
+
+    public static void TriggerMariaCast(int index)
+    {
+        switch (index)
+        {
+            case 0: CastMariaSpecial("Soco Guardião (Guardian Knuckle)", 40, 0x8A1); break;
+            case 1: CastMariaSpecial("Suzaku (Pássaro Carmesim)", 60, 0x8A2); break;
+            case 2: CastMariaSpecial("Genbu (Tartaruga Sagrada)", 80, 0x887); break;
+            case 3: CastMariaSpecial("Byakko (Tigre Branco)", 100, 0x888); break;
+            case 4: CastMariaSpecial("Seiryuu (Dragão Azul)", 120, 0x889); break;
+            case 5: CastMariaSpecial("As Quatro Bestas Sagradas", 150, 0x87E); break;
+        }
+    }
+
+    public static bool CastMariaSpecial(string name, int mpCost, int sfxId)
+    {
+        if (!Game.InGame) return false;
+        if (!InfiniteMana && Player.Mp < mpCost)
+        {
+            ToastNotifications.ShowText(name, $"MP insuficiente! ({Player.Mp}/{mpCost})", null, 2f);
+            return false;
+        }
+        if (!InfiniteMana)
+        {
+            Player.Mp = Math.Max(0, Player.Mp - mpCost);
+        }
+        GameApi.PlaySfx(sfxId);
+        ToastNotifications.ShowText(name, InfiniteMana ? "Invocação Ativada! (Infinito)" : $"MP -{mpCost} | Invocação Ativada!", null, 2.5f);
+        return true;
     }
 
     public static int GetMpCost(IMemory m, SpellInfo info) =>
         m.ReadU8(MpCostTableBase + (uint)info.MpIndex * MpCostTableStride);
 
-    // Casts the spell by calling the same three functions the game's own command-buffer state
-    // machine calls once it recognizes the input: MP check-and-deduct, the spell's own execute
-    // function, then mark-active. This was previously done by forging the "Square tapped" bit
-    // each check function reads -- but that bit (0x80072eec) is itself derived fresh every frame
-    // by EntityAlucard from the real pad state (0x80097490), not from anything writable ahead of
-    // time, so the forged value only ever landed by luck, if at all. Calling these three
-    // functions directly sidesteps that whole pipeline.
     public static bool CastSpell(SpellInfo info, IMemory m)
     {
         if (!Game.InGame || !Player.IsAlucard) return false;
@@ -161,10 +256,8 @@ public static class SpellWheel
                 return false;
             }
 
-            // FUN_800fdc94 both checks and atomically deducts the cost -- skip it entirely under
-            // Infinite Mana so nothing gets subtracted, rather than deducting and refunding after.
             if (GameApi.Call(MpCheckAndDeductAddr, (uint)info.MpIndex) == 0)
-                return false; // MP changed between our check and the game's own deduct
+                return false;
         }
 
         GameApi.Call(info.ExecuteAddr);

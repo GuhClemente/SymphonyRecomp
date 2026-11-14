@@ -36,8 +36,16 @@ public static class HostWindow
 
     private const int RedockCooldownFrames = 8;
     private static int _redockCooldown;
-    private static string? _screenshotPath = Environment.GetEnvironmentVariable("SOTN_SCREENSHOT_PATH");
+    private static string? _screenshotPath = Environment.GetEnvironmentVariable("SOTN_TEST_MARIA") == "1"
+        ? null
+        : Environment.GetEnvironmentVariable("SOTN_SCREENSHOT_PATH");
     private static int _screenshotFrameCount = int.TryParse(Environment.GetEnvironmentVariable("SOTN_SCREENSHOT_FRAME"), out var f) ? f : 30;
+
+    public static void RequestScreenshot(string path, int delayFrames = 30)
+    {
+        _screenshotPath = path;
+        _screenshotFrameCount = delayFrames;
+    }
 
     public static void RequestLayout()
     {
