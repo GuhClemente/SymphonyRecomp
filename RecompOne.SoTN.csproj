@@ -7,7 +7,7 @@
     <AssemblyName>sotn</AssemblyName>
     <ApplicationIcon>assets/icon/SymphonyRecomp.ico</ApplicationIcon>
     <NoWarn>0162</NoWarn>
-    <DefaultItemExcludes>$(DefaultItemExcludes);RecompOne/**;mods/**;tools/**;ghidra_files/**;tests/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);RecompOne/**;mods/**;tools/**;ghidra_files/**;tests/**;dist/**</DefaultItemExcludes>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <EnableSourceLink>false</EnableSourceLink>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>

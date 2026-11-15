@@ -22,3 +22,4 @@ shaders/
 *.log
 __pycache__/
 teste-*/
+dist/
