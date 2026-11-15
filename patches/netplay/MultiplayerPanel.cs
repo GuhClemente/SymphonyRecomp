@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using RecompOne.Runtime.Host.Window;
@@ -17,11 +18,12 @@ public sealed class MultiplayerPanel : IPanel
     private int _inputPort = 7777;
     private string _inputName = "Alucard";
     private string _chatInput = "";
+    private int _selectedPresetIndex = 0;
     private readonly List<string> _chatHistory = [];
 
     public void Draw()
     {
-        ImGui.SetNextWindowSize(new Vector2(560, 560), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(620, 640), ImGuiCond.FirstUseEver);
         bool open = IsOpen;
         if (!ImGui.Begin(this.Title(), ref open))
         {
@@ -40,7 +42,7 @@ public sealed class MultiplayerPanel : IPanel
             }
 
             // TAB 2: MAPA CO-OP & RADAR AO VIVO
-            if (ImGui.BeginTabItem("🗺️ Mapa Co-op & Radar"))
+            if (ImGui.BeginTabItem("Radar & Mapa Co-op"))
             {
                 DrawCoopMapTab();
                 ImGui.EndTabItem();
@@ -67,6 +69,36 @@ public sealed class MultiplayerPanel : IPanel
         ImGui.End();
     }
 
+    private List<(string Label, string Ip)> GetIpPresetOptions()
+    {
+        var options = new List<(string Label, string Ip)>
+        {
+            ("Mesmo PC (127.0.0.1 - Loopback)", "127.0.0.1")
+        };
+
+        if (!string.IsNullOrEmpty(NatHelper.LocalIp) && NatHelper.LocalIp != "127.0.0.1")
+        {
+            options.Add(($"Rede Local / Wi-Fi ({NatHelper.LocalIp})", NatHelper.LocalIp));
+        }
+
+        foreach (var adapter in NatHelper.LocalAdapters)
+        {
+            if (adapter.Ip != "127.0.0.1" && adapter.Ip != NatHelper.LocalIp)
+            {
+                options.Add(($"{adapter.Description} ({adapter.Ip})", adapter.Ip));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(NetworkManager.TargetIp) &&
+            !options.Exists(o => o.Ip == NetworkManager.TargetIp))
+        {
+            options.Add(($"Último Utilizado ({NetworkManager.TargetIp})", NetworkManager.TargetIp));
+        }
+
+        options.Add(("Digitar Manualmente...", ""));
+        return options;
+    }
+
     private void DrawLobbyTab()
     {
         ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), "Castlevania Netplay P2P 60Hz:");
@@ -79,38 +111,126 @@ public sealed class MultiplayerPanel : IPanel
 
         if (!NetworkManager.IsConnected)
         {
-            ImGui.BeginChild("host_join_child", new Vector2(-1, 230), ImGuiChildFlags.Borders);
-            ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Opções de Conexão Online:");
+            // BLOCO 1: HOSPEDAR SESSÃO (HOST)
+            ImGui.BeginChild("host_join_child", new Vector2(-1, 410), ImGuiChildFlags.Borders);
 
-            ImGui.InputInt("Porta", ref _inputPort);
-            if (ImGui.Button("🛡️ Hospedar Sessão (Host)"))
+            ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "[1] Hospedar Sessão (Host):");
+            ImGui.InputInt("Porta UDP", ref _inputPort);
+
+            // Informações de IP Local (LAN / Wi-Fi)
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), $"IP Local (Wi-Fi / LAN): {NatHelper.LocalIp}");
+            ImGui.SameLine();
+            if (ImGui.Button("Copiar IP Local"))
+            {
+                ImGui.SetClipboardText(NatHelper.LocalIp);
+                ToastNotifications.ShowText("IP Local Copiado!", $"IP {NatHelper.LocalIp} copiado para a área de transferência!", null, 3.0f);
+            }
+            ImGui.TextDisabled("-> Para jogar no mesmo Wi-Fi/rede local (ex: Mac e Windows na mesma casa).");
+
+            if (NatHelper.LocalAdapters.Count > 1)
+            {
+                if (ImGui.TreeNode("Ver outros adaptadores de rede locais"))
+                {
+                    foreach (var adapter in NatHelper.LocalAdapters)
+                    {
+                        ImGui.BulletText($"{adapter.Description}: {adapter.Ip} ({adapter.Name})");
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton($"Copiar##{adapter.Ip}"))
+                        {
+                            ImGui.SetClipboardText(adapter.Ip);
+                            ToastNotifications.ShowText("IP Copiado!", $"{adapter.Ip} copiado!", null, 3.0f);
+                        }
+                    }
+                    ImGui.TreePop();
+                }
+            }
+
+            // Informações de IP Público (Internet)
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(1f, 0.75f, 0.2f, 1f), $"IP Público (Internet): {NatHelper.PublicIp}");
+            ImGui.SameLine();
+            if (ImGui.Button("Copiar IP Público"))
+            {
+                ImGui.SetClipboardText(NatHelper.PublicIp);
+                ToastNotifications.ShowText("IP Público Copiado!", $"IP {NatHelper.PublicIp} copiado para a área de transferência!", null, 3.0f);
+            }
+            ImGui.TextDisabled("-> Para jogar com amigos pela Internet (requer porta 7777 UDP aberta ou UPnP).");
+
+            ImGui.Spacing();
+            if (ImGui.Button("Hospedar Sessão (Host)", new Vector2(-1, 32)))
             {
                 NetworkManager.StartHost(_inputPort);
             }
 
-            ImGui.SameLine();
-            ImGui.TextDisabled($"(Seu IP Público: {NatHelper.PublicIp})");
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
 
-            if (ImGui.Button("📋 Copiar Meu IP para Enviar ao Amigo"))
+            // BLOCO 2: CONECTAR A UM AMIGO (CLIENT)
+            ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "[2] Conectar a um Servidor / Amigo (Client):");
+
+            // Combo de Seleção Rápida de IP
+            var presets = GetIpPresetOptions();
+            string[] presetLabels = presets.Select(p => p.Label).ToArray();
+            if (_selectedPresetIndex < 0 || _selectedPresetIndex >= presetLabels.Length)
+                _selectedPresetIndex = 0;
+
+            if (ImGui.Combo("Selecionar IP Rápido", ref _selectedPresetIndex, presetLabels, presetLabels.Length))
             {
-                ImGui.SetClipboardText(NatHelper.PublicIp);
-                ToastNotifications.ShowText("📋 IP Copiado!", $"IP {NatHelper.PublicIp} copiado para a área de transferência!", null, 3.0f);
+                string chosenIp = presets[_selectedPresetIndex].Ip;
+                if (!string.IsNullOrEmpty(chosenIp))
+                {
+                    _inputIp = chosenIp;
+                    NetworkManager.TargetIp = _inputIp;
+                }
             }
 
-            ImGui.Separator();
             ImGui.InputText("IP do Servidor / Amigo", ref _inputIp, 64);
-            if (ImGui.Button("⚔️ Conectar ao Amigo (Client)"))
+            NetworkManager.TargetIp = _inputIp;
+
+            // Botões de atalho rápido
+            if (ImGui.Button("Mesmo PC (127.0.0.1)"))
+            {
+                _inputIp = "127.0.0.1";
+                NetworkManager.TargetIp = _inputIp;
+                _selectedPresetIndex = 0;
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Colar"))
+            {
+                string clip = ImGui.GetClipboardText();
+                if (!string.IsNullOrWhiteSpace(clip))
+                {
+                    _inputIp = clip.Trim();
+                    NetworkManager.TargetIp = _inputIp;
+                    ToastNotifications.ShowText("IP Colado!", $"IP {_inputIp} colado da área de transferência!", null, 3.0f);
+                }
+            }
+            if (!string.IsNullOrEmpty(NatHelper.LocalIp) && NatHelper.LocalIp != "127.0.0.1")
+            {
+                ImGui.SameLine();
+                if (ImGui.Button($"IP Local ({NatHelper.LocalIp})"))
+                {
+                    _inputIp = NatHelper.LocalIp;
+                    NetworkManager.TargetIp = _inputIp;
+                }
+            }
+
+            ImGui.Spacing();
+            if (ImGui.Button("Conectar ao Amigo (Client)", new Vector2(-1, 32)))
             {
                 NetworkManager.ConnectTo(_inputIp, _inputPort);
             }
+
             ImGui.EndChild();
         }
         else
         {
-            ImGui.BeginChild("connected_status_child", new Vector2(-1, 140), ImGuiChildFlags.Borders);
-            ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), "✔ STATUS: CONECTADO");
-            ImGui.Text($"Modo: {NetworkManager.Role}");
-            ImGui.Text($"Parceiro: {NetworkManager.RemotePlayerName}");
+            ImGui.BeginChild("connected_status_child", new Vector2(-1, 160), ImGuiChildFlags.Borders);
+            ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), "[STATUS: CONECTADO]");
+            ImGui.Text($"Modo de Conexão: {NetworkManager.Role}");
+            ImGui.Text($"Parceiro Remoto: {NetworkManager.RemotePlayerName}");
 
             Vector4 pingColor = NetworkManager.PingMs < 50 ? new Vector4(0.2f, 1f, 0.3f, 1f) :
                                 NetworkManager.PingMs < 120 ? new Vector4(1f, 0.85f, 0.2f, 1f) :
@@ -118,7 +238,7 @@ public sealed class MultiplayerPanel : IPanel
             ImGui.TextColored(pingColor, $"Latência (Ping): {NetworkManager.PingMs} ms");
 
             ImGui.Spacing();
-            if (ImGui.Button("Desconectar da Sessão"))
+            if (ImGui.Button("Desconectar da Sessão", new Vector2(-1, 32)))
             {
                 NetworkManager.Stop();
             }
@@ -126,9 +246,10 @@ public sealed class MultiplayerPanel : IPanel
         }
 
         ImGui.Spacing();
-        ImGui.TextColored(new Vector4(0.8f, 0.8f, 0.8f, 1f), "Como Jogar Pela Internet:");
-        ImGui.TextWrapped("1. Conexão Direta: O Host clica em 'Hospedar' e envia seu IP público para o amigo colar no campo IP.");
-        ImGui.TextWrapped("2. Redes Virtuais (Sem configurar roteador): Vocês podem usar Radmin VPN, Tailscale ou ZeroTier e colar o IP virtual.");
+        ImGui.TextColored(new Vector4(0.8f, 0.8f, 0.8f, 1f), "Instruções Rápidas:");
+        ImGui.TextWrapped("• No Mesmo Computador: O Host abre em 7777 e o Cliente usa 'Mesmo PC (127.0.0.1)'.");
+        ImGui.TextWrapped("• Na Mesma Rede / Wi-Fi (ex: Mac e Windows): O Host copia o 'IP Local' e o Cliente digita/cola esse IP.");
+        ImGui.TextWrapped("• Pela Internet: O Host copia o 'IP Público' (ou usem redes virtuais como Tailscale ou ZeroTier).");
     }
 
     private void DrawCoopMapTab()
@@ -139,15 +260,15 @@ public sealed class MultiplayerPanel : IPanel
         // Legenda de Cores
         ImGui.Text("Legenda:");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(0.2f, 0.6f, 1f, 1f), "■ Você");
+        ImGui.TextColored(new Vector4(0.2f, 0.6f, 1f, 1f), "[x] Você");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(1f, 0.6f, 0.1f, 1f), "■ Amigo");
+        ImGui.TextColored(new Vector4(1f, 0.6f, 0.1f, 1f), "[x] Amigo");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "■ Ambos");
+        ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "[x] Ambos");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(1f, 1f, 1f, 1f), "● Sua Posição");
+        ImGui.TextColored(new Vector4(1f, 1f, 1f, 1f), "(o) Sua Posição");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), "▲ Amigo");
+        ImGui.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), "(^) Amigo");
 
         ImGui.Spacing();
 
@@ -186,14 +307,14 @@ public sealed class MultiplayerPanel : IPanel
             }
         }
 
-        // Desenhar indicador da posição atual do jogador local (👑)
+        // Desenhar indicador da posição atual do jogador local
         int localX = Math.Clamp(Stages.RoomX, 0, 63);
         int localY = Math.Clamp(Stages.RoomY, 0, 31);
         Vector2 localPos = canvasPos + new Vector2(localX * tileSizeX + tileSizeX * 0.5f, localY * tileSizeY + tileSizeY * 0.5f);
         drawList.AddCircleFilled(localPos, 5f, ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 1f, 1f, 1f)));
         drawList.AddCircle(localPos, 6f, ImGui.ColorConvertFloat4ToU32(new Vector4(0.2f, 0.8f, 1f, 1f)), 12, 2f);
 
-        // Desenhar indicador da posição atual do jogador remoto (🗡️)
+        // Desenhar indicador da posição atual do jogador remoto
         if (NetworkManager.IsConnected && RemotePuppet.IsActive)
         {
             int remoteX = Math.Clamp((int)RemotePuppet.RoomX, 0, 63);
@@ -213,7 +334,7 @@ public sealed class MultiplayerPanel : IPanel
         ImGui.Spacing();
         if (NetworkManager.IsConnected && RemotePuppet.IsActive)
         {
-            if (ImGui.Button("✨ Teleportar até o Amigo (Buddy Warp)", new Vector2(-1, 35)))
+            if (ImGui.Button("Teleportar até o Amigo (Buddy Warp)", new Vector2(-1, 35)))
             {
                 NetworkManager.RequestBuddyWarp();
             }
@@ -228,24 +349,24 @@ public sealed class MultiplayerPanel : IPanel
             return;
         }
 
-        ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "👥 Jogadores no Castelo:");
+        ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Jogadores no Castelo:");
         ImGui.Separator();
 
         // Local Player
-        ImGui.Text($"👑 {NetworkManager.LocalPlayerName} (Você):");
+        ImGui.Text($"[Você] {NetworkManager.LocalPlayerName}:");
         ImGui.ProgressBar((float)Player.Hp / Math.Max(1, (int)Player.HpMax), new Vector2(240, 18), $"HP: {Player.Hp}/{Player.HpMax}");
         ImGui.TextDisabled($"Área Atual: {Stages.Current} (Sala: {Stages.RoomX}, {Stages.RoomY})");
 
         ImGui.Separator();
 
         // Remote Player
-        ImGui.Text($"🗡️ {NetworkManager.RemotePlayerName} (Parceiro):");
+        ImGui.Text($"[Parceiro] {NetworkManager.RemotePlayerName}:");
         ImGui.ProgressBar((float)RemotePuppet.CurHp / Math.Max(1, (int)RemotePuppet.MaxHp), new Vector2(240, 18), $"HP: {RemotePuppet.CurHp}/{RemotePuppet.MaxHp}");
         ImGui.TextDisabled($"Área Atual: {(Stage)RemotePuppet.StageId} (Sala: {RemotePuppet.RoomX}, {RemotePuppet.RoomY})");
 
         ImGui.Spacing();
 
-        if (ImGui.Button("✨ Teleportar até o Amigo (Buddy Warp)", new Vector2(-1, 35)))
+        if (ImGui.Button("Teleportar até o Amigo (Buddy Warp)", new Vector2(-1, 35)))
         {
             NetworkManager.RequestBuddyWarp();
         }
@@ -253,14 +374,14 @@ public sealed class MultiplayerPanel : IPanel
         if (PvPManager.IsPvPActive)
         {
             ImGui.Separator();
-            ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "⚔️ DUELO NO COLISEU ATIVO!");
+            ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "DUELO NO COLISEU ATIVO!");
             ImGui.Text($"Placar: {NetworkManager.LocalPlayerName} {PvPManager.LocalScore} x {PvPManager.RemoteScore} {NetworkManager.RemotePlayerName}");
         }
     }
 
     private void DrawChatTab()
     {
-        ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "💬 Chat da Sessão:");
+        ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Chat da Sessão:");
         ImGui.Separator();
 
         // Quick Chat buttons
@@ -292,6 +413,6 @@ public sealed class MultiplayerPanel : IPanel
         if (!NetworkManager.IsConnected) return;
         byte[] payload = NetworkPacket.CreateChat(NetworkManager.LocalPlayerName, msg);
         NetworkManager.SendPacket(new NetworkPacket(PacketOpCode.ChatMessage, payload));
-        ToastNotifications.ShowText($"💬 Você", msg, null, 4.0f);
+        ToastNotifications.ShowText("[Você]", msg, null, 4.0f);
     }
 }

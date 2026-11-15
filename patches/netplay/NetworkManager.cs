@@ -54,6 +54,7 @@ public static class NetworkManager
         TargetIp = v.GetString("NetplayTargetIp", "127.0.0.1");
         Port = v.GetInt("NetplayPort", 7777);
         LocalPlayerName = v.GetString("NetplayPlayerName", "Alucard");
+        NatHelper.RefreshNetworkInterfaces();
         NatHelper.FetchPublicIpAsync();
     }
 
@@ -81,12 +82,12 @@ public static class NetworkManager
             NatHelper.FetchPublicIpAsync();
 
             Task.Run(() => ReceiveLoop(_cts.Token));
-            ToastNotifications.ShowText("🌐 Multiplayer Host", $"Servidor aberto na porta {port}. Aguardando parceiro...", null, 4.0f);
+            ToastNotifications.ShowText("Multiplayer Host", $"Servidor aberto na porta {port}. Aguardando parceiro...", null, 4.0f);
         }
         catch (Exception ex)
         {
             State = NetConnectionState.Disconnected;
-            ToastNotifications.ShowText("❌ Erro ao Hospedar", ex.Message, null, 5.0f);
+            ToastNotifications.ShowText("Erro ao Hospedar", ex.Message, null, 5.0f);
         }
     }
 
@@ -118,12 +119,12 @@ public static class NetworkManager
             byte[] handshakePayload = System.Text.Encoding.UTF8.GetBytes(LocalPlayerName);
             SendPacket(new NetworkPacket(PacketOpCode.Handshake, handshakePayload));
 
-            ToastNotifications.ShowText("🌐 Conectando...", $"Tentando conexão com {ip}:{port}...", null, 3.0f);
+            ToastNotifications.ShowText("Conectando...", $"Tentando conexão com {ip}:{port}...", null, 3.0f);
         }
         catch (Exception ex)
         {
             State = NetConnectionState.Disconnected;
-            ToastNotifications.ShowText("❌ Erro de Conexão", ex.Message, null, 5.0f);
+            ToastNotifications.ShowText("Erro de Conexão", ex.Message, null, 5.0f);
         }
     }
 
@@ -266,14 +267,14 @@ public static class NetworkManager
                 RemotePlayerName = System.Text.Encoding.UTF8.GetString(packet.Payload);
                 State = NetConnectionState.Connected;
                 SendPacket(new NetworkPacket(PacketOpCode.HandshakeAck, System.Text.Encoding.UTF8.GetBytes(LocalPlayerName)));
-                ToastNotifications.ShowText("⚔️ Multiplayer Conectado!", $"{RemotePlayerName} entrou na sessão!", null, 5.0f);
+                ToastNotifications.ShowText("Multiplayer Conectado!", $"{RemotePlayerName} entrou na sessão!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
                 break;
 
             case PacketOpCode.HandshakeAck:
                 RemotePlayerName = System.Text.Encoding.UTF8.GetString(packet.Payload);
                 State = NetConnectionState.Connected;
-                ToastNotifications.ShowText("⚔️ Multiplayer Conectado!", $"Conectado ao mundo de {RemotePlayerName}!", null, 5.0f);
+                ToastNotifications.ShowText("Multiplayer Conectado!", $"Conectado ao mundo de {RemotePlayerName}!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
                 break;
 
@@ -287,7 +288,7 @@ public static class NetworkManager
                 break;
 
             case PacketOpCode.Disconnect:
-                ToastNotifications.ShowText("🌐 Multiplayer", $"{RemotePlayerName} desconectou da sessão.", null, 4.0f);
+                ToastNotifications.ShowText("Multiplayer", $"{RemotePlayerName} desconectou da sessão.", null, 4.0f);
                 Stop();
                 break;
 

@@ -29,7 +29,7 @@ public static class PvPManager
 
         if (IsPvPActive && !_wasInColosseum)
         {
-            ToastNotifications.ShowText("⚔️ ARENA DO COLISEU!", "Duelo PvP Ativado! 3.. 2.. 1.. LUTEM!", null, 5.0f);
+            ToastNotifications.ShowText("ARENA DO COLISEU!", "Duelo PvP Ativado! 3.. 2.. 1.. LUTEM!", null, 5.0f);
         }
 
         _wasInColosseum = IsPvPActive;
