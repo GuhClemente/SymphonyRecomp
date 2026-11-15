@@ -42,7 +42,23 @@
       "name": "maria2",
       "localFile": "../assets/characters/MARIA2.BIN",
       "base": "0x8013C000",
-      "linearSweep": true
+      "linearSweep": true,
+      "functions": [
+        { "address": "0x8015E96C" },
+        { "address": "0x8015F2F8" },
+        { "address": "0x8016012C" },
+        { "address": "0x80160A48" },
+        { "address": "0x80160E4C" },
+        { "address": "0x801626F4" },
+        { "address": "0x80163360" },
+        { "address": "0x801650F0" },
+        { "address": "0x801663E0" },
+        { "address": "0x8016C9F0" },
+        { "address": "0x8016D904" },
+        { "address": "0x8016EA14" },
+        { "address": "0x8016ECBC" },
+        { "address": "0x8016F768" }
+      ]
     },
     {
       "name": "cen",

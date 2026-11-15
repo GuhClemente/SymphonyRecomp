@@ -18,18 +18,11 @@ public static class MariaCharacter
 
     private static readonly bool TestMode = Environment.GetEnvironmentVariable("SOTN_TEST_MARIA") == "1";
 
-    // where the automated run (SOTN_TEST_MARIA=1) drops its screenshots
-    private static readonly string TestDir =
-        Environment.GetEnvironmentVariable("SOTN_TEST_DIR") ?? Path.GetTempPath();
-
     private static int _aerialJumpsRemaining = 2; // Allows triple jump
     private static bool _autoTransformFailed;
     private static bool _wasMaria;
     private static int _autoPadFrame = 0;
-    private static bool _simulateSquare;
-    private static bool _simulateCross;
     private static bool _reachedCastle;
-    private static int _castleFrame = 0;
 
     static MariaCharacter()
     {
@@ -62,8 +55,8 @@ public static class MariaCharacter
                     }
                     else
                     {
-                        if (_simulateSquare) e.Buttons = (ushort)(e.Buttons & ~0x0080);
-                        if (_simulateCross) e.Buttons = (ushort)(e.Buttons & ~0x0040);
+                        // active low; the script's buttons, see CharacterTest
+                        e.Buttons = (ushort)(e.Buttons & ~CharacterTest.Held);
                     }
                 }
             });
@@ -125,6 +118,16 @@ public static class MariaCharacter
         {
             UltimateOptions.CharacterMode = selection;
             _autoTransformFailed = false;
+            // what the outgoing character left behind must not outlive its code
+            m.WriteU32(TimeStopAddr, 0);
+            DestroyPlayerEntities(c, m);
+
+            // every Init (the overlays' and AluInit) puts the player somewhere of its own, which can be
+            // inside the floor of the room she is in: the character keeps its place and facing
+            uint player = Game.EntitiesAddr;
+            uint posX = m.ReadU32(player), posY = m.ReadU32(player + 4);
+            ushort facing = m.ReadU16(player + 0x14);
+
             // a Maria swaps the two voice banks: the next Richter / Alucard gets the disc's own back
             bool hadMariaVoice = MariaLoader.SoundsLoaded;
             MariaLoader.OnMariaLeft(m);
@@ -183,6 +186,14 @@ public static class MariaCharacter
             if (hadMariaVoice && selection is not (CharacterSelection.SaturnMaria or CharacterSelection.PSPMaria))
                 MariaLoader.RestoreRetailSounds(c, m, alucard: selection == CharacterSelection.Alucard);
 
+            UnloadOtherPlayerOverlays(selection);
+
+            m.WriteU32(player, posX);
+            m.WriteU32(player + 4, posY);
+            m.WriteU16(player + 0x14, facing);
+            Player.VelocityX = 0;
+            Player.VelocityY = 0;
+
             Player.Step = PlayerStep.Standing;
             Player.StepSub = 0;
             _wasMaria = Player.IsMaria;
@@ -196,16 +207,52 @@ public static class MariaCharacter
 
     // DRA's own init for Alucard, the counterpart of the overlays' Init: it rebuilds the player entity
     // (sprite bank, palette 0x8100, g_Player) and the palettes his sprite parts use, which in
-    // F_GAME.BIN are only placeholders. It also puts him at x = 32, so his place is kept.
-    private static void InitAlucard(CpuContext c, IMemory m)
+    // F_GAME.BIN are only placeholders.
+    private static void InitAlucard(CpuContext c, IMemory m) => MariaLoader.Invoke(c, m, SoTN_dra.AluInit);
+
+    // g_unkGraphicsStruct.unk28: 4 while the Saturn Maria casts Byakko / Seiryuu (MarTimeStop)
+    private const uint TimeStopAddr = 0x80097420u;
+    private const uint TimeStopMaria = 4;
+
+    // Entities 1-63 belong to the player (subweapons, summons, effects): their update functions
+    // live in the player overlay that is about to be replaced.
+    private const int FirstPlayerEntity = 1, FirstStageEntity = 64;
+
+    private static void DestroyPlayerEntities(CpuContext c, IMemory m)
     {
-        uint player = Game.EntitiesAddr;
-        uint posX = m.ReadU32(player), posY = m.ReadU32(player + 4);
-        ushort facing = m.ReadU16(player + 0x14);
-        MariaLoader.Invoke(c, m, SoTN_dra.AluInit);
-        m.WriteU32(player, posX);
-        m.WriteU32(player + 4, posY);
-        m.WriteU16(player + 0x14, facing);
+        for (int i = FirstPlayerEntity; i < FirstStageEntity; i++)
+            MariaLoader.Invoke(c, m, SoTN_dra.DestroyEntity_dra, Game.EntitiesAddr + (uint)(i * Entity.Stride));
+    }
+
+    private static readonly (CharacterSelection Who, string Overlay)[] PlayerOverlays =
+    [
+        (CharacterSelection.SaturnMaria, MariaLoader.OverlayName),
+        (CharacterSelection.PSPMaria, "maria2"),
+        (CharacterSelection.RichterClassic, "ric"),
+        (CharacterSelection.RichterSaturnCoat, "ric2"),
+    ];
+
+    // The overlays share one address range and none of them covers all of another, so the dispatcher
+    // keeps the old one's functions wherever the new one has none: a stale pointer would then run
+    // code that is no longer in memory. Only the active character's overlay stays mapped.
+    private static void UnloadOtherPlayerOverlays(CharacterSelection active)
+    {
+        foreach (var (who, overlay) in PlayerOverlays)
+            if (who != active) Dispatcher.Unload(overlay);
+    }
+
+    /// <summary>
+    /// While she casts Byakko or Seiryuu the game is halted (MarTimeStop) and only her own code runs.
+    /// SOTN Ultimate's DRA does that in its halted engine step; the retail one only runs the player
+    /// there during the prologue, so she would never get to end the cast and everything stayed frozen.
+    /// The same two calls the retail prologue branch makes: the overlay's Main and UpdatePlayerEntities.
+    /// </summary>
+    private static void RunMariaDuringTimeStop(CpuContext c, IMemory m)
+    {
+        uint main = m.ReadU32(PlayerOverlayBase), entities = m.ReadU32(PlayerOverlayBase + 8);
+        if (!Dispatcher.CanCall(main) || !Dispatcher.CanCall(entities)) return;
+        MariaLoader.Invoke(c, m, (cc, mm) => Dispatcher.Call(cc, mm, main));
+        MariaLoader.Invoke(c, m, (cc, mm) => Dispatcher.Call(cc, mm, entities));
     }
 
     private static bool LoadPlayerOverlay(CpuContext c, IMemory m, string overlay, string file,
@@ -453,6 +500,8 @@ public static class MariaCharacter
         if (Player.IsRichter && IsSaturnRichter)
             m.WriteU32(CostumeMagicAddr, RicSaturnCoatMagic);
 
+        if (IsSaturnMaria && m.ReadU32(TimeStopAddr) == TimeStopMaria) RunMariaDuringTimeStop(c, m);
+
         // Maria Triple Jump & Aerial Mechanics
         if (IsSaturnMaria) UpdateMariaJumps(m);
 
@@ -467,132 +516,13 @@ public static class MariaCharacter
 
         if (TestMode)
         {
-            string testDir = TestDir;
-            if (!_reachedCastle)
+            // the script starts once she has walked into the castle and the player has control
+            if (!_reachedCastle && Player.PosX >= 80 && Player.PosY >= 130 && Player.HasControl)
             {
-                if (_autoPadFrame == 2000)
-                {
-                    Console.WriteLine("[MariaTest] Capturando 0: Floresta limpa sem HUD durante cutscene...");
-                    HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_0_forest_clean.bmp"), 1);
-                }
-
-                if (Player.PosX >= 80 && Player.PosY >= 130 && Player.HasControl)
-                {
-                    _reachedCastle = true;
-                    Console.WriteLine($"[MariaTest] CHEGOU AO CASTELO! Iniciando testes (PosX={Player.PosX}, PosY={Player.PosY})...");
-                }
+                _reachedCastle = true;
+                Console.WriteLine($"[MariaTest] No castelo (PosX={Player.PosX}, PosY={Player.PosY}): iniciando o roteiro de teste.");
             }
-            else
-            {
-                _castleFrame++;
-                UpdateTestSequence(c, m);
-            }
-        }
-    }
-
-    private static void UpdateTestSequence(CpuContext c, IMemory m)
-    {
-        string testDir = TestDir;
-
-        switch (_castleFrame)
-        {
-            case 10:
-                Console.WriteLine("[MariaTest] Capturando 1: Stand na entrada do castelo (Maria Saturn)...");
-                DumpHudPrims(m, "Capture-1-SaturnMaria");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_1_stand.bmp"), 1);
-                break;
-
-            case 30:
-                _simulateSquare = true;
-                break;
-            case 48:
-                Console.WriteLine("[MariaTest] Capturando 2: Ataque com pombas no castelo...");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_2_attack.bmp"), 1);
-                break;
-            case 55:
-                _simulateSquare = false;
-                break;
-
-            case 80:
-                _simulateCross = true;
-                break;
-            case 95:
-                Console.WriteLine("[MariaTest] Capturando 3: Pulo no ar no castelo...");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_3_jump.bmp"), 1);
-                break;
-            case 105:
-                _simulateCross = false;
-                break;
-
-            case 150:
-                Console.WriteLine("[MariaTest] Disparando Magia Guardian Knuckle no castelo...");
-                Player.Mp = 99;
-                Player.MpMax = 99;
-                SpellWheel.TriggerMariaCast(0);
-                break;
-
-            case 175:
-                Console.WriteLine("[MariaTest] Capturando 4: Magia / Invocação ativada...");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_4_magic.bmp"), 1);
-                break;
-
-            case 220:
-                Console.WriteLine("[MariaTest] Testando Troca em Tempo Real -> PSP Maria (MARIA2.BIN)...");
-                SwitchToCharacter(c, m, CharacterSelection.PSPMaria);
-                break;
-
-            case 250:
-                Console.WriteLine("[MariaTest] Capturando 5: PSP Maria ativa...");
-                DumpHudPrims(m, "Capture-5-PSPMaria");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_5_psp_maria.bmp"), 1);
-                break;
-
-            case 290:
-                Console.WriteLine("[MariaTest] Testando Troca em Tempo Real -> Richter Saturn Coat (RIC2.BIN)...");
-                SwitchToCharacter(c, m, CharacterSelection.RichterSaturnCoat);
-                break;
-
-            case 320:
-                Console.WriteLine("[MariaTest] Capturando 6: Richter Saturn Coat ativo...");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_6_richter_coat.bmp"), 1);
-                break;
-
-            case 360:
-                Console.WriteLine("[MariaTest] Testando Troca em Tempo Real -> Richter Clássico (RIC.BIN)...");
-                SwitchToCharacter(c, m, CharacterSelection.RichterClassic);
-                break;
-
-            case 390:
-                Console.WriteLine("[MariaTest] Capturando 7: Richter Clássico ativo...");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_7_richter.bmp"), 1);
-                break;
-
-            case 430:
-                Console.WriteLine("[MariaTest] Testando Troca em Tempo Real -> Alucard (DRA.BIN)...");
-                SwitchToCharacter(c, m, CharacterSelection.Alucard);
-                break;
-
-            case 460:
-                Console.WriteLine("[MariaTest] Capturando 8: Alucard ativo...");
-                DumpHudPrims(m, "Capture-8-Alucard");
-                DumpPlayerPalette(m, "Capture-8-Alucard");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_8_alucard.bmp"), 1);
-                break;
-
-            case 500:
-                Console.WriteLine("[MariaTest] Testando Troca em Tempo Real -> Retorno para Maria Saturn...");
-                SwitchToCharacter(c, m, CharacterSelection.SaturnMaria);
-                break;
-
-            case 530:
-                Console.WriteLine("[MariaTest] Capturando 9: Retorno para Maria Saturn ativo...");
-                DumpHudPrims(m, "Capture-9-SaturnMariaReturn");
-                HostWindow.RequestScreenshot(Path.Combine(testDir, "maria_9_maria_return.bmp"), 1);
-                break;
-
-            case 560:
-                Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA DE TODOS OS 5 PERSONAGENS FINALIZADA COM SUCESSO!");
-                break;
+            if (_reachedCastle) CharacterTest.Tick(c, m);
         }
     }
 
@@ -741,22 +671,6 @@ public static class MariaCharacter
         {
             Console.WriteLine($"[CharacterSwitcher] Erro ao carregar gráficos {filename}: {ex.Message}");
         }
-    }
-
-    private static void DumpPlayerPalette(IMemory m, string label)
-    {
-        var e = Player.Entity;
-        int id = e.PaletteId;
-        string ram = "", vram = "";
-        for (int i = 0; i < 16; i++)
-            ram += $"{m.ReadU16(ClutRamAddr + (uint)((id * 16 + i) * 2)):X4} ";
-        var gpu = RecompOne.Runtime.Runtime.Gpu;
-        ushort clut = Palette.ClutOf(id);
-        if (gpu != null)
-            for (int i = 0; i < 16; i++) vram += $"{gpu.Shadow[((clut & 0x3F) << 4) + i, clut >> 6]:X4} ";
-        Console.WriteLine($"[PAL_DUMP] {label}: palette=0x{e.Palette:X4} id=0x{id:X} unk40=0x{m.ReadU16(Player.DamagePaletteAddr):X4} clut=0x{clut:X} animSet=0x{m.ReadU16(e.Addr + 0x28):X} unk5A=0x{m.ReadU16(e.Addr + 0x5A):X}");
-        Console.WriteLine($"[PAL_DUMP]   ram : {ram}");
-        Console.WriteLine($"[PAL_DUMP]   vram: {vram}");
     }
 
     private static void DumpHudPrims(IMemory m, string label)

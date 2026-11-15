@@ -1,0 +1,305 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using RecompOne.Runtime.Context;
+using RecompOne.Runtime;
+using RecompOne.Runtime.Host;
+using RecompOne.Runtime.Host.Window;
+using RecompOne.Runtime.Memory;
+using Sotn;
+
+namespace Recompiled.Ultimate;
+
+/// <summary>
+/// The automated run behind SOTN_TEST_MARIA=1: every playable character, one after the other, doing
+/// its basic actions and every quick-cast special, with a screenshot and a line of state per step.
+///
+///   SOTN_TEST_MARIA=1 SOTN_TEST_DIR=/some/dir ./mac_run.sh
+///
+/// Screenshots go to SOTN_TEST_DIR as NN_character_step.bmp; the log gets one "[TEST]" line per
+/// screenshot (player step, HP / MP / hearts, and whether the SPU played voice-bank samples since the
+/// previous one). The game exits when the script ends.
+/// </summary>
+public static class CharacterTest
+{
+    /// <summary>Buttons the pad listener holds down this frame.</summary>
+    public static ushort Held;
+
+    private const uint CostumeAddr = Game.StatusAddr + 0x2DCu; // g_Status.D_80097C40
+    private const uint ChargeTimerAddr = 0x80072F44u;          // g_Player.unk24
+    // sound RAM windows of the two voice banks (MariaLoader)
+    private const int Vab1Start = 0x42CC0, Vab2Start = 0x50E50, Vab2End = 0x60A40;
+
+    private static readonly string Dir =
+        Environment.GetEnvironmentVariable("SOTN_TEST_DIR") ?? Path.GetTempPath();
+
+    // a step runs at its frame; a gate holds the script's clock until the player is ready (or it times out)
+    private static List<(int Frame, Action<CpuContext, IMemory>? Run, Func<IMemory, bool>? Gate, int Timeout)>? _script;
+    private static int _gateWait;
+    private static int _cursor;
+    private static int _frame;
+    private static int _shot;
+    private static string _who = "";
+    private static bool _topUpHp = true;
+    private static bool _voice1, _voice2, _other;
+    private static readonly Spu.VoiceDebug[] _voices = new Spu.VoiceDebug[24];
+
+    // ---- script building ---------------------------------------------------------------------
+    private static int _t;
+
+    private static void Do(Action<CpuContext, IMemory> run) => _script!.Add((_t, run, null, 0));
+
+    private const uint TimeStopAddr = 0x80097420u;         // g_unkGraphicsStruct.unk28
+    private const uint PlayerAttackBusyAddr = 0x80072F66u; // g_Player.unk46
+
+    // standing with control, nothing of the previous move still running
+    private static bool Idle(IMemory m) =>
+        Player.Step == PlayerStep.Standing && Player.HasControl &&
+        m.ReadU32(TimeStopAddr) == 0 && m.ReadU16(PlayerAttackBusyAddr) == 0;
+
+    private static void WaitIdle(int timeout = 1500)
+    {
+        _script!.Add((_t, null, Idle, timeout));
+        Wait(6);
+    }
+    private static void Wait(int frames) => _t += frames;
+    private static void Press(Button b) => Do((_, _) => Held |= (ushort)b);
+    private static void Release(Button b) => Do((_, _) => Held &= (ushort)~(ushort)b);
+
+    private static void Tap(Button b, int frames = 4)
+    {
+        Press(b);
+        Wait(frames);
+        Release(b);
+    }
+
+    private static void Shot(string step)
+    {
+        Do((_, m) => Capture(m, step));
+        Wait(5);
+    }
+
+    private static void Switch(CharacterSelection who, string name)
+    {
+        WaitIdle();
+        Do((c, m) =>
+        {
+            _who = name;
+            Held = 0;
+            Console.WriteLine($"[TEST] ===== {name} =====");
+            MariaCharacter.SwitchToCharacter(c, m, who);
+        });
+        Wait(50);
+        Shot("parado");
+    }
+
+    private static void Basics(Subweapon subweapon, bool pause)
+    {
+        Press(Button.Square); Wait(10); Shot("ataque"); Release(Button.Square); Wait(45);
+        Press(Button.Cross); Wait(14); Shot("pulo"); Release(Button.Cross); Wait(60);
+        Press(Button.Down); Wait(14); Shot("agachado"); Release(Button.Down); Wait(20);
+        Press(Button.Right); Wait(24); Shot("andando"); Release(Button.Right); Wait(6);
+        Press(Button.Left); Wait(24); Release(Button.Left); Wait(20);
+
+        Do((_, _) => { Player.Hearts = 99; Player.SubWeapon = (int)subweapon; });
+        Wait(20);
+        Press(Button.Up | Button.Square); Wait(14); Shot("subweapon"); Release(Button.Up | Button.Square); Wait(70);
+
+        // the HP bar following a drop, then the refill
+        Do((_, _) => { _topUpHp = false; Player.Hp = Math.Max(1, Player.HpMax / 3); });
+        Wait(30);
+        Shot("hp_baixo");
+        Do((_, _) => { Player.Hp = Player.HpMax; _topUpHp = true; });
+        Wait(30);
+
+        if (pause)
+        {
+            Tap(Button.Start); Wait(12); Shot("pausa_animacao"); Wait(25); Shot("pausa");
+            Tap(Button.Start); Wait(45);
+        }
+    }
+
+    private static void Cast(int index, string step, int settle, int second = 70)
+    {
+        WaitIdle();
+        Do((_, _) =>
+        {
+            Player.MpMax = Math.Max(Player.MpMax, 200);
+            Player.Mp = Player.MpMax;
+            Player.Hearts = 99;
+            SpellWheel.TriggerQuickCast(index);
+        });
+        Wait(settle);
+        Shot(step);
+        if (second > 0)
+        {
+            Wait(second);
+            Shot(step + "_b");
+        }
+        Wait(20);
+    }
+
+    private static void Build()
+    {
+        _script = [];
+        _t = 10;
+
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_QUICK") == "1")
+        {
+            // only the switches: where each character ends up and whether it stands
+            Do((_, _) => _who = "maria_saturn");
+            Shot("parado");
+            foreach (var (who, name) in new[]
+                     {
+                         (CharacterSelection.PSPMaria, "maria_psp"),
+                         (CharacterSelection.RichterClassic, "richter"),
+                         (CharacterSelection.RichterSaturnCoat, "richter_casaco"),
+                         (CharacterSelection.Alucard, "alucard"),
+                         (CharacterSelection.SaturnMaria, "maria_saturn_volta"),
+                     })
+            {
+                Do((c, m) => { _who = name; MariaCharacter.SwitchToCharacter(c, m, who); });
+                Wait(2); Shot("troca_2q"); Wait(40); Shot("parado");
+            }
+            Do((_, _) => Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA"));
+            Wait(30);
+            Do((_, _) => Environment.Exit(0));
+            return;
+        }
+
+        // ---------------- Saturn Maria (already active: the auto-transformation) ----------------
+        Do((_, _) => { _who = "maria_saturn"; Console.WriteLine("[TEST] ===== maria_saturn ====="); });
+        Shot("parado");
+        Basics(Subweapon.Cross, pause: true);
+        // triple jump
+        Tap(Button.Cross, 10); Wait(6); Tap(Button.Cross, 10); Wait(6); Press(Button.Cross); Wait(8);
+        Shot("pulo_triplo"); Release(Button.Cross); Wait(80);
+        string[] beasts = ["soco_guardiao", "suzaku", "genbu", "byakko", "seiryuu", "quatro_bestas"];
+        for (int i = 0; i < beasts.Length; i++)
+            Cast(i, $"especial_{i + 1}_{beasts[i]}", 35);
+        WaitIdle();
+        // charge: the plate's glow
+        Press(Button.Square); Wait(130); Shot("carga_1"); Wait(110); Shot("carga_2"); Wait(110); Shot("carga_3");
+        Release(Button.Square); Wait(30); Shot("carga_solta"); Wait(80);
+
+        // ---------------- PSP Maria ----------------
+        Switch(CharacterSelection.PSPMaria, "maria_psp");
+        Basics(Subweapon.Dagger, pause: true);
+        // her two subweapon slots: the cat in front, the cardinal behind, then Circle swaps them
+        Do((_, m) => { Player.SubWeapon = (int)Subweapon.Axe; m.WriteU32(CostumeAddr, (uint)Subweapon.Dagger); });
+        Wait(20); Shot("icones");
+        Tap(Button.Circle); Wait(2); Shot("icones_trocando"); Wait(20); Shot("icones_trocados");
+        Press(Button.Up | Button.Square); Wait(14); Shot("subweapon_2"); Release(Button.Up | Button.Square); Wait(70);
+        Tap(Button.Triangle, 6); Wait(25); Shot("triangulo"); Wait(150);
+        Do((_, _) => Player.SubWeapon = (int)Subweapon.HolyWater);
+        Wait(20);
+        Press(Button.Up | Button.Square); Wait(14); Shot("subweapon_3"); Release(Button.Up | Button.Square); Wait(90);
+        Do((_, _) => Player.SubWeapon = (int)Subweapon.VibhutiHand);
+        Wait(20);
+        Press(Button.Up | Button.Square); Wait(14); Shot("subweapon_4"); Release(Button.Up | Button.Square); Wait(120);
+
+        // ---------------- Richter, both costumes ----------------
+        foreach (var (who, name) in new[]
+                 {
+                     (CharacterSelection.RichterClassic, "richter"),
+                     (CharacterSelection.RichterSaturnCoat, "richter_casaco"),
+                 })
+        {
+            Switch(who, name);
+            Basics(Subweapon.Cross, pause: true);
+            string[] crashes = ["hydro_storm", "grand_cross", "thousand_blades", "axe_rain", "burning_bible"];
+            for (int i = 0; i < crashes.Length; i++)
+                Cast(i, $"crash_{i + 1}_{crashes[i]}", 45);
+            Cast(5, "blade_dash", 6, 0);
+            Cast(6, "super_jump", 10, 0);
+        }
+
+        // ---------------- Alucard ----------------
+        Switch(CharacterSelection.Alucard, "alucard");
+        Basics(Subweapon.Dagger, pause: false);
+        string[] spells = ["summon_spirit", "tetra_spirit", "dark_metamorphosis", "hellfire", "soul_steal"];
+        for (int i = 0; i < spells.Length; i++)
+            Cast(i, $"magia_{i + 1}_{spells[i]}", 40);
+
+        // ---------------- and back ----------------
+        Switch(CharacterSelection.SaturnMaria, "maria_saturn_volta");
+        Press(Button.Square); Wait(10); Shot("ataque"); Release(Button.Square); Wait(40);
+
+        Do((_, _) =>
+        {
+            Console.WriteLine($"[TEST] FIM: {_shot} capturas em {Dir}");
+            Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA");
+        });
+        Wait(40);
+        Do((_, _) => Environment.Exit(0));
+    }
+
+    // ---- running -----------------------------------------------------------------------------
+    /// <summary>Once per frame on the game thread, from the moment the player has control in the castle.</summary>
+    public static void Tick(CpuContext c, IMemory m)
+    {
+        if (_script == null) Build();
+
+        SampleSound();
+        if (_topUpHp && Player.HpMax > 0 && Player.Hp < Player.HpMax / 2) Player.Hp = Player.HpMax;
+
+        while (_cursor < _script!.Count && _script[_cursor].Frame <= _frame)
+        {
+            var step = _script[_cursor];
+            if (step.Gate != null)
+            {
+                if (!step.Gate(m) && _gateWait < step.Timeout)
+                {
+                    _gateWait++;
+                    return; // the clock stands still
+                }
+                if (_gateWait >= step.Timeout)
+                    Console.WriteLine($"[TEST] AVISO: {_who} não voltou a ficar parado em {step.Timeout} quadros (step=0x{(int)Player.Step:X2})");
+                else if (_gateWait > 120)
+                    Console.WriteLine($"[TEST] ({_who}: esperou {_gateWait} quadros o movimento anterior terminar)");
+                _gateWait = 0;
+                _cursor++;
+                continue;
+            }
+            try
+            {
+                step.Run!(c, m);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TEST] ERRO no passo {_cursor}: {ex.Message}");
+            }
+            _cursor++;
+        }
+        _frame++;
+    }
+
+    // which sample bank the SPU's live voices are reading, accumulated between two screenshots
+    private static void SampleSound()
+    {
+        var spu = RecompOne.Runtime.Runtime.Spu;
+        if (spu == null) return;
+        spu.CaptureDebug(_voices, out _);
+        foreach (var v in _voices)
+        {
+            if (v.Phase == Spu.AdsrPhase.Off || v.AdsrVol == 0) continue;
+            int addr = v.StartAddr * 8;
+            if (addr >= Vab1Start && addr < Vab2Start) _voice1 = true;
+            else if (addr >= Vab2Start && addr < Vab2End) _voice2 = true;
+            else _other = true;
+        }
+    }
+
+    private static void Capture(IMemory m, string step)
+    {
+        _shot++;
+        string file = $"{_shot:000}_{_who}_{step}.bmp";
+        Console.WriteLine(
+            $"[TEST] {file} | char={m.ReadU32(Game.PlayableCharacterAddr)} step=0x{(int)Player.Step:X2}/{Player.StepSub}" +
+            $" hp={Player.Hp}/{Player.HpMax} mp={Player.Mp}/{Player.MpMax} hearts={Player.Hearts} sub={Player.SubWeapon}" +
+            $" carga={(int)m.ReadU32(ChargeTimerAddr)} pos={Player.PosX},{Player.PosY} vy={Player.VelocityY >> 16}" +
+            $" | som: voz(vab1)={(_voice1 ? "sim" : "nao")} especiais(vab2)={(_voice2 ? "sim" : "nao")} outros={(_other ? "sim" : "nao")}");
+        _voice1 = _voice2 = _other = false;
+        HostWindow.RequestScreenshot(Path.Combine(Dir, file), 1);
+    }
+}

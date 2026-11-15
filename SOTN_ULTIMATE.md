@@ -23,6 +23,8 @@ Esta documentação detalha a integração do mod **Castlevania: Symphony of the
 16. [Pendências Conhecidas](#16-pendências-conhecidas)
 17. [Checklist para Portar Outro Binário do Ultimate](#17-checklist-para-portar-outro-binário-do-ultimate)
 18. [HUD Próprio da Saturn Maria](#18-hud-próprio-da-saturn-maria)
+19. [Tempo Parado da Maria (Byakko e Seiryuu)](#19-tempo-parado-da-maria-byakko-e-seiryuu)
+20. [O Que o Teste Completo Encontrou](#20-o-que-o-teste-completo-encontrou)
 
 ---
 
@@ -125,14 +127,20 @@ Todos os personagens que não são o Alucard usam o mesmo slot de overlay, `0x80
 | Maria (PSP) | `maria2` | `assets/characters/MARIA2.BIN` | 2 |
 
 **Sequência de uma troca** (a mesma ordem que o jogo usa ao carregar um personagem):
+0. Zera a flag de tempo parado, **destrói as entidades 1–63** (subweapons, invocações e efeitos do personagem que sai: as funções delas moram no overlay que vai ser trocado) e guarda posição e direção do jogador.
 1. Restaura prioridades de SFX retail e solta o HUD da PSP Maria.
 2. Carrega a folha de gráficos: `BIN/F_GAME2.BIN` (todos menos Alucard) ou `BIN/F_GAME.BIN`.
 3. Grava o binário em `0x8013C000`, ativa o overlay no `Dispatcher` e grava `g_PlayableCharacter`.
 4. Chama o `Init` do overlay, lido da tabela `PlayerOvl` no início do arquivo (`0x8013C004`).
 5. Carrega os bancos de som: os da Maria, ou, ao sair de uma Maria, os originais do disco (`MariaLoader.RestoreRetailSounds`: `VAB/SD_RIH` para o Richter ou `VAB/SD_ALK` para o Alucard no slot 1, `VAB/SD_MAR` no slot 2).
-6. `RedrawHud`: libera as primitivas do HUD e chama `DrawHud` + `DrawHudSubweapon`.
+6. **Descarrega do `Dispatcher` os overlays dos outros personagens** e devolve posição e direção.
+7. `RedrawHud`: libera as primitivas do HUD e chama `DrawHud` + `DrawHudSubweapon`.
 
-**Alucard** não tem overlay próprio: o init dele é o `AluInit` do DRA, chamado no lugar do passo 4 (`MariaCharacter.InitAlucard`). Ele recria a entidade do jogador (banco de sprites, paleta `0x8100`) e preenche as paletas que as partes do sprite usam (capa etc.), que em `F_GAME.BIN` são só placeholders verdes (`0x03E0`). Sem essa chamada ele voltava como uma silhueta verde. `AluInit` também põe o jogador em x = 32, então posição e direção são guardadas antes e devolvidas depois.
+> **Por que descarregar.** `ric`, `ric2`, `maria` e `maria2` ocupam a mesma faixa de endereços e nenhum cobre outro por inteiro, então o `Dispatcher` mantinha as funções do antigo onde o novo não tem nenhuma. Um ponteiro velho executava, em silêncio, código de um personagem que nem está mais na memória. Com só o overlay ativo mapeado, isso vira um erro visível (`unmapped call`).
+
+> **Por que guardar a posição.** Todo init (dos overlays e o `AluInit`) coloca o jogador num ponto próprio. Na entrada do castelo esse ponto fica dentro do chão, e o personagem atravessava o piso e caía para fora do mapa.
+
+**Alucard** não tem overlay próprio: o init dele é o `AluInit` do DRA, chamado no lugar do passo 4 (`MariaCharacter.InitAlucard`). Ele recria a entidade do jogador (banco de sprites, paleta `0x8100`) e preenche as paletas que as partes do sprite usam (capa etc.), que em `F_GAME.BIN` são só placeholders verdes (`0x03E0`). Sem essa chamada ele voltava como uma silhueta verde.
 
 > **A ordem importa.** `F_GAME2.BIN` vem **antes** do init do overlay. Carregado depois, ele cobre os sprites que a Maria acabou de pôr na VRAM; sem ele, o HUD estilo Richter usa a folha do Alucard.
 
@@ -154,6 +162,7 @@ Todos os personagens que não são o Alucard usam o mesmo slot de overlay, `0x80
 
   Sem essas relocações o init dela sobrescrevia a tabela de gráficos do jogo: era a causa dos sprites corrompidos.
 * `g_api.CalcDealDamageMaria` / `CalcPlayerDamageMaria` caem em `g_api + 0x12C / 0x130`, que são slots livres no retail.
+* **14 funções declaradas à mão** em `config/sotn.json` (`"functions"` do overlay `maria2`): as entradas da tabela de funções de entidade dela (`0x8015CF28`) que a varredura do recompilador não reconhece. O código da PSP foi compilado por um GCC que põe cargas de registrador **antes** do ajuste de pilha, então a função não começa com o prólogo usual. Sem elas, usar um subweapon dava `unmapped call: 0x8015F2F8`. `maria` e `ric2` não têm nenhuma nessa situação.
 
 ### Richter Saturn Coat (`RIC2.BIN`)
 * Mesmo código do Richter recompilado contra o layout do Ultimate; só precisa da relocação de status.
@@ -218,11 +227,24 @@ Tudo em `"relocations"` no `config/sotn.json`.
 ```bash
 SOTN_TEST_MARIA=1 SOTN_TEST_DIR=/tmp/sotn-shots ./mac_run.sh
 ```
-* Passa pelo título sozinho, transforma na Saturn Maria, anda até o castelo e roda: ataque, pulo, especial, e a troca por todos os personagens.
-* Grava `maria_1_stand.bmp` … `maria_9_maria_return.bmp` em `SOTN_TEST_DIR` (padrão: pasta temporária do sistema).
-* O log imprime `[HUD_DUMP]` com as primitivas do HUD após cada troca.
-* Termina em `SEQUÊNCIA COMPLETA`; o jogo continua aberto, feche manualmente.
+Roteiro em `patches/ultimate/CharacterTest.cs`. Passa pelo título sozinho, transforma na Saturn Maria, entra no castelo e roda, **para cada personagem**:
+
+| Bloco | Passos |
+| :--- | :--- |
+| Básico (todos) | parado, ataque, pulo, agachado, andando, subweapon (↑ + Quadrado), HP baixo (barra do HUD), pausa (Start; menos o Alucard) |
+| Saturn Maria | pulo triplo, os 6 especiais (Soco Guardião, Suzaku, Genbu, Byakko, Seiryuu, Quatro Bestas), carga do ataque (brilho da placa em 3 estágios) |
+| PSP Maria | os dois ícones, troca com Círculo, subweapons gato / cardeal / tartaruga / dragão, Triângulo |
+| Richter e Richter de casaco | os 5 Item Crashes, Blade Dash, Super Jump |
+| Alucard | as 5 magias (Summon Spirit, Tetra Spirit, Dark Metamorphosis, Hellfire, Soul Steal) |
+
+* Antes de cada especial e de cada troca o roteiro **espera o personagem voltar a ficar parado** (até 1500 quadros), em vez de usar tempos fixos; se não voltar, o log traz `[TEST] AVISO`.
+* Capturas em `SOTN_TEST_DIR` como `NNN_personagem_passo.bmp` (padrão: pasta temporária do sistema). Cada especial tem uma segunda captura `_b`, 70 quadros depois.
+* O log tem uma linha `[TEST]` por captura: personagem, `step` do jogador, HP / MP / corações, subweapon, carga, posição, e se o SPU tocou amostras do banco de voz (`vab1`), do banco de especiais (`vab2`) ou de outros bancos desde a captura anterior.
+* O jogo **fecha sozinho** no fim (`[TEST] FIM`).
+* `SOTN_TEST_QUICK=1` roda só as trocas (11 capturas, ~1 minuto): serve para ver se cada personagem fica em pé no lugar.
 * Faça backup de `carda.sav`, `cardb.sav`, `settings.json` e `interface.ini` antes: o teste aperta botões nos menus.
+* **Resultado da última rodada, com as folhas de capturas e a tabela passo a passo:** [`docs/teste-personagens/README.md`](docs/teste-personagens/README.md).
+* O que o log **não** prova: que o som é o certo. Ele mostra que amostras do banco tocaram; se a voz é a do personagem, só ouvindo.
 
 ---
 
@@ -231,7 +253,9 @@ SOTN_TEST_MARIA=1 SOTN_TEST_DIR=/tmp/sotn-shots ./mac_run.sh
 | :--- | :--- |
 | Ícones da PSP Maria | Aparecem no lugar certo, mas não foram comparados com o mod rodando |
 | Patches de widescreen/cheats do `ric` | Não se aplicam a `ric2`, `maria` e `maria2` (sem mapa de funções) |
-| Áudio | Só confirmado pelo log (bancos abrem); ninguém ouviu no teste |
+| Blocos translúcidos grandes em alguns especiais da Saturn Maria | Vistos nas capturas; não se sabe se é o efeito ou textura faltando (ver o relatório do teste) |
+| Áudio | O teste mostra o SPU tocando amostras dos bancos de voz e de especiais nos momentos certos; ninguém ouviu se a voz é a certa |
+| Golpes diretos do quick-cast do Richter (Blade Dash, Super Jump) | São atalhos do recomp (escrevem velocidade), não os golpes do jogo |
 
 ---
 
@@ -269,4 +293,31 @@ O HUD compacto do Saturn: suporte de vinhas, barra de HP (roxa) e de MP nos dois
 * **Paletas `0x106`–`0x108`** são regravadas em `g_Clut` e na VRAM só quando mudam: brilho da placa acima de 100/200/300 quadros de carga (`g_Player.unk24`, `0x80072F44`), e a barra de MP azul ou, com MP cheio, piscando de vermelho a branco.
 * **A arte é reenviada à VRAM a cada 120 quadros**, porque o `F_GAME2.BIN` retail é recarregado em toda troca de personagem e apaga essa área.
 * Diferença para o mod: o ícone do subweapon não é descido 2 px para dentro do anel de vinhas.
+
+---
+
+## 19. Tempo Parado da Maria (Byakko e Seiryuu)
+Enquanto invoca Byakko ou Seiryuu, a Saturn Maria grava `g_unkGraphicsStruct.unk28 = 4` (`0x80097420`, `MarTimeStop` no mod): o jogo para — inimigos, projéteis, rolagem — e só o código dela continua.
+
+* No Ultimate, quem mantém o código dela rodando nesse estado é o passo "parado" do motor do DRA.
+* O DRA retail tem o mesmo passo, mas só roda o overlay do jogador nele **durante o prólogo** (estágio `0x1F`). Fora dele, nada roda: ela nunca chegava a desligar a flag, ficava presa no passo `0x33` e o jogo inteiro congelava — nenhum personagem respondia mais, nem depois de trocar.
+* Correção: `MariaCharacter.RunMariaDuringTimeStop`, chamado todo quadro quando a flag vale 4 e a Saturn Maria está ativa, faz as duas chamadas do ramo do prólogo: o `Main` do overlay (`0x8013C000`) e o `UpdatePlayerEntities` (`0x8013C008`).
+* A flag é zerada em toda troca de personagem.
+* Ao sair do tempo parado, o próprio DRA retail dá 48 quadros de invencibilidade e retoma os scripts de som.
+
+---
+
+## 20. O Que o Teste Completo Encontrou
+Problemas que só apareceram rodando todas as ações de todos os personagens, e o que foi feito:
+
+| Achado | Causa | Correção |
+| :--- | :--- | :--- |
+| Seiryuu congelava o jogo para sempre | Tempo parado sem ninguém rodando o código dela (seção 19) | `RunMariaDuringTimeStop` |
+| Crash ao voltar para o Alucard (`unmapped call: 0x00000000`) | Entidades do personagem anterior continuavam vivas e chamavam código de um overlay já trocado | Destruir as entidades 1–63 na troca |
+| Personagem atravessava o chão depois da troca | O init regrava a posição do jogador | Guardar e devolver posição e direção |
+| PSP Maria caía ao usar subweapon (`unmapped call: 0x8015F2F8`) | 14 funções de entidade não reconhecidas pelo recompilador | Declaradas em `config/sotn.json` |
+| Endereços velhos executavam código de outro personagem sem erro | Overlays antigos continuavam mapeados no `Dispatcher` | Descarregar os overlays dos outros personagens |
+| Byakko e Quatro Bestas não eram lançados no teste | O roteiro disparava o especial com o anterior ainda em execução | O roteiro espera o personagem ficar parado |
+
+Confirmado pelas capturas, e que antes não tinha sido exercitado: a barra de HP do HUD da Maria descendo, a placa dobrando e virando "PAUSE PUSH START" na pausa, o brilho da placa nos três estágios de carga, e o ícone do subweapon dentro do anel de vinhas.
 

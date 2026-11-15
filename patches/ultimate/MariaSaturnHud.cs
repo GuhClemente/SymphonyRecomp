@@ -67,6 +67,7 @@ public static class MariaSaturnHud
     private static readonly ushort[] _palettes = new ushort[BasePalettes.Length];
     private static readonly ushort[] _lastPalettes = new ushort[BasePalettes.Length];
     private static int _displayHp = -1;
+    private static short _iconY = short.MinValue;
     private static int _frame;
 
     /// <summary>The art was found on a SOTN Ultimate disc image.</summary>
@@ -139,6 +140,7 @@ public static class MariaSaturnHud
     public static void Reset()
     {
         _displayHp = -1;
+        _iconY = short.MinValue;
         _frame = 0;
         Array.Clear(_lastPalettes);
     }
@@ -250,8 +252,17 @@ public static class MariaSaturnHud
             Sprite(m, prims[3 + i], x + 27 - i * 7, 29, 7, 8, 168 + hearts % 10 * 7, V + 24,
                 visible: i == 0 || hearts > 0);
 
-        // 6 is not needed; 7 stays the game's own subweapon icon, in her vine ring
+        // 6 is not needed; 7 stays the game's own subweapon icon, 2 px lower, in her vine ring. The
+        // game only rewrites the icon when it changes, so it is moved once per rewrite: a y that is
+        // not the one left here last time is a fresh one.
         m.WriteU16(prims[6] + 0x32, DrawHide);
+        short iconY = (short)m.ReadU16(prims[7] + 0x0A);
+        if (iconY != _iconY)
+        {
+            foreach (uint off in (ReadOnlySpan<uint>)[0x0Au, 0x16u, 0x22u, 0x2Eu])
+                m.WriteU16(prims[7] + off, (ushort)((short)m.ReadU16(prims[7] + off) + 2));
+            _iconY = (short)(iconY + 2);
+        }
 
         // 8: the plate, or the pause animation's sprite (Richter's copies of the same art)
         int step = (int)m.ReadU32(PlayerHudAddr + 0x24);
