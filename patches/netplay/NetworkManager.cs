@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -36,12 +37,16 @@ public static class NetworkManager
     public static string RemotePlayerName = "Partner";
     public static int PingMs { get; private set; } = 0;
 
+    // Chat Message Log
+    public static readonly List<(string Sender, string Message, string Time)> ChatHistory = [];
+
     private static UdpClient? _udp;
     private static IPEndPoint? _remoteEndPoint;
     private static CancellationTokenSource? _cts;
     private static long _lastPingSentTicks;
     private static float _pingTimer = 0f;
     private static float _worldSyncTimer = 0f;
+    private static float _lastPacketReceivedTimer = 0f;
 
     // Incoming thread-safe packet queue
     private static readonly ConcurrentQueue<NetworkPacket> _incomingQueue = new();
@@ -67,6 +72,16 @@ public static class NetworkManager
         RecompOne.Runtime.Runtime.SaveView();
     }
 
+    public static void AddChatMessage(string sender, string message, string time)
+    {
+        lock (ChatHistory)
+        {
+            ChatHistory.Add((sender, message, time));
+            if (ChatHistory.Count > 120)
+                ChatHistory.RemoveAt(0);
+        }
+    }
+
     public static void StartHost(int port)
     {
         Stop();
@@ -77,6 +92,7 @@ public static class NetworkManager
             _udp = new UdpClient(port);
             _cts = new CancellationTokenSource();
             State = NetConnectionState.Listening;
+            _lastPacketReceivedTimer = 0f;
 
             NatHelper.TryOpenPort(port);
             NatHelper.FetchPublicIpAsync();
@@ -112,6 +128,7 @@ public static class NetworkManager
             _udp.Connect(_remoteEndPoint);
             _cts = new CancellationTokenSource();
             State = NetConnectionState.Connecting;
+            _lastPacketReceivedTimer = 0f;
 
             Task.Run(() => ReceiveLoop(_cts.Token));
 
@@ -125,6 +142,32 @@ public static class NetworkManager
         {
             State = NetConnectionState.Disconnected;
             ToastNotifications.ShowText("Erro de Conexão", ex.Message, null, 5.0f);
+        }
+    }
+
+    public static void OnClientDisconnected(string reason = "")
+    {
+        RemotePuppet.Reset();
+
+        if (Role == NetworkRole.Host)
+        {
+            string prevPartner = RemotePlayerName;
+            _remoteEndPoint = null;
+            State = NetConnectionState.Listening;
+            RemotePlayerName = "Aguardando...";
+            PingMs = 0;
+            _lastPacketReceivedTimer = 0f;
+
+            string msg = string.IsNullOrEmpty(reason)
+                ? $"{prevPartner} desconectou. O servidor continua aberto na porta {Port}!"
+                : $"{prevPartner} desconectou ({reason}). O servidor continua aberto na porta {Port}!";
+
+            ToastNotifications.ShowText("Multiplayer Host", msg, null, 5.0f);
+        }
+        else
+        {
+            Stop();
+            ToastNotifications.ShowText("Multiplayer", "Sessão desconectada.", null, 4.0f);
         }
     }
 
@@ -151,6 +194,7 @@ public static class NetworkManager
         Role = NetworkRole.None;
         State = NetConnectionState.Disconnected;
         PingMs = 0;
+        _lastPacketReceivedTimer = 0f;
         RemotePuppet.Reset();
     }
 
@@ -204,10 +248,20 @@ public static class NetworkManager
         // Process incoming packet queue
         while (_incomingQueue.TryDequeue(out var packet))
         {
+            _lastPacketReceivedTimer = 0f;
             HandlePacket(packet, m);
         }
 
         if (!IsConnected) return;
+
+        // Inactivity timeout detection (6 seconds without any packet)
+        _lastPacketReceivedTimer += 1f / 60f;
+        if (_lastPacketReceivedTimer >= 6.0f)
+        {
+            _lastPacketReceivedTimer = 0f;
+            OnClientDisconnected("tempo limite de inatividade");
+            return;
+        }
 
         // Periodic Ping calculation (every 1.0s)
         _pingTimer += 1f / 60f;
@@ -288,8 +342,7 @@ public static class NetworkManager
                 break;
 
             case PacketOpCode.Disconnect:
-                ToastNotifications.ShowText("Multiplayer", $"{RemotePlayerName} desconectou da sessão.", null, 4.0f);
-                Stop();
+                OnClientDisconnected();
                 break;
 
             case PacketOpCode.PlayerTransform:
@@ -307,7 +360,9 @@ public static class NetworkManager
             case PacketOpCode.ChatMessage:
                 if (NetworkPacket.ReadChat(packet.Payload, out string sender, out string msg))
                 {
-                    ToastNotifications.ShowText($"💬 {sender}", msg, null, 6.0f);
+                    string time = DateTime.Now.ToString("HH:mm");
+                    AddChatMessage(sender, msg, time);
+                    ToastNotifications.ShowText($"[{sender}]", msg, null, 5.0f);
                 }
                 break;
         }
@@ -321,13 +376,13 @@ public static class NetworkManager
         int targetY = payload[2];
 
         Stages.Load(targetStage, targetX, targetY);
-        ToastNotifications.ShowText("✨ Buddy Warp!", $"Teleportado para a sala de {RemotePlayerName}!", null, 4.0f);
+        ToastNotifications.ShowText("Buddy Warp", $"Teleportado para a sala de {RemotePlayerName}!", null, 4.0f);
     }
 
     public static void RequestBuddyWarp()
     {
         if (!IsConnected || !RemotePuppet.IsActive) return;
         Stages.Load((Stage)RemotePuppet.StageId, RemotePuppet.RoomX, RemotePuppet.RoomY);
-        ToastNotifications.ShowText("✨ Buddy Warp!", $"Teleportando para {RemotePlayerName}...", null, 3.0f);
+        ToastNotifications.ShowText("Buddy Warp", $"Teleportando para {RemotePlayerName}...", null, 3.0f);
     }
 }

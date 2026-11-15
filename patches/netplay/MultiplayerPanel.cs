@@ -19,7 +19,7 @@ public sealed class MultiplayerPanel : IPanel
     private string _inputName = "Alucard";
     private string _chatInput = "";
     private int _selectedPresetIndex = 0;
-    private readonly List<string> _chatHistory = [];
+    private bool _autoScrollChat = true;
 
     public void Draw()
     {
@@ -381,38 +381,85 @@ public sealed class MultiplayerPanel : IPanel
 
     private void DrawChatTab()
     {
-        ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Chat da Sessão:");
+        ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Chat da Sessão Multiplayer:");
         ImGui.Separator();
 
-        // Quick Chat buttons
+        // 1. ÁREA DE HISTÓRICO DE MENSAGENS (Scrollable Log Box)
+        ImGui.BeginChild("chat_history_child", new Vector2(-1, 310), ImGuiChildFlags.Borders);
+        if (NetworkManager.ChatHistory.Count == 0)
+        {
+            ImGui.Spacing();
+            ImGui.TextDisabled("Nenhuma mensagem ainda. Digite abaixo ou use os avisos rápidos para conversar!");
+        }
+        else
+        {
+            lock (NetworkManager.ChatHistory)
+            {
+                foreach (var entry in NetworkManager.ChatHistory)
+                {
+                    bool isLocal = entry.Sender == NetworkManager.LocalPlayerName;
+                    Vector4 nameColor = isLocal ? new Vector4(0.3f, 0.85f, 1f, 1f) : new Vector4(1f, 0.75f, 0.2f, 1f);
+
+                    ImGui.TextDisabled($"[{entry.Time}] ");
+                    ImGui.SameLine();
+                    ImGui.TextColored(nameColor, $"{entry.Sender}: ");
+                    ImGui.SameLine();
+                    ImGui.TextWrapped(entry.Message);
+                }
+            }
+
+            if (_autoScrollChat)
+            {
+                ImGui.SetScrollHereY(1.0f);
+                _autoScrollChat = false;
+            }
+        }
+        ImGui.EndChild();
+
+        ImGui.Spacing();
+
+        // 2. CAMPO DE DIGITAÇÃO E BOTÃO ENVIAR (suporta tecla ENTER!)
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 85);
+        bool sendPressed = ImGui.InputTextWithHint("##chat_input", "Digite sua mensagem... (Enter para enviar)", ref _chatInput, 128, ImGuiInputTextFlags.EnterReturnsTrue);
+        ImGui.SameLine();
+        if ((sendPressed || ImGui.Button("Enviar", new Vector2(75, 0))) && !string.IsNullOrWhiteSpace(_chatInput))
+        {
+            SendChatMessage(_chatInput);
+            _chatInput = "";
+            _autoScrollChat = true;
+        }
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        // 3. AVISOS RÁPIDOS
         ImGui.Text("Avisos Rápidos:");
-        string[] quicks = ["Preciso de ajuda!", "Chefe encontrado!", "Achei uma passagem secreta!", "Teleporte até mim!"];
+        string[] quicks = ["Preciso de ajuda!", "Chefe encontrado!", "Achei uma passagem secreta!", "Teleporte até mim!", "Vamos duelar no Coliseu!"];
         foreach (var q in quicks)
         {
             if (ImGui.Button(q))
             {
                 SendChatMessage(q);
+                _autoScrollChat = true;
             }
             ImGui.SameLine();
         }
         ImGui.NewLine();
-
-        ImGui.Separator();
-
-        ImGui.InputText("Mensagem", ref _chatInput, 128);
-        ImGui.SameLine();
-        if (ImGui.Button("Enviar") && !string.IsNullOrWhiteSpace(_chatInput))
-        {
-            SendChatMessage(_chatInput);
-            _chatInput = "";
-        }
     }
 
     private void SendChatMessage(string msg)
     {
-        if (!NetworkManager.IsConnected) return;
+        if (!NetworkManager.IsConnected)
+        {
+            ToastNotifications.ShowText("Chat", "Conecte-se a uma sessão multiplayer para enviar mensagens.", null, 3.0f);
+            return;
+        }
+
         byte[] payload = NetworkPacket.CreateChat(NetworkManager.LocalPlayerName, msg);
         NetworkManager.SendPacket(new NetworkPacket(PacketOpCode.ChatMessage, payload));
-        ToastNotifications.ShowText("[Você]", msg, null, 4.0f);
+
+        string time = DateTime.Now.ToString("HH:mm");
+        NetworkManager.AddChatMessage(NetworkManager.LocalPlayerName, msg, time);
+        ToastNotifications.ShowText("[Você]", msg, null, 3.0f);
     }
 }

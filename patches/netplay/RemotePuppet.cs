@@ -29,6 +29,7 @@ public static class RemotePuppet
 
     private static float _interpX = 0f;
     private static float _interpY = 0f;
+    private static bool _wasRendered = false;
 
     public static void Reset()
     {
@@ -39,6 +40,22 @@ public static class RemotePuppet
         AnimId = FrameId = 0;
         CurHp = MaxHp = 100;
         Character = PaletteId = AttackTrigger = SubWeapon = 0;
+
+        DespawnPuppet();
+    }
+
+    public static void DespawnPuppet()
+    {
+        if (_wasRendered && Game.Available && Game.InGame)
+        {
+            try
+            {
+                var puppet = Entities.At(PuppetEntitySlot);
+                puppet.Destroy();
+            }
+            catch { }
+        }
+        _wasRendered = false;
     }
 
     public static void ReceiveTransform(byte[] payload)
@@ -73,7 +90,13 @@ public static class RemotePuppet
 
     public static void Update(CpuContext c, IMemory m)
     {
-        if (!IsActive || !Game.Available || !Game.InGame || Game.IsLoading) return;
+        if (!Game.Available || !Game.InGame || Game.IsLoading) return;
+
+        if (!IsActive)
+        {
+            if (_wasRendered) DespawnPuppet();
+            return;
+        }
 
         bool sameStage = StageId == (byte)Stages.Current;
         bool sameRoom = RoomX == (byte)Stages.RoomX && RoomY == (byte)Stages.RoomY;
@@ -90,9 +113,11 @@ public static class RemotePuppet
             puppet.PosY = (int)_interpY;
             puppet.FacingLeft = (ushort)(FacingLeft ? 1 : 0);
             puppet.Step = 1; // Active entity step
+            _wasRendered = true;
         }
         else
         {
+            if (_wasRendered) DespawnPuppet();
             _interpX = PosX;
             _interpY = PosY;
         }
