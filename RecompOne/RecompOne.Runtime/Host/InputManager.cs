@@ -21,7 +21,7 @@ internal static unsafe class InputManager
     private static GameController* _pad1;
 
     private const int AxisThreshold = 8000;
-    private const int StickThreshold = 16000;
+    private const int StickThreshold = 12000;
     private const int LeftTrigger = 100;
     private const int RightTrigger = 101;
     private const int LeftStickLeft = 102;
@@ -337,6 +337,8 @@ internal static unsafe class InputManager
         return s;
     }
 
+    private static ushort ClearBit(ushort s, ushort bit) => (ushort)(s & (0xFFFF ^ bit));
+
     private static void PollGamepads()
     {
         if (_sdl == null) return;
@@ -347,6 +349,20 @@ internal static unsafe class InputManager
             Controller.State = PadState(_pad0, bind, Controller.State);
             (Controller.LeftX, Controller.LeftY) = Stick(_pad0, bind.LeftStickX, bind.LeftStickY);
             (Controller.RightX, Controller.RightY) = Stick(_pad0, bind.RightStickX, bind.RightStickY);
+
+            // Sincronização inteligente bidirecional:
+            // 1. Se o analógico foi inclinado para além da zona morta, reflete no D-pad digital (Controller.State)
+            if (Controller.LeftX < 64) Controller.State = ClearBit(Controller.State, Controller.Left);
+            else if (Controller.LeftX > 192) Controller.State = ClearBit(Controller.State, Controller.Right);
+
+            if (Controller.LeftY < 64) Controller.State = ClearBit(Controller.State, Controller.Up);
+            else if (Controller.LeftY > 192) Controller.State = ClearBit(Controller.State, Controller.Down);
+
+            // 2. Se o direcional digital foi acionado mas o analógico está no centro, projeta no analógico
+            if ((Controller.State & Controller.Left) == 0 && Controller.LeftX == 0x80) Controller.LeftX = 0x00;
+            if ((Controller.State & Controller.Right) == 0 && Controller.LeftX == 0x80) Controller.LeftX = 0xFF;
+            if ((Controller.State & Controller.Up) == 0 && Controller.LeftY == 0x80) Controller.LeftY = 0x00;
+            if ((Controller.State & Controller.Down) == 0 && Controller.LeftY == 0x80) Controller.LeftY = 0xFF;
         }
 
         if (_pad1 != null)
@@ -355,6 +371,17 @@ internal static unsafe class InputManager
             Controller.State2 = PadState(_pad1, bind, Controller.State2);
             (Controller.LeftX2, Controller.LeftY2) = Stick(_pad1, bind.LeftStickX, bind.LeftStickY);
             (Controller.RightX2, Controller.RightY2) = Stick(_pad1, bind.RightStickX, bind.RightStickY);
+
+            if (Controller.LeftX2 < 64) Controller.State2 = ClearBit(Controller.State2, Controller.Left);
+            else if (Controller.LeftX2 > 192) Controller.State2 = ClearBit(Controller.State2, Controller.Right);
+
+            if (Controller.LeftY2 < 64) Controller.State2 = ClearBit(Controller.State2, Controller.Up);
+            else if (Controller.LeftY2 > 192) Controller.State2 = ClearBit(Controller.State2, Controller.Down);
+
+            if ((Controller.State2 & Controller.Left) == 0 && Controller.LeftX2 == 0x80) Controller.LeftX2 = 0x00;
+            if ((Controller.State2 & Controller.Right) == 0 && Controller.LeftX2 == 0x80) Controller.LeftX2 = 0xFF;
+            if ((Controller.State2 & Controller.Up) == 0 && Controller.LeftY2 == 0x80) Controller.LeftY2 = 0x00;
+            if ((Controller.State2 & Controller.Down) == 0 && Controller.LeftY2 == 0x80) Controller.LeftY2 = 0xFF;
         }
         else
         {
@@ -394,11 +421,133 @@ internal static unsafe class InputManager
         s = Apply(ctrl, pad.R3, Controller.R3, s);
         s = Apply(ctrl, pad.Start, Controller.Start, s);
         s = Apply(ctrl, pad.Select, Controller.Select, s);
-        s = Apply(ctrl, pad.Up, Controller.Up, s);
-        s = Apply(ctrl, pad.Down, Controller.Down, s);
-        s = Apply(ctrl, pad.Left, Controller.Left, s);
-        s = Apply(ctrl, pad.Right, Controller.Right, s);
+
+        // Suporte universal e inteligente a direcionais (D-pad digital, analógico esquerdo/direito, hats e eixos brutos)
+        if (IsDirUp(ctrl, pad)) s = ClearBit(s, Controller.Up);
+        if (IsDirDown(ctrl, pad)) s = ClearBit(s, Controller.Down);
+        if (IsDirLeft(ctrl, pad)) s = ClearBit(s, Controller.Left);
+        if (IsDirRight(ctrl, pad)) s = ClearBit(s, Controller.Right);
+
         return s;
+    }
+
+    private static bool IsDirUp(GameController* ctrl, GamepadBindings pad)
+    {
+        if (AnyPressed(ctrl, pad.Up)) return true;
+        if (_sdl == null) return false;
+
+        // D-pad padrão do controle
+        if (_sdl.GameControllerGetButton(ctrl, GameControllerButton.DpadUp) != 0) return true;
+
+        // Eixo analógico esquerdo (para cima: Y < -StickThreshold)
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Lefty) < -StickThreshold) return true;
+
+        // Eixo analógico direito (suporte a controles onde o direcional é mapeado para o stick direito)
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Righty) < -StickThreshold) return true;
+
+        // POV Hats do joystick físico (DirectInput / 8BitDo M30 / arcade sticks)
+        var joy = _sdl.GameControllerGetJoystick(ctrl);
+        if (joy != null)
+        {
+            var numHats = _sdl.JoystickNumHats(joy);
+            for (var h = 0; h < numHats; h++)
+            {
+                var hat = _sdl.JoystickGetHat(joy, h);
+                if ((hat & 0x01) != 0) return true; // SDL_HAT_UP = 0x01
+            }
+
+            // Fallback para eixos brutos do joystick
+            var numAxes = _sdl.JoystickNumAxes(joy);
+            if (numAxes >= 2 && _sdl.JoystickGetAxis(joy, 1) < -StickThreshold) return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsDirDown(GameController* ctrl, GamepadBindings pad)
+    {
+        if (AnyPressed(ctrl, pad.Down)) return true;
+        if (_sdl == null) return false;
+
+        if (_sdl.GameControllerGetButton(ctrl, GameControllerButton.DpadDown) != 0) return true;
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Lefty) > StickThreshold) return true;
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Righty) > StickThreshold) return true;
+
+        var joy = _sdl.GameControllerGetJoystick(ctrl);
+        if (joy != null)
+        {
+            var numHats = _sdl.JoystickNumHats(joy);
+            for (var h = 0; h < numHats; h++)
+            {
+                var hat = _sdl.JoystickGetHat(joy, h);
+                if ((hat & 0x04) != 0) return true; // SDL_HAT_DOWN = 0x04
+            }
+
+            var numAxes = _sdl.JoystickNumAxes(joy);
+            if (numAxes >= 2 && _sdl.JoystickGetAxis(joy, 1) > StickThreshold) return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsDirLeft(GameController* ctrl, GamepadBindings pad)
+    {
+        if (AnyPressed(ctrl, pad.Left)) return true;
+        if (_sdl == null) return false;
+
+        if (_sdl.GameControllerGetButton(ctrl, GameControllerButton.DpadLeft) != 0) return true;
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Leftx) < -StickThreshold) return true;
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Rightx) < -StickThreshold) return true;
+
+        var joy = _sdl.GameControllerGetJoystick(ctrl);
+        if (joy != null)
+        {
+            var numHats = _sdl.JoystickNumHats(joy);
+            for (var h = 0; h < numHats; h++)
+            {
+                var hat = _sdl.JoystickGetHat(joy, h);
+                if ((hat & 0x08) != 0) return true; // SDL_HAT_LEFT = 0x08
+            }
+
+            var numAxes = _sdl.JoystickNumAxes(joy);
+            if (numAxes >= 1 && _sdl.JoystickGetAxis(joy, 0) < -StickThreshold) return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsDirRight(GameController* ctrl, GamepadBindings pad)
+    {
+        if (AnyPressed(ctrl, pad.Right)) return true;
+        if (_sdl == null) return false;
+
+        if (_sdl.GameControllerGetButton(ctrl, GameControllerButton.DpadRight) != 0) return true;
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Leftx) > StickThreshold) return true;
+        if (_sdl.GameControllerGetAxis(ctrl, GameControllerAxis.Rightx) > StickThreshold) return true;
+
+        var joy = _sdl.GameControllerGetJoystick(ctrl);
+        if (joy != null)
+        {
+            var numHats = _sdl.JoystickNumHats(joy);
+            for (var h = 0; h < numHats; h++)
+            {
+                var hat = _sdl.JoystickGetHat(joy, h);
+                if ((hat & 0x02) != 0) return true; // SDL_HAT_RIGHT = 0x02
+            }
+
+            var numAxes = _sdl.JoystickNumAxes(joy);
+            if (numAxes >= 1 && _sdl.JoystickGetAxis(joy, 0) > StickThreshold) return true;
+        }
+
+        return false;
+    }
+
+    private static bool AnyPressed(GameController* ctrl, int[] bindings)
+    {
+        foreach (var binding in bindings)
+            if (Pressed(ctrl, binding))
+                return true;
+        return false;
     }
 
     private static ushort Apply(GameController* ctrl, int[] bindings, ushort bit, ushort s)

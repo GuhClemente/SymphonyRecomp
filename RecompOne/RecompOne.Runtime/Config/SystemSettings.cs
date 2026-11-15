@@ -173,7 +173,7 @@ public sealed class GamepadBindings
     {
         return new GamepadBindings
         {
-            Up = [11], Down = [12], Left = [13], Right = [14]
+            Up = [11, 104], Down = [12, 105], Left = [13, 102], Right = [14, 103]
         };
     }
 
