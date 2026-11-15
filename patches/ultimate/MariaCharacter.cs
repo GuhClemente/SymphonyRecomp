@@ -118,12 +118,35 @@ public static class MariaCharacter
     // last character's binary: an olive figure with a purple cloak, or nothing at all.
     private const string AlucardSpritesFile = "BIN/ARC_F.BIN";
 
+    // Preserved Alucard equipment so he never loses his weapons when switching characters
+    private static uint _savedAlucardRight = (uint)HandItem.AlucardSword;
+    private static uint _savedAlucardLeft = (uint)HandItem.AlucardShield;
+    private static uint _savedAlucardWornRight = (uint)HandItem.AlucardSword;
+    private static uint _savedAlucardWornLeft = (uint)HandItem.AlucardShield;
+
     public static void SwitchToCharacter(CpuContext c, IMemory m, CharacterSelection selection)
     {
         if (!Game.Available || !Game.InGame || Game.IsLoading || Game.InPrologue()) return;
 
         try
         {
+            // Save Alucard's equipment before switching away from him
+            if (Player.IsAlucard)
+            {
+                uint r = Inventory.RightHand, l = Inventory.LeftHand;
+                uint wr = Inventory.GetWornEquipment(ItemSlot.RightHand), wl = Inventory.GetWornEquipment(ItemSlot.LeftHand);
+                if (r != 0 || wr != 0)
+                {
+                    _savedAlucardRight = r != 0 ? r : wr;
+                    _savedAlucardWornRight = wr != 0 ? wr : r;
+                }
+                if (l != 0 || wl != 0)
+                {
+                    _savedAlucardLeft = l != 0 ? l : wl;
+                    _savedAlucardWornLeft = wl != 0 ? wl : l;
+                }
+            }
+
             UltimateOptions.CharacterMode = selection;
             _autoTransformFailed = false;
             // what the outgoing character left behind must not outlive its code
@@ -183,6 +206,23 @@ public static class MariaCharacter
                     // his sprite data lives where the other characters' binaries were loaded
                     LoadCharacterBinary(m, AlucardSpritesFile);
                     InitAlucard(c, m);
+
+                    // Restore & equip Alucard's weapons
+                    uint rh = _savedAlucardRight != 0 ? _savedAlucardRight : (uint)HandItem.AlucardSword;
+                    uint lh = _savedAlucardLeft != 0 ? _savedAlucardLeft : (uint)HandItem.AlucardShield;
+                    uint wr = _savedAlucardWornRight != 0 ? _savedAlucardWornRight : rh;
+                    uint wl = _savedAlucardWornLeft != 0 ? _savedAlucardWornLeft : lh;
+
+                    if (!Inventory.OwnsHandItem((int)rh)) Inventory.GrantHandItem((int)rh, 1);
+                    if (!Inventory.OwnsHandItem((int)lh)) Inventory.GrantHandItem((int)lh, 1);
+                    if (!Inventory.OwnsHandItem((int)wr)) Inventory.GrantHandItem((int)wr, 1);
+                    if (!Inventory.OwnsHandItem((int)wl)) Inventory.GrantHandItem((int)wl, 1);
+
+                    Inventory.SetWornEquipment(ItemSlot.RightHand, wr);
+                    Inventory.SetWornEquipment(ItemSlot.LeftHand, wl);
+                    Inventory.RightHand = rh;
+                    Inventory.LeftHand = lh;
+
                     ToastNotifications.ShowText("Alucard", "Alucard reativado!", null, 3f);
                     break;
             }
@@ -569,12 +609,20 @@ public static class MariaCharacter
 
         if (WantsSaturnMaria && !isMaria && !_autoTransformFailed && !Game.InPrologue())
         {
+            if (Player.IsAlucard)
+            {
+                uint r = Inventory.RightHand, l = Inventory.LeftHand;
+                uint wr = Inventory.GetWornEquipment(ItemSlot.RightHand), wl = Inventory.GetWornEquipment(ItemSlot.LeftHand);
+                if (r != 0 || wr != 0) { _savedAlucardRight = r != 0 ? r : wr; _savedAlucardWornRight = wr != 0 ? wr : r; }
+                if (l != 0 || wl != 0) { _savedAlucardLeft = l != 0 ? l : wl; _savedAlucardWornLeft = wl != 0 ? wl : l; }
+            }
             LoadGameGraphics(m, "BIN/F_GAME2.BIN");
             if (MariaLoader.TransformToMaria(c, m))
             {
                 UnloadOtherPlayerOverlays(CharacterSelection.SaturnMaria);
                 _wasMaria = true;
                 isMaria = true;
+                ReloadRoomGraphics(c, m);
                 RedrawHud(c, m);
             }
             else

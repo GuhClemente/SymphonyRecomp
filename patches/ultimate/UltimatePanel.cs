@@ -114,7 +114,7 @@ public sealed class UltimatePanel : IPanel
         if (ImGui.Button("🌟 Ativar Maria Renard no Gameplay (Saturn)"))
         {
             MariaCharacter.ResetState();
-            MariaLoader.RequestTransform();
+            MariaCharacter.RequestCharacterSwitch(CharacterSelection.SaturnMaria);
         }
         ImGui.SameLine();
         if (ImGui.Button("🚀 Pular para Entrada com Maria"))
@@ -126,16 +126,26 @@ public sealed class UltimatePanel : IPanel
             {
                 if (!Player.CanTeleport) return;
                 Player.TeleportTo(Stage.CastleEntrance, 17, 37, 72, 164); // the save room, see FastTravelPanel
-                if (!Player.IsMaria) MariaLoader.TransformToMaria(c, m);
+                MariaCharacter.SwitchToCharacter(c, m, CharacterSelection.SaturnMaria);
             });
         }
         if (!inGame) ImGui.EndDisabled();
         if (Game.Available && !MariaLoader.OverlayAvailable)
             ImGui.TextColored(new Vector4(0.9f, 0.5f, 0.3f, 1f), "Overlay 'maria' não gerado: rode o build inicial novamente.");
 
-        // Teste de Sons e Vozes Autênticas da Maria (Saturn)
+        // HUD do Saturn e Teste de Sons e Vozes Autênticas da Maria (Saturn)
         if (Player.IsMaria || UltimateOptions.CharacterMode == CharacterSelection.SaturnMaria)
         {
+            bool saturnHud = MariaSaturnHud.Enabled;
+            if (ImGui.Checkbox("HUD Original do Saturn (Experimental)", ref saturnHud))
+            {
+                MariaSaturnHud.Enabled = saturnHud;
+            }
+            if (saturnHud)
+            {
+                ImGui.TextColored(new Vector4(1f, 0.7f, 0.2f, 1f), "Aviso: O HUD do Saturn compartilha VRAM com cenários do PS1 e pode causar distorções visuais.");
+            }
+
             ImGui.Spacing();
             ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "🔊 Teste de Voz e Áudio da Maria (Saturn):");
             if (!inGame) ImGui.BeginDisabled();

@@ -18,6 +18,13 @@ namespace Recompiled.Ultimate;
 /// </summary>
 public static class MariaSaturnHud
 {
+    /// <summary>
+    /// Whether the Saturn HUD is active. Off by default because writing HUD art into VRAM at (544, 392)
+    /// and CLUTs 0x106-0x108 collides with stage background tilesets (such as Castle Entrance NO3) on retail discs.
+    /// When disabled, Maria Saturn uses the clean PS1 Richter-style HUD (matching Maria PSP).
+    /// </summary>
+    public static bool Enabled { get; set; } = false;
+
     // tpage 0x18 u128-255 v136-231 = VRAM x 544-575, y 392-487: chunk 3 of F_GAME2 (x 0x220, y 384)
     private const int ArtVramX = 544, ArtVramY = 392, ArtW = 32, ArtH = 96;
     private const int ArtFileOffset = 3 * 32 * 128 * 2 + (ArtVramY - 384) * 32 * 2;
@@ -211,7 +218,7 @@ public static class MariaSaturnHud
     /// </summary>
     public static bool Draw(IMemory m, int margin)
     {
-        if (LoadArt() == null) return false;
+        if (!Enabled || LoadArt() == null) return false;
 
         uint head = m.ReadU32(PlayerHudAddr + 4);
         if (head == 0) return false;
