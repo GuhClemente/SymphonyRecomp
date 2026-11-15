@@ -69,10 +69,14 @@ public static partial class WidescreenPatch
     static bool RichterHudActive(IMemory m) =>
         m.ReadU32(StageIdAddr) == 0x1F || m.ReadU32(PlayableCharAddr) != 0;
 
+    static bool IsValidRamPrim(uint prim) => prim >= 0x80000000u && prim <= 0x801FFFF0u;
+
     static uint HudPrim(IMemory m, uint indexAddr)
     {
         uint idx = m.ReadU32(indexAddr);
-        return idx == 0 ? 0 : PrimBufAddr + idx * PrimStride;
+        if (idx == 0 || idx >= 0x600) return 0;
+        uint prim = PrimBufAddr + idx * PrimStride;
+        return IsValidRamPrim(prim) ? prim : 0;
     }
 
     static void ShiftPrimX(IMemory m, uint prim, int dx)
@@ -89,17 +93,17 @@ public static partial class WidescreenPatch
 
     static void ShiftPrims(IMemory m, uint prim, int count, int dx)
     {
-        for (int i = 0; i < count && prim != 0; i++, prim = m.ReadU32(prim))
+        for (int i = 0; i < count && IsValidRamPrim(prim); i++, prim = m.ReadU32(prim))
             ShiftPrimX(m, prim, dx);
     }
 
     public static void PostDrawHud(CpuContext c, IMemory m)
     {
-        if (RichterHudActive(m)) return;
+        if (RichterHudActive(m) || Sotn.Game.IsLoading || Sotn.Stages.LoadPending) return;
         _richterHudMargin = 0;
         _hudMargin = HudMargin();
         if (_hudMargin == 0) return;
-        for (uint prim = HudPrim(m, PlayerHudAddr + 4); prim != 0; prim = m.ReadU32(prim))
+        for (uint prim = HudPrim(m, PlayerHudAddr + 4); IsValidRamPrim(prim); prim = m.ReadU32(prim))
             ShiftPrimX(m, prim, -_hudMargin);
     }
 
@@ -149,16 +153,17 @@ public static partial class WidescreenPatch
         if (delta == 0) return;
         bool crashRedrawn = RichterCrashRedrawn(m);
         uint prim = HudPrim(m, PlayerHudAddr + 4);
-        for (int i = 0; prim != 0; i++, prim = m.ReadU32(prim))
+        for (int i = 0; IsValidRamPrim(prim); i++, prim = m.ReadU32(prim))
             if (i is 0 or 2 or 5 or 6 || (i == 8 && !crashRedrawn))
                 ShiftPrimX(m, prim, RichterHudShift(i) * delta);
-        for (uint col = HudPrim(m, PlayerHudAddr + 8); col != 0; col = m.ReadU32(col))
+        for (uint col = HudPrim(m, PlayerHudAddr + 8); IsValidRamPrim(col); col = m.ReadU32(col))
             ShiftPrimX(m, col, delta);
         _richterHudMargin += delta;
     }
 
     public static void PostDrawRichterHudSubweapon(CpuContext c, IMemory m)
     {
+        if (Sotn.Game.IsLoading || Sotn.Stages.LoadPending) return;
         FixRichterHud(m);
         ShiftRedrawnRichterPrims(m);
         //last, so what she draws is not shifted again
@@ -171,7 +176,7 @@ public static partial class WidescreenPatch
         if (margin == 0) return;
         if (m.ReadU32(BossBarStateAddr) == 5) return;
         uint prim = HudPrim(m, PlayerHudAddr + 4);
-        for (int i = 0; i < 9 && prim != 0; i++, prim = m.ReadU32(prim))
+        for (int i = 0; i < 9 && IsValidRamPrim(prim); i++, prim = m.ReadU32(prim))
         {
             bool redrawn = i switch
             {
@@ -185,8 +190,11 @@ public static partial class WidescreenPatch
     }
 
     //maria hides richter's plate, and the psp one draws her two subweapon icons herself, in 4:3 coordinates
-    static void DrawMariaHud(CpuContext c, IMemory m) =>
+    static void DrawMariaHud(CpuContext c, IMemory m)
+    {
+        if (Sotn.Game.IsLoading || Sotn.Stages.LoadPending) return;
         Recompiled.Ultimate.MariaCharacter.DrawMariaHud(c, m, HudMargin());
+    }
 
     const uint CornerTextTimerAddr = 0x80097410;
     const uint CornerTextPrimsAddr = 0x80097414;
@@ -199,14 +207,17 @@ public static partial class WidescreenPatch
         var m = e.Memory;
         if (m.ReadU32(CornerTextTimerAddr) == 0) return;
 
-        uint box = PrimBufAddr + m.ReadU32(CornerTextPrimsAddr) * PrimStride;
+        uint boxIdx = m.ReadU32(CornerTextPrimsAddr);
+        if (boxIdx >= 0x600) return;
+        uint box = PrimBufAddr + boxIdx * PrimStride;
+        if (!IsValidRamPrim(box)) return;
         int margin = HudMargin();
         int delta = m.ReadU8(box + 0x06) == CornerTextLeftBlue
             ? CornerTextLeftX - margin - (short)m.ReadU16(box + 0x08)
             : CornerTextRightX + margin - (short)m.ReadU16(box + 0x14);
         if (delta == 0) return;
 
-        for (uint prim = box; prim != 0; prim = m.ReadU32(prim))
+        for (uint prim = box; IsValidRamPrim(prim); prim = m.ReadU32(prim))
             ShiftPrimX(m, prim, delta);
     }
 }

@@ -13,6 +13,7 @@ public sealed class PSMemory : IMemory
     private readonly byte[] _scratchpad = new byte[MemoryMap.ScratchpadWindow];
     private readonly byte[] _hwregs = new byte[MemoryMap.HwRegsSize];
     private readonly byte[] _bios = new byte[MemoryMap.BiosSize];
+    private readonly byte[] _dummy = new byte[64];
 
     private readonly Gpu _gpu = new();
     private readonly Spu _spu = new();
@@ -115,23 +116,38 @@ public sealed class PSMemory : IMemory
 
         // PS1 bus RAM mirror window (0x00000000 - 0x1EFFFFFF)
         if (phys < 0x1F000000u)
-            return _ram.AsSpan((int)(phys & _ramMask), size);
+        {
+            var off = (int)(phys & _ramMask);
+            if (off + size > _ram.Length)
+                return _dummy.AsSpan(0, Math.Min(size, _dummy.Length));
+            return _ram.AsSpan(off, size);
+        }
 
         if (phys >= MemoryMap.ScratchpadBase && phys < MemoryMap.ScratchpadBase + MemoryMap.ScratchpadWindow)
         {
             var off = (int)(phys - MemoryMap.ScratchpadBase);
             if (off + size > MemoryMap.ScratchpadWindow)
-                throw new InvalidOperationException($"access crossing the end of the scratchpad: 0x{address:X8}");
+                return _dummy.AsSpan(0, Math.Min(size, _dummy.Length));
             return _scratchpad.AsSpan(off, size);
         }
 
         if (phys >= MemoryMap.HwRegsBase && phys < MemoryMap.HwRegsBase + MemoryMap.HwRegsSize)
-            return _hwregs.AsSpan((int)(phys - MemoryMap.HwRegsBase), size);
+        {
+            var off = (int)(phys - MemoryMap.HwRegsBase);
+            if (off + size > MemoryMap.HwRegsSize)
+                return _dummy.AsSpan(0, Math.Min(size, _dummy.Length));
+            return _hwregs.AsSpan(off, size);
+        }
 
         if (phys >= MemoryMap.BiosBase && phys < MemoryMap.BiosBase + MemoryMap.BiosSize)
-            return _bios.AsSpan((int)(phys - MemoryMap.BiosBase), size);
+        {
+            var off = (int)(phys - MemoryMap.BiosBase);
+            if (off + size > MemoryMap.BiosSize)
+                return _dummy.AsSpan(0, Math.Min(size, _dummy.Length));
+            return _bios.AsSpan(off, size);
+        }
 
-        throw new InvalidOperationException($"unmapped address: 0x{address:X8}");
+        return _dummy.AsSpan(0, Math.Min(size, _dummy.Length));
     }
 
     private readonly Sio0 _sio = new();

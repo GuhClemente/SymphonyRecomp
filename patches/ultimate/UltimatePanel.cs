@@ -125,7 +125,7 @@ public sealed class UltimatePanel : IPanel
             GameThread.Post((c, m) =>
             {
                 if (!Player.CanTeleport) return;
-                Player.TeleportTo(Stage.CastleEntrance, 8, 38, 128, 128);
+                Player.TeleportTo(Stage.CastleEntrance, 17, 37, 72, 164); // the save room, see FastTravelPanel
                 if (!Player.IsMaria) MariaLoader.TransformToMaria(c, m);
             });
         }

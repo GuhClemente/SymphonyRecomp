@@ -225,7 +225,7 @@ public static class Dispatcher
         return phys < 0x00800000u ? 0x80000000u | phys : addr;
     }
 
-    public static bool Tolerant;
+    public static bool Tolerant = true;
 
     private static readonly HashSet<uint> _reported = [];
 

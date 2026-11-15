@@ -246,15 +246,116 @@ public static class Stages
         return map;
     }
 
+    public const uint TilemapScrollXAddr = 0x8007308Eu;
+    public const uint TilemapScrollYAddr = 0x80073092u;
+    public const uint PlayerWorldXAddr = 0x800973F0u;
+    public const uint PlayerWorldYAddr = 0x800973F4u;
+    const uint TransitionStepLoadRoom = 3u;
+
+    static bool _placing;
+    static int _placeX, _placeY, _placeOffsetX, _placeOffsetY;
+
+    /// <summary>True when the map cell belongs to a room of the stage (and is not an exit to another stage).</summary>
+    public static bool HasRoom(Stage stage, int roomX, int roomY)
+    {
+        foreach (var r in Rooms(stage))
+            if (roomX >= r.Left && roomX <= r.Right && roomY >= r.Top && roomY <= r.Bottom) return true;
+        return false;
+    }
+
+    /// <summary>Room transition to a map cell of the current stage; the player lands at the pixel
+    /// (offsetX, offsetY) of that cell.</summary>
     public static bool LoadRoom(int roomX, int roomY, int offsetX = 128, int offsetY = 128)
     {
         if (GameApi.Call(SetNextRoomToLoadAddr, (uint)roomX, (uint)roomY) == 0) return false;
 
-        M.WriteU32(RoomEntryXAddr, (uint)offsetX);
-        M.WriteU32(RoomEntryYAddr, (uint)offsetY);
+        EnsureTicking();
+        _placing = true;
+        _placeX = roomX;
+        _placeY = roomY;
+        _placeOffsetX = offsetX;
+        _placeOffsetY = offsetY;
+
         M.WriteU32(TransitionStepAddr, 0);
         M.WriteU32(EngineStepAddr, EngineStepRoomTransition);
         return true;
+    }
+
+    // The engine does not land the player in the room it was told to load: it works the cell out of
+    // where the player is ((worldX >> 8) + tilemap.left) and keeps only the low byte of the entry
+    // position plus the old scroll. So right before the step that loads the room, the old room's
+    // origin is moved so that sum is the wanted cell, and the entry position is made to cancel the scroll.
+    static void PlaceTick()
+    {
+        if (M.ReadU32(EngineStepAddr) != EngineStepRoomTransition || M.ReadU32(TransitionStepAddr) > TransitionStepLoadRoom)
+        {
+            _placing = false;
+            RestorePlayerLook();
+            return;
+        }
+        if (M.ReadU32(TransitionStepAddr) != TransitionStepLoadRoom) return;
+
+        int cellX = (int)M.ReadU32(PlayerWorldXAddr) >> 8;
+        int cellY = (int)M.ReadU32(PlayerWorldYAddr) >> 8;
+        RoomX = _placeX - cellX;
+        RoomY = _placeY - cellY;
+        M.WriteU32(RoomEntryXAddr, (uint)(_placeOffsetX - M.ReadU16(TilemapScrollXAddr)));
+        M.WriteU32(RoomEntryYAddr, (uint)(_placeOffsetY - M.ReadU16(TilemapScrollYAddr)));
+    }
+
+    // A stage loaded this way leaves the player entity without its sprite set, palette and draw
+    // fields (seen with the overlay characters: the player keeps moving, invisible). They are kept
+    // from before the load and put back when the engine left them empty.
+    const uint PlayerEntityAddr = 0x800733D8u;
+    const uint EntityPaletteOffset = 0x16u, EntityDrawOffset = 0x18u, EntityAnimSetOffset = 0x54u;
+    static bool _lookSaved;
+    static ushort _lookPalette, _lookAnimSet;
+    static readonly uint[] _lookDraw = new uint[3];
+
+    // the player overlay registers its sprite banks in slots 16.. of the stage's own table, which a
+    // new stage replaces
+    const uint SpriteBanksPtrAddr = OverlayHeaderAddr + 0x14u;
+    const int PlayerBankFirst = 16, PlayerBankCount = 8;
+    const uint PlayerOverlayStart = 0x8013C000u, PlayerOverlayEnd = 0x80180000u;
+    static readonly uint[] _lookBanks = new uint[PlayerBankCount];
+
+    static void SavePlayerLook()
+    {
+        uint banks = M.ReadU32(SpriteBanksPtrAddr);
+        for (int i = 0; i < PlayerBankCount; i++)
+            _lookBanks[i] = banks == 0 ? 0 : M.ReadU32(banks + (uint)((PlayerBankFirst + i) * 4));
+
+        _lookAnimSet = M.ReadU16(PlayerEntityAddr + EntityAnimSetOffset);
+        _lookSaved = _lookAnimSet != 0;
+        if (!_lookSaved) return;
+        _lookPalette = M.ReadU16(PlayerEntityAddr + EntityPaletteOffset);
+        for (uint i = 0; i < 3; i++) _lookDraw[i] = M.ReadU32(PlayerEntityAddr + EntityDrawOffset + i * 4);
+    }
+
+    static void RestorePlayerLook()
+    {
+        if (!_lookSaved) return;
+        _lookSaved = false;
+
+        uint banks = M.ReadU32(SpriteBanksPtrAddr);
+        for (int i = 0; banks != 0 && i < PlayerBankCount; i++)
+        {
+            uint slot = banks + (uint)((PlayerBankFirst + i) * 4);
+            uint was = _lookBanks[i];
+            if (was >= PlayerOverlayStart && was < PlayerOverlayEnd && M.ReadU32(slot) != was)
+                M.WriteU32(slot, was);
+        }
+        if (M.ReadU16(PlayerEntityAddr + EntityAnimSetOffset) != 0) return;
+        M.WriteU16(PlayerEntityAddr + EntityAnimSetOffset, _lookAnimSet);
+        M.WriteU16(PlayerEntityAddr + EntityPaletteOffset, _lookPalette);
+        for (uint i = 0; i < 3; i++) M.WriteU32(PlayerEntityAddr + EntityDrawOffset + i * 4, _lookDraw[i]);
+    }
+
+    static void EnsureTicking()
+    {
+        if (_ticking) return;
+        RecompOne.Runtime.Events.Event.AddListener<RecompOne.Runtime.Events.VSyncEvent>(_ => Tick());
+        _ticking = true;
     }
 
     static bool _pending;
@@ -273,13 +374,17 @@ public static class Stages
         return true;
     }
 
-    public static void Load(Stage stage, int roomX, int roomY, int offsetX = 128, int offsetY = 128)
+    public static bool Load(Stage stage, int roomX, int roomY, int offsetX = 128, int offsetY = 128)
     {
-        if (!_ticking)
+        // a cell outside the stage's rooms leaves the stage loaded with no room: a screen of loose tiles
+        if (!HasRoom(stage, roomX, roomY))
         {
-            RecompOne.Runtime.Events.Event.AddListener<RecompOne.Runtime.Events.VSyncEvent>(_ => Tick());
-            _ticking = true;
+            Console.WriteLine($"[Stages] {stage} has no room at ({roomX},{roomY}), not loading");
+            return false;
         }
+
+        EnsureTicking();
+        SavePlayerLook();
 
         _pending = true;
         _pendingStage = stage;
@@ -296,12 +401,14 @@ public static class Stages
         Step = PlayStep.PrepareNextStage;
 
         _needChr = !RequestStageGfx(stage);
+        return true;
     }
 
     public static bool LoadPending => _pending;
 
     public static void Tick()
     {
+        if (_placing) PlaceTick();
         if (!_pending) return;
 
         if (_needChr)

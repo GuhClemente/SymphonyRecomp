@@ -55,8 +55,7 @@ public static class Player
     {
         if (stage == Stages.Current) return TeleportTo(roomX, roomY, offsetX, offsetY);
 
-        Stages.Load(stage, roomX, roomY, offsetX, offsetY);
-        return true;
+        return Stages.Load(stage, roomX, roomY, offsetX, offsetY);
     }
 
     public static bool FacingLeft { get => Entity.FacingLeft != 0; set { var e = Entity; e.FacingLeft = (ushort)(value ? 1 : 0); } }

@@ -143,6 +143,13 @@ public static class CharacterTest
     {
         _script = [];
         _t = 10;
+        Directory.CreateDirectory(Dir);
+
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_TELEPORT") == "1")
+        {
+            BuildTeleportScript();
+            return;
+        }
 
         if (Environment.GetEnvironmentVariable("SOTN_TEST_QUICK") == "1")
         {
@@ -228,6 +235,146 @@ public static class CharacterTest
         Do((_, _) =>
         {
             Console.WriteLine($"[TEST] FIM: {_shot} capturas em {Dir}");
+            Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA");
+        });
+        Wait(40);
+        Do((_, _) => Environment.Exit(0));
+    }
+
+    // ---- teleports -------------------------------------------------------------------------
+    private const uint EngineStepAddr = 0x8003C9A4u; // 3 while a room transition runs
+
+    private static bool Arrived(IMemory m, Stage target) =>
+        Game.Available && Game.InGame && !Game.IsLoading && !Stages.LoadPending &&
+        Stages.Current == target && m.ReadU32(EngineStepAddr) != 3 && Player.HasControl;
+
+    private static void WaitArrival(Stage stage, int timeout = 3000)
+    {
+        Wait(4);
+        _script!.Add((_t, null, m => Arrived(m, stage), timeout));
+        Wait(1);
+    }
+
+    private static void WaitStanding(int timeout)
+    {
+        _script!.Add((_t, null, _ => Player.Step == PlayerStep.Standing && Player.VelocityY == 0, timeout));
+        Wait(1);
+    }
+
+    // the spots of the Fast Travel panel that were measured in game, or the ones of a text file
+    // (SOTN_TEST_LOCFILE, one "code,Stage,roomX,roomY,offsetX,offsetY" per line) to try new ones without a build
+    private static List<FastTravelPanel.Destination> TeleportSpots()
+    {
+        var list = new List<FastTravelPanel.Destination>();
+        string? file = Environment.GetEnvironmentVariable("SOTN_TEST_LOCFILE");
+        if (!string.IsNullOrEmpty(file))
+        {
+            foreach (var line in File.ReadAllLines(file))
+            {
+                var p = line.Split(',', StringSplitOptions.TrimEntries);
+                if (p.Length < 6 || line.StartsWith('#')) continue;
+                list.Add(new FastTravelPanel.Destination(p[0], Enum.Parse<Stage>(p[1]), int.Parse(p[2]), int.Parse(p[3]),
+                    false, int.Parse(p[4]), int.Parse(p[5]), true, p[0]));
+            }
+            return list;
+        }
+        // the ten key places of the first castle, or every destination of the panel
+        bool all = Environment.GetEnvironmentVariable("SOTN_TEST_ALL") == "1";
+        foreach (var d in FastTravelPanel.Destinations)
+            if (d.Verified && (all || list.Count < 10)) list.Add(d);
+        return list;
+    }
+
+    private static void DumpPlayer(IMemory m, string tag)
+    {
+        var sb = new System.Text.StringBuilder($"[PLAYER] {tag}:");
+        for (uint o = 0; o < 0x70; o += 4) sb.Append($" {o:X2}={m.ReadU32(0x800733D8u + o):X8}");
+        Console.WriteLine(sb.ToString());
+    }
+
+    private static void BuildTeleportScript()
+    {
+        var spots = TeleportSpots();
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_PROBE") == "1")
+        {
+            Wait(30);
+            Do((_, m) => { _who = "inicio"; DumpPlayer(m, "inicio"); });
+            Shot("antes");
+        }
+        bool probe = Environment.GetEnvironmentVariable("SOTN_TEST_PROBE") == "1";
+
+        (CharacterSelection Who, string Name)[] characters = probe
+            ? [(CharacterSelection.Alucard, "alucard")]
+            :
+            [
+                (CharacterSelection.SaturnMaria, "saturn_maria"),
+                (CharacterSelection.PSPMaria, "psp_maria"),
+                (CharacterSelection.RichterClassic, "richter_classic"),
+                (CharacterSelection.RichterSaturnCoat, "richter_coat"),
+                (CharacterSelection.Alucard, "alucard"),
+            ];
+
+        int only = int.TryParse(Environment.GetEnvironmentVariable("SOTN_TEST_LOCATION"), out int n) ? n : 0;
+        Console.WriteLine($"[TELEPORT] {spots.Count} locais" + (only > 0 ? $", só o {only}" : "") + (probe ? " (sondagem)" : ""));
+
+        for (int i = 0; i < spots.Count; i++)
+        {
+            if (only > 0 && i != only - 1) continue;
+
+            int number = i + 1;
+            var spot = spots[i];
+            Do((_, _) =>
+            {
+                _who = spot.Code;
+                Held = 0;
+                Console.WriteLine($"[TELEPORT] >>> [{number}/{spots.Count}] {spot.Name} ({spot.Stage}) Room=({spot.RoomX},{spot.RoomY}) Offset=({spot.OffsetX},{spot.OffsetY})");
+                Player.TeleportTo(spot.Stage, spot.RoomX, spot.RoomY, spot.OffsetX, spot.OffsetY);
+            });
+            WaitArrival(spot.Stage);
+
+            // the first frame with control: is the player already on the floor?
+            Do((_, _) => Console.WriteLine(
+                $"[TELEPORT] chegada {spot.Code}: stage={Stages.Current} pos={Player.PosX},{Player.PosY}" +
+                $" step=0x{(int)Player.Step:X2} vy={Player.VelocityY}"));
+            WaitStanding(probe ? 600 : 120);
+            Wait(30);
+            Do((_, m) => Console.WriteLine(
+                $"[TELEPORT] apoiado {spot.Code}: pos={Player.PosX},{Player.PosY} step=0x{(int)Player.Step:X2}" +
+                $" vy={Player.VelocityY} hp={Player.Hp}/{Player.HpMax}" +
+                $" sala={m.ReadU32(Stages.RoomXAddr)},{m.ReadU32(Stages.RoomYAddr)}"));
+            if (probe) Do((_, m) => DumpPlayer(m, spot.Code));
+
+            Do((c, m) =>
+            {
+                Player.HpMax = Math.Max(Player.HpMax, 200);
+                Player.Hp = Player.HpMax;
+                Player.MpMax = Math.Max(Player.MpMax, 200);
+                Player.Mp = Player.MpMax;
+                Player.Hearts = 99;
+                MariaCharacter.RedrawHud(c, m);
+            });
+            Wait(10);
+
+            foreach (var (who, charName) in characters)
+            {
+                if (!probe)
+                    Do((c, m) => MariaCharacter.SwitchToCharacter(c, m, who));
+                Do((_, _) => _who = $"{spot.Code}_{charName}");
+                Wait(40);
+                Shot("parado");
+                if (probe) continue;
+
+                Press(Button.Square);
+                Wait(10);
+                Shot("ataque");
+                Release(Button.Square);
+                Wait(40);
+            }
+        }
+
+        Do((_, _) =>
+        {
+            Console.WriteLine($"[TELEPORT] FIM: {_shot} capturas em {Dir}");
             Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA");
         });
         Wait(40);

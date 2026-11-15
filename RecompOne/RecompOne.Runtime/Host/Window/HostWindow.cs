@@ -736,6 +736,7 @@ public static class HostWindow
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[HostWindow] Screenshot error: {ex.Message}");
+                    _screenshotPath = null; // once, not every frame
                 }
             }
         }

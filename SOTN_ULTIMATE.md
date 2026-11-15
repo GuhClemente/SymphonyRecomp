@@ -25,6 +25,10 @@ Esta documentação detalha a integração do mod **Castlevania: Symphony of the
 18. [HUD Próprio da Saturn Maria](#18-hud-próprio-da-saturn-maria)
 19. [Tempo Parado da Maria (Byakko e Seiryuu)](#19-tempo-parado-da-maria-byakko-e-seiryuu)
 20. [O Que o Teste Completo Encontrou](#20-o-que-o-teste-completo-encontrou)
+21. [Script Unificado de Testes (`test_characters.sh`)](#21-script-unificado-de-testes-test_characterssh)
+22. [Teleporte: Como Funciona e os Destinos Homologados](#22-teleporte-como-funciona-e-os-destinos-homologados)
+23. [Widescreen & Estabilidade do HUD](#23-widescreen--estabilidade-do-hud)
+24. [Matriz Comparativa dos 5 Personagens](#24-matriz-comparativa-dos-5-personagens)
 
 ---
 
@@ -320,4 +324,107 @@ Problemas que só apareceram rodando todas as ações de todos os personagens, e
 | Byakko e Quatro Bestas não eram lançados no teste | O roteiro disparava o especial com o anterior ainda em execução | O roteiro espera o personagem ficar parado |
 
 Confirmado pelas capturas, e que antes não tinha sido exercitado: a barra de HP do HUD da Maria descendo, a placa dobrando e virando "PAUSE PUSH START" na pausa, o brilho da placa nos três estágios de carga, e o ícone do subweapon dentro do anel de vinhas.
+
+---
+
+## 21. Script Unificado de Testes (`test_characters.sh`)
+O script `test_characters.sh` automatiza toda a validação dos personagens através de linha de comando:
+
+* `./test_characters.sh quick`: Teste rápido (~1 minuto). Alterna entre os 5 personagens no mesmo local e garante estabilidade do hot-swap.
+* `./test_characters.sh teleport [pasta] [num_local]`: teleporta pelos 10 destinos principais do primeiro castelo e testa os 5 personagens em cada um (100 capturas). Com `num_local`, só aquele destino. Ver também `teleport-all` e `probe` na seção 22.
+* `./test_characters.sh full`: Teste exaustivo de 103 passos (todos os golpes, invocações, subweapons e Item Crashes).
+* `./test_characters.sh view`: Abre a pasta com as capturas de tela geradas.
+
+---
+
+## 22. Teleporte: Como Funciona e os Destinos Homologados
+
+`Player.TeleportTo(stage, roomX, roomY, offsetX, offsetY)` leva o jogador para a célula `(roomX, roomY)` do mapa do castelo (0..63) e o coloca no pixel `(offsetX, offsetY)` **dentro dessa célula** (256×256). A tabela de destinos fica num lugar só, `FastTravelPanel.Destinations`; o teste de personagens lê a mesma tabela.
+
+### O que estava errado (e por que caía em lugar preto ou em tiles soltos)
+
+1. **A célula pedida não era a célula de chegada.** No passo 3 da transição de sala (`RunMainEngine`, `0x800F3D60`), o motor não usa a sala passada a `SetNextRoomToLoad` para posicionar o jogador: ele calcula a célula como `(g_PlayerX >> 8) + g_Tilemap.left` (posição **antiga** do jogador na sala **antiga**) e fica só com o byte baixo de `D_801375C0 + scroll antigo` como pixel. O `offsetX/offsetY` antigo era escrito direto em `D_801375C0/C4`, então o destino dependia de onde o jogador estava antes: sala certa por acaso, sala vizinha, ou fora de qualquer sala (tela preta, queda infinita, tiles soltos).
+   * Correção em `wrapers/Stage.cs` (`PlaceTick`): no quadro em que a transição chega ao passo 3, a origem da sala antiga (`0x800730B0/B4`) é ajustada para que aquela soma dê a célula pedida, e `D_801375C0/C4` recebe `offset - scroll`. Vale para qualquer sala, não só 1×1.
+2. **Células que não existem.** Várias entradas da tabela antiga apontavam para células fora da tabela de salas do estágio (Cavernas `(34,42)`, Catacumbas `(18,52)`, Mina `(22,46)`, Warp `(32,24)` e quase todo o castelo invertido). O estágio carregava e nenhuma sala era carregada: a tela de tiles soltos. `Stages.Load` agora recusa a célula (`Stages.HasRoom`) e avisa no console.
+3. **Personagem invisível depois de trocar de estágio.** O carregamento por `Stages.Load` deixa a entidade do jogador sem `animSet`, paleta e campos de desenho, e o estágio novo traz a sua própria tabela de bancos de sprite, sem as entradas 16.. que o overlay do personagem (Maria, Richter) registra no `Init`. `Stages` guarda esses valores antes do carregamento e os devolve na chegada (`SavePlayerLook` / `RestorePlayerLook`).
+4. **Corredores de CD.** As salas 1×1 vizinhas de uma saída de estágio (tileset `0xFF` na tabela de salas) são os corredores de carregamento: o jogo assume o controle e leva o jogador para o outro estágio. Nenhum destino usa essas salas. A Sala do Relógio da Marble Gallery `(32,26)` também ficou de fora: a primeira entrada dispara a cena da Maria e trava o teleporte.
+5. **Thread.** O painel chamava código do jogo a partir da thread da interface; agora passa por `GameThread.Post`.
+6. **Trocar de personagem dentro de uma sala de save estragava a sala.** A sala de save (flag `0x20` em `0x8003C708`) e o corredor de CD (`0x40`) desenham seus tiles a partir de gráficos que o motor carrega por cima de parte da área do `F_GAME` ao entrar. A troca recarrega `F_GAME`/`F_GAME2` e a sala virava fileiras de um tijolo só. `MariaCharacter.ReloadRoomGraphics` repete as cargas do próprio motor (`LoadGfxAsync(3)` / `LoadGfxAsync(4)`) depois da troca.
+
+### Destinos homologados
+
+Medidos no jogo (`SOTN_TEST_PROBE=1`): o jogador é solto, o log registra onde pousa, e a coordenada final é testada de novo. Em todos, o primeiro quadro com controle já tem `step = Standing` e `vy = 0`. Chão da sala de save: `Y = 164` (castelo normal) e `Y = 168` (invertido, a sala é a mesma de cabeça para baixo). `X = 72` fica à esquerda do ponto de save.
+
+| # | Região | `Stage` | Sala (X,Y) | Offset (X,Y) | Local | Piso |
+| :-: | :--- | :--- | :-: | :-: | :--- | :-: |
+| 1 | Entrada do Castelo | `CastleEntrance` (NP3) | (17,37) | (72,164) | Sala de save | vy=0 |
+| 2 | Laboratório de Alquimia | `AlchemyLaboratory` (NZ0) | (7,30) | (72,164) | Sala de save | vy=0 |
+| 3 | Marble Gallery | `MarbleGallery` (NO0) | (29,27) | (72,164) | Sala de save | vy=0 |
+| 4 | Muralha Exterior | `OuterWall` (NO1) | (55,24) | (72,164) | Sala de save | vy=0 |
+| 5 | Biblioteca Longa | `LongLibrary` (LIB) | (51,19) | (72,164) | Sala de save | vy=0 |
+| 6 | Capela Real | `RoyalChapel` (DAI) | (29,13) | (72,164) | Sala de save | vy=0 |
+| 7 | Aposentos de Olrox | `OlroxsQuarters` (NO2) | (31,17) | (72,164) | Sala de save | vy=0 |
+| 8 | Coliseu | `Colosseum` (ARE) | (14,23) | (72,164) | Sala de save | vy=0 |
+| 9 | Torre do Relógio | `ClockTower` (NZ1) | (49,14) | (128,132) | Passarela das engrenagens (o estágio não tem sala de save fora dos corredores de CD) | vy=0 |
+| 10 | Keep do Castelo | `CastleKeep` (TOP) | (39,9) | (72,164) | Sala de save | vy=0 |
+| 11 | Cavernas Subterrâneas | `UndergroundCaverns` (NO4) | (40,37) | (72,164) | Sala de save | vy=0 |
+| 12 | Catacumbas | `Catacombs` (CAT) | (30,50) | (72,164) | Sala de save | vy=0 |
+| 13 | Mina Abandonada | `AbandonedMine` (CHI) | (28,41) | (72,164) | Sala de save | vy=0 |
+| 14 | Warp | `Warp` (WRP) | (15,38) | (72,180) | Sala de teleporte ao lado da Entrada, à esquerda do portal | vy=0 |
+
+Castelo invertido (mesmas salas espelhadas, `63 - x`, `63 - y`):
+
+| Região | `Stage` | Sala (X,Y) | Offset (X,Y) |
+| :--- | :--- | :-: | :-: |
+| Entrada Invertida | `ReverseEntrance` | (46,26) | (72,168) |
+| Laboratório de Necromancia | `NecromancyLaboratory` | (56,33) | (72,168) |
+| Galeria de Mármore Negro | `BlackMarbleGallery` | (34,36) | (72,168) |
+| Muralha Exterior Invertida | `ReverseOuterWall` | (8,39) | (72,168) |
+| Biblioteca Proibida | `ForbiddenLibrary` | (12,44) | (72,168) |
+| Anti-Capela | `AntiChapel` | (34,50) | (72,168) |
+| Death Wing's Lair | `DeathWingsLair` | (32,46) | (72,168) |
+| Coliseu Invertido | `ReverseColosseum` | (49,40) | (72,168) |
+| Torre do Relógio Invertida | `ReverseClockTower` | (14,49) | (128,180) |
+| Keep Invertido | `ReverseCastleKeep` | (24,54) | (72,168) |
+| Cavernas Invertidas | `ReverseCaverns` | (23,26) | (72,168) |
+| Catacumbas Flutuantes | `FloatingCatacombs` | (33,13) | (72,168) |
+| Caverna | `Cave` | (35,22) | (72,168) |
+| Teleporte Invertido | `ReverseWarp` | (48,25) | (72,180) |
+
+### Resultado da validação (2026-11-15)
+
+* 10 destinos × 5 personagens (parado e ataque): 100 capturas, todos com `vy=0` na chegada, nenhuma chamada pulada pelo dispatcher. Folhas: [a](docs/teste-teleporte/10_locais_5_personagens_a.jpg), [b](docs/teste-teleporte/10_locais_5_personagens_b.jpg).
+* 28 destinos (dois castelos): todos com `step = Standing` e `vy = 0` no primeiro quadro. Folha: [28 destinos](docs/teste-teleporte/28_destinos.jpg).
+* Ficou em aberto: na Torre do Relógio, o item que cai da vela aparece como um quadrado rosa depois de uma troca de personagem; as cores do Alucard depois da troca (corpo oliva, capa roxa) são as mesmas das capturas anteriores e não foram comparadas com o Alucard original; a Sala do Relógio não serve de destino.
+
+### Como testar e como medir um destino novo
+
+* `./test_characters.sh teleport [pasta] [n]`: os 10 primeiros destinos com os 5 personagens (parado e ataque), ou só o destino `n`.
+* `./test_characters.sh teleport-all [pasta]`: os 28 destinos, sem trocar de personagem.
+* `./test_characters.sh probe arquivo.txt [pasta]`: destinos de um arquivo de texto (`codigo,Stage,roomX,roomY,offsetX,offsetY` por linha), sem recompilar. Solte o jogador acima do chão e leia a linha `[TELEPORT] apoiado ...` do log: é a coordenada a usar.
+* `python3 inspect_stage.py NO4`: tabela de salas de um estágio lida do disco, com os corredores de CD marcados.
+
+No log, `chegada` é o primeiro quadro com controle e `apoiado` é depois de parar; num destino bom as duas linhas têm a mesma posição e `vy=0`.
+
+### Alterações de tolerância no runtime (decisão pendente)
+
+Dois ajustes anteriores continuam no código e **escondem** erros em vez de corrigi-los: `Dispatcher.Tolerant = true` (chamada para endereço sem função vira aviso `[Dispatcher] skipped an unmapped call` e segue) e `PSMemory` devolvendo um buffer vazio para endereços não mapeados (sem aviso nenhum). Nas execuções de teleporte desta seção nenhuma chamada foi pulada; eles não são necessários para o teleporte funcionar.
+
+---
+
+## 23. Widescreen & Estabilidade do HUD
+* **Prevenção de Duplo Deslocamento:** No arquivo `patches/widescreen/HudWidescreenPatch.cs`, o método `PostDrawHud` verificava se o HUD do Richter/Maria estava ativo, mas zerava `_richterHudMargin = 0`. Isso fazia com que `PostDrawRichterHudSubweapon` aplicasse a margem widescreen duas vezes, jogando o HUD para $X = -110$ (fora da tela). O hook foi corrigido com `if (RichterHudActive(m)) return;`.
+* **Segurança de Limites de Tela:** Em `patches/widescreen/RichterEdgeWidescreenPatch.cs`, a chamada estática direta a `SoTN_ric.func_8016DCB8` foi desacoplada com `Dispatcher.Call(c, m, 0x8016DCB8u);`, impedindo crashes imediatos ao tocar as bordas da tela quando jogando com Maria ou Alucard.
+
+---
+
+## 24. Matriz Comparativa dos 5 Personagens
+| Personagem | Overlay | Binário | Base | HUD | Habilidade Especial |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Saturn Maria** | `maria` | `MARIA.BIN` | `0x8013C000` | Vinhas Saturn + HP/MP | Pulo Triplo, 6 Bestas Sagradas, Carga de Ataque |
+| **PSP Maria** | `maria2` | `MARIA2.BIN` | `0x8013C000` | Subweapon Duplo | Subweapons duplos rotativos, 4 animais celestiais |
+| **Richter Clássico** | `ric` | `RIC.BIN` | `0x8013C000` | Richter Retail | Chicote, 5 Item Crashes, Dash, Super Jump |
+| **Richter Casaco** | `ric2` | `RIC2.BIN` | `0x8013C000` | Richter Retail | Casaco longo com física do Saturn + 5 Crashes |
+| **Alucard** | `dra` | `DRA.BIN` | Core | Alucard Clássico | Espada/Escudo, 5 Magias, Relíquias |
+
 

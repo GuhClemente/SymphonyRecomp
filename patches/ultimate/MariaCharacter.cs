@@ -197,12 +197,24 @@ public static class MariaCharacter
             Player.Step = PlayerStep.Standing;
             Player.StepSub = 0;
             _wasMaria = Player.IsMaria;
+            ReloadRoomGraphics(c, m);
             RedrawHud(c, m);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[CharacterSwitcher] Erro na troca de personagem: {ex}");
         }
+    }
+
+    // A save room (layout flag 0x20) and a CD corridor (0x40) draw their tiles from graphics the engine
+    // loads over part of the F_GAME area on the way in; F_GAME(2) loaded by the switch replaces them
+    // (the room turns into rows of one brick). The engine's own loads put them back.
+    private const uint RoomLayoutFlagsAddr = 0x8003C708u;
+    private static void ReloadRoomGraphics(CpuContext c, IMemory m)
+    {
+        ushort flags = m.ReadU16(RoomLayoutFlagsAddr);
+        if ((flags & 0x20) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 3);
+        if ((flags & 0x40) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 4);
     }
 
     // DRA's own init for Alucard, the counterpart of the overlays' Init: it rebuilds the player entity
