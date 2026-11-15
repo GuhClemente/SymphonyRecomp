@@ -346,7 +346,7 @@ O script `test_characters.sh` automatiza toda a validação dos personagens atra
 1. **A célula pedida não era a célula de chegada.** No passo 3 da transição de sala (`RunMainEngine`, `0x800F3D60`), o motor não usa a sala passada a `SetNextRoomToLoad` para posicionar o jogador: ele calcula a célula como `(g_PlayerX >> 8) + g_Tilemap.left` (posição **antiga** do jogador na sala **antiga**) e fica só com o byte baixo de `D_801375C0 + scroll antigo` como pixel. O `offsetX/offsetY` antigo era escrito direto em `D_801375C0/C4`, então o destino dependia de onde o jogador estava antes: sala certa por acaso, sala vizinha, ou fora de qualquer sala (tela preta, queda infinita, tiles soltos).
    * Correção em `wrapers/Stage.cs` (`PlaceTick`): no quadro em que a transição chega ao passo 3, a origem da sala antiga (`0x800730B0/B4`) é ajustada para que aquela soma dê a célula pedida, e `D_801375C0/C4` recebe `offset - scroll`. Vale para qualquer sala, não só 1×1.
 2. **Células que não existem.** Várias entradas da tabela antiga apontavam para células fora da tabela de salas do estágio (Cavernas `(34,42)`, Catacumbas `(18,52)`, Mina `(22,46)`, Warp `(32,24)` e quase todo o castelo invertido). O estágio carregava e nenhuma sala era carregada: a tela de tiles soltos. `Stages.Load` agora recusa a célula (`Stages.HasRoom`) e avisa no console.
-3. **Personagem invisível depois de trocar de estágio.** O carregamento por `Stages.Load` deixa a entidade do jogador sem `animSet`, paleta e campos de desenho, e o estágio novo traz a sua própria tabela de bancos de sprite, sem as entradas 16.. que o overlay do personagem (Maria, Richter) registra no `Init`. `Stages` guarda esses valores antes do carregamento e os devolve na chegada (`SavePlayerLook` / `RestorePlayerLook`).
+3. **Personagem invisível depois de trocar de estágio.** O carregamento por `Stages.Load` zera a entidade do jogador e libera todos os primitivos, e o motor não roda de novo o `Init` do personagem. Os personagens de overlay perdiam os bancos de sprite (andavam invisíveis) e o Alucard seguia primitivos já liberados (`func_801093C4`). Agora `Stages` avisa a chegada (`Stages.StageArrived`) e `MariaCharacter.OnStageArrived` roda o `Init` do personagem ativo de novo, no lugar; enquanto o estágio carrega, `EntityAlucard` é pulado (gancho `PlayerReady`).
 4. **Corredores de CD.** As salas 1×1 vizinhas de uma saída de estágio (tileset `0xFF` na tabela de salas) são os corredores de carregamento: o jogo assume o controle e leva o jogador para o outro estágio. Nenhum destino usa essas salas. A Sala do Relógio da Marble Gallery `(32,26)` também ficou de fora: a primeira entrada dispara a cena da Maria e trava o teleporte.
 5. **Thread.** O painel chamava código do jogo a partir da thread da interface; agora passa por `GameThread.Post`.
 6. **Trocar de personagem dentro de uma sala de save estragava a sala.** A sala de save (flag `0x20` em `0x8003C708`) e o corredor de CD (`0x40`) desenham seus tiles a partir de gráficos que o motor carrega por cima de parte da área do `F_GAME` ao entrar. A troca recarrega `F_GAME`/`F_GAME2` e a sala virava fileiras de um tijolo só. `MariaCharacter.ReloadRoomGraphics` repete as cargas do próprio motor (`LoadGfxAsync(3)` / `LoadGfxAsync(4)`) depois da troca.
@@ -395,7 +395,8 @@ Castelo invertido (mesmas salas espelhadas, `63 - x`, `63 - y`):
 
 * 10 destinos × 5 personagens (parado e ataque): 100 capturas, todos com `vy=0` na chegada, nenhuma chamada pulada pelo dispatcher. Folhas: [a](docs/teste-teleporte/10_locais_5_personagens_a.jpg), [b](docs/teste-teleporte/10_locais_5_personagens_b.jpg).
 * 28 destinos (dois castelos): todos com `step = Standing` e `vy = 0` no primeiro quadro. Folha: [28 destinos](docs/teste-teleporte/28_destinos.jpg).
-* Ficou em aberto: na Torre do Relógio, o item que cai da vela aparece como um quadrado rosa depois de uma troca de personagem; as cores do Alucard depois da troca (corpo oliva, capa roxa) são as mesmas das capturas anteriores e não foram comparadas com o Alucard original; a Sala do Relógio não serve de destino.
+* Tudo isso em modo estrito (sem tolerância, código gerado limpo), junto com o teste completo de 103 passos.
+* Ficou em aberto: o forro da capa do Alucard volta com outra cor depois de uma troca (vermelho no original); um item caído no chão no momento de uma troca de personagem vira um quadrado de cor única (continua podendo ser pego); a Sala do Relógio não serve de destino.
 
 ### Como testar e como medir um destino novo
 
@@ -406,9 +407,20 @@ Castelo invertido (mesmas salas espelhadas, `63 - x`, `63 - y`):
 
 No log, `chegada` é o primeiro quadro com controle e `apoiado` é depois de parar; num destino bom as duas linhas têm a mesma posição e `vy=0`.
 
-### Alterações de tolerância no runtime (decisão pendente)
+### A "tolerância" foi removida: o que ela escondia
 
-Dois ajustes anteriores continuam no código e **escondem** erros em vez de corrigi-los: `Dispatcher.Tolerant = true` (chamada para endereço sem função vira aviso `[Dispatcher] skipped an unmapped call` e segue) e `PSMemory` devolvendo um buffer vazio para endereços não mapeados (sem aviso nenhum). Nas execuções de teleporte desta seção nenhuma chamada foi pulada; eles não são necessários para o teleporte funcionar.
+Uma sessão anterior tinha deixado três coisas para o teleporte "não crashar": `Dispatcher.Tolerant = true`, um buffer vazio no `PSMemory` para endereços inválidos e, **editado à mão dentro de `generated/dra.cs`** (pasta fora do git), um `try { ... } catch { }` vazio em volta de `DrawRichterHud`, `DrawRichterHudSubweapon` e `EntityAlucard`. As três foram desfeitas (o código gerado foi regenerado). O `catch` vazio era o pior: a exceção saía no meio da função do jogo, o epílogo não rodava, a pilha ficava `0x38` bytes fora do lugar e os registradores salvos de `MainGame` voltavam zerados; o jogo seguia com estado corrompido.
+
+Os erros de verdade, agora corrigidos na origem:
+
+* **HUD depois de um carregamento de estágio.** Os primitivos do HUD são liberados e o HUD não é refeito; `DrawHud`, `DrawHudSubweapon`, `DrawRichterHud` e `DrawRichterHudSubweapon` seguiam ponteiros de primitivos reutilizados. Gancho `pre` nas quatro (`MariaCharacter.HudReady`, em `config/sotn.json`): nada é desenhado enquanto o carregamento está em curso, e no primeiro quadro depois dele o HUD é reconstruído (`RedrawHud`). `Stages.StageLoadCount` diz que houve um carregamento mesmo que o HUD não tenha sido chamado durante ele.
+* **`EntityAlucard` durante o carregamento**: item 3 acima.
+
+Regra para o futuro: nada de editar `generated/` à mão (some no próximo `recompone`), e nada de `catch` vazio em volta de código do jogo.
+
+### Alucard depois de uma troca de personagem
+
+O Alucard não tem overlay próprio, mas o espaço do overlay do jogador (`0x8013C000`) guarda a folha de sprites dele, `BIN/ARC_F.BIN`, que o jogo carrega ali quando começa como Alucard. Depois de carregar Maria ou Richter nesse espaço, a volta para o Alucard desenhava os bytes do binário anterior: uma figura oliva de capa roxa, ou nada. `SwitchToCharacter` agora recarrega `BIN/ARC_F.BIN` antes do `AluInit`. Capturas: [original e volta](docs/teste-teleporte/alucard_original_e_volta.jpg). Referência para comparar: `SOTN_TEST_MARIA=1 SOTN_TEST_START=alucard` começa o jogo como o Alucard intocado, captura, troca para a Maria e volta.
 
 ---
 

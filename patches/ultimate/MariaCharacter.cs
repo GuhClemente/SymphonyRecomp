@@ -35,9 +35,13 @@ public static class MariaCharacter
             }
         });
 
+        Stages.StageArrived += OnStageArrived;
+
         if (TestMode)
         {
-            UltimateOptions.CharacterMode = CharacterSelection.SaturnMaria;
+            UltimateOptions.CharacterMode = Environment.GetEnvironmentVariable("SOTN_TEST_START") == "alucard"
+                ? CharacterSelection.Alucard
+                : CharacterSelection.SaturnMaria;
             RecompOne.Runtime.Events.Event.AddListener<RecompOne.Runtime.Events.PadReadEvent>(e =>
             {
                 if (e.Port == 0)
@@ -109,6 +113,10 @@ public static class MariaCharacter
     // palettes and sprite sheet) and only then the player overlay, whose init puts its own art on top.
     // The same order is kept here: the sheet first, then the binary, then its init.
     private const uint PlayerOverlayBase = 0x8013C000u;
+    // Alucard has no overlay of his own, but the same slot holds his sprite sheet (BIN/ARC_F.BIN, which
+    // the game loads there when it starts as Alucard). Without it back he is drawn from the bytes of the
+    // last character's binary: an olive figure with a purple cloak, or nothing at all.
+    private const string AlucardSpritesFile = "BIN/ARC_F.BIN";
 
     public static void SwitchToCharacter(CpuContext c, IMemory m, CharacterSelection selection)
     {
@@ -172,6 +180,8 @@ public static class MariaCharacter
                     RestoreAlucardWeapons(m);
                     LoadGameGraphics(m, "BIN/F_GAME.BIN");
                     Player.SubWeapon = 0;
+                    // his sprite data lives where the other characters' binaries were loaded
+                    LoadCharacterBinary(m, AlucardSpritesFile);
                     InitAlucard(c, m);
                     ToastNotifications.ShowText("Alucard", "Alucard reativado!", null, 3f);
                     break;
@@ -301,8 +311,68 @@ public static class MariaCharacter
     /// hand: for Richter / Maria the boss bar (prims 1, 3, 4 and the colour bars) sits past the right
     /// edge of the screen until the Dracula fight slides it in, and prim 2 is the player's own life bar.
     /// </summary>
+    // A stage loaded by Stages.Load (fast travel) wipes the player entity and frees every primitive, and
+    // the engine does not run the character's init again. Alucard's update then follows the freed
+    // primitives of his own effects (func_801093C4) and the overlay characters lose their sprite banks
+    // (they keep moving, invisible). Alucard's update is skipped while the stage loads, and on arrival
+    // the active character's init runs again, in place.
+    public static bool PlayerReady(CpuContext c, IMemory m) => !Stages.StageLoading;
+
+    private static void OnStageArrived(CpuContext c, IMemory m)
+    {
+        uint player = Game.EntitiesAddr;
+        uint posX = m.ReadU32(player), posY = m.ReadU32(player + 4);
+        ushort facing = m.ReadU16(player + 0x14);
+
+        if (m.ReadU32(Game.PlayableCharacterAddr) == (uint)PlayableCharacter.Alucard)
+        {
+            InitAlucard(c, m);
+        }
+        else
+        {
+            uint init = m.ReadU32(PlayerOverlayBase + 4);
+            if (init < PlayerOverlayBase) return;
+            MariaLoader.Invoke(c, m, (cc, mm) => Dispatcher.Call(cc, mm, init));
+            if (IsSaturnRichter) ApplyRichterCostume(m);
+        }
+
+        m.WriteU32(player, posX);
+        m.WriteU32(player + 4, posY);
+        m.WriteU16(player + 0x14, facing);
+        m.WriteU32(player + 8, 0);
+        m.WriteU32(player + 0xC, 0);
+        Player.Step = PlayerStep.Standing;
+        Player.StepSub = 0;
+    }
+
+    // A stage loaded by Stages.Load frees every primitive and the HUD is not built again: its primitive
+    // indices are left pointing at freed, reused primitives, and the HUD functions then follow garbage
+    // pointers. Pre-hook of DrawHud, DrawHudSubweapon and the two Richter ones: nothing is drawn while
+    // such a load is in flight, and the HUD is built again on the first frame after it.
+    private const uint EngineStepAddr = 0x8003C9A4u;
+    private static bool _hudStale, _hudRebuilding;
+    private static int _hudLoadSeen;
+
+    public static bool HudReady(CpuContext c, IMemory m)
+    {
+        if (_hudRebuilding) return true;
+        if (Stages.StageLoadCount != _hudLoadSeen) _hudStale = true;
+        if (Stages.StageLoading) return false;
+        if (!_hudStale) return true;
+        if (Game.IsLoading || !Game.InGame || m.ReadU32(EngineStepAddr) == 3) return false;
+
+        // the old indices belong to someone else by now: forget them instead of freeing them
+        m.WriteU32(PlayerHudAddr + 4, 0);
+        m.WriteU32(PlayerHudAddr + 8, 0);
+        RedrawHud(c, m);
+        return false;
+    }
+
     public static void RedrawHud(CpuContext c, IMemory m)
     {
+        _hudStale = false;
+        _hudLoadSeen = Stages.StageLoadCount;
+        _hudRebuilding = true;
         try
         {
             uint p1 = m.ReadU32(PlayerHudAddr + 4);
@@ -334,6 +404,10 @@ public static class MariaCharacter
         catch (Exception ex)
         {
             Console.WriteLine($"[CharacterSwitcher] Erro ao redesenhar HUD: {ex.Message}");
+        }
+        finally
+        {
+            _hudRebuilding = false;
         }
     }
 

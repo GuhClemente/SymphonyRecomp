@@ -1949,6 +1949,31 @@
     },
     {
       "overlay": "dra",
+      "function": "DrawHud",
+      "mode": "pre",
+      "target": "Recompiled.Ultimate.MariaCharacter.HudReady"
+    },
+    {
+      "overlay": "dra",
+      "function": "DrawHudSubweapon",
+      "mode": "pre",
+      "target": "Recompiled.Ultimate.MariaCharacter.HudReady"
+    },
+    {
+      "comment": "The HUD's primitives do not survive a fast travel stage load: skip it until it is rebuilt",
+      "overlay": "dra",
+      "function": "DrawRichterHud",
+      "mode": "pre",
+      "target": "Recompiled.Ultimate.MariaCharacter.HudReady"
+    },
+    {
+      "overlay": "dra",
+      "function": "DrawRichterHudSubweapon",
+      "mode": "pre",
+      "target": "Recompiled.Ultimate.MariaCharacter.HudReady"
+    },
+    {
+      "overlay": "dra",
       "function": "DrawRichterHud",
       "mode": "post",
       "target": "Recompiled.WidescreenPatch.PostDrawRichterHud"
@@ -2184,6 +2209,13 @@
       "overlay": "dra",
       "function": "func_800F16D0",
       "target": "Recompiled.RandoPatch.func_800F16D0"
+    },
+    {
+      "comment": "Alucard's update follows freed primitives while a fast travel stage load is in flight",
+      "overlay": "dra",
+      "function": "EntityAlucard",
+      "mode": "pre",
+      "target": "Recompiled.Ultimate.MariaCharacter.PlayerReady"
     },
     {
       "comment": "Target Confirmed Active",

@@ -151,6 +151,26 @@ public static class CharacterTest
             return;
         }
 
+        // SOTN_TEST_START=alucard: the game starts as the untouched Alucard; a capture and his palettes
+        // (RAM copy and VRAM row) before any switch, then away and back, to compare
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_START") == "alucard")
+        {
+            Wait(60);
+            Do((_, m) => { _who = "alucard_original"; DumpPalettes(m, "original"); DumpPlayer(m, "original"); });
+            Shot("parado");
+            Do((c, m) => { _who = "maria_saturn"; MariaCharacter.SwitchToCharacter(c, m, CharacterSelection.SaturnMaria); });
+            Wait(40); Shot("parado");
+            Do((c, m) => { _who = "alucard_volta"; MariaCharacter.SwitchToCharacter(c, m, CharacterSelection.Alucard); });
+            Wait(40);
+            Do((_, m) => { DumpPalettes(m, "volta"); DumpPlayer(m, "volta"); });
+            Shot("parado");
+            Press(Button.Square); Wait(10); Shot("ataque"); Release(Button.Square); Wait(30);
+            Do((_, _) => Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA"));
+            Wait(30);
+            Do((_, _) => Environment.Exit(0));
+            return;
+        }
+
         if (Environment.GetEnvironmentVariable("SOTN_TEST_QUICK") == "1")
         {
             // only the switches: where each character ends up and whether it stands
@@ -285,10 +305,37 @@ public static class CharacterTest
         return list;
     }
 
+    // every player palette row: the game's copy in RAM and what is in VRAM, as hashes, plus row 0x100 in full
+    private static void DumpPalettes(IMemory m, string tag)
+    {
+        var gpu = RecompOne.Runtime.Runtime.Gpu;
+        var sb = new System.Text.StringBuilder($"[PALETA] {tag}: entPal={m.ReadU16(0x800733D8u + 0x16):X4} animSet={m.ReadU16(0x800733D8u + 0x54):X4}");
+        for (int id = 0x100; id < 0x120; id++)
+        {
+            uint ram = Palette.ClutRamAddr + (uint)(id * 32), hr = 0, hv = 0;
+            ushort clut = Palette.ClutOf(id);
+            int x = (clut & 0x3F) << 4, y = clut >> 6;
+            for (int k = 0; k < 16; k++)
+            {
+                hr = hr * 31 + m.ReadU16(ram + (uint)(k * 2));
+                if (gpu != null) hv = hv * 31 + gpu.Shadow[x + k, y];
+            }
+            sb.Append($" {id:X3}:{hr:X8}/{hv:X8}");
+        }
+        Console.WriteLine(sb.ToString());
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_RAWPAL") == "1")
+            for (int id = 0x100; id < 0x120; id++)
+            {
+                var row = new System.Text.StringBuilder($"[PALROW] {tag} {id:X3}");
+                for (int k = 0; k < 16; k++) row.Append($" {m.ReadU16(Palette.ClutRamAddr + (uint)(id * 32 + k * 2)):X4}");
+                Console.WriteLine(row.ToString());
+            }
+    }
+
     private static void DumpPlayer(IMemory m, string tag)
     {
         var sb = new System.Text.StringBuilder($"[PLAYER] {tag}:");
-        for (uint o = 0; o < 0x70; o += 4) sb.Append($" {o:X2}={m.ReadU32(0x800733D8u + o):X8}");
+        for (uint o = 0; o < 0xBC; o += 4) sb.Append($" {o:X2}={m.ReadU32(0x800733D8u + o):X8}");
         Console.WriteLine(sb.ToString());
     }
 

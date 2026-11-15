@@ -290,7 +290,7 @@ public static class Stages
         if (M.ReadU32(EngineStepAddr) != EngineStepRoomTransition || M.ReadU32(TransitionStepAddr) > TransitionStepLoadRoom)
         {
             _placing = false;
-            RestorePlayerLook();
+            FinishStageLoad();
             return;
         }
         if (M.ReadU32(TransitionStepAddr) != TransitionStepLoadRoom) return;
@@ -303,52 +303,31 @@ public static class Stages
         M.WriteU32(RoomEntryYAddr, (uint)(_placeOffsetY - M.ReadU16(TilemapScrollYAddr)));
     }
 
-    // A stage loaded this way leaves the player entity without its sprite set, palette and draw
-    // fields (seen with the overlay characters: the player keeps moving, invisible). They are kept
-    // from before the load and put back when the engine left them empty.
-    const uint PlayerEntityAddr = 0x800733D8u;
-    const uint EntityPaletteOffset = 0x16u, EntityDrawOffset = 0x18u, EntityAnimSetOffset = 0x54u;
-    static bool _lookSaved;
-    static ushort _lookPalette, _lookAnimSet;
-    static readonly uint[] _lookDraw = new uint[3];
+    /// <summary>True from <see cref="Load"/> until the player has been set up again in the new stage.
+    /// The engine wipes the player entity and frees its primitives on the way, and does not run the
+    /// character's init again: whoever owns the character does it in <see cref="StageArrived"/>.</summary>
+    public static bool StageLoading => _pending || _crossStage;
 
-    // the player overlay registers its sprite banks in slots 16.. of the stage's own table, which a
-    // new stage replaces
-    const uint SpriteBanksPtrAddr = OverlayHeaderAddr + 0x14u;
-    const int PlayerBankFirst = 16, PlayerBankCount = 8;
-    const uint PlayerOverlayStart = 0x8013C000u, PlayerOverlayEnd = 0x80180000u;
-    static readonly uint[] _lookBanks = new uint[PlayerBankCount];
+    /// <summary>Raised on the game thread when the room transition of a stage load has finished.</summary>
+    public static event Action<RecompOne.Runtime.Context.CpuContext, IMemory>? StageArrived;
 
-    static void SavePlayerLook()
+    /// <summary>How many stage loads <see cref="Load"/> has started; lets a patch tell that what it
+    /// built before (the HUD's primitives) is gone, even if it was not called while the load ran.</summary>
+    public static int StageLoadCount { get; private set; }
+
+    static bool _crossStage;
+
+    static void FinishStageLoad()
     {
-        uint banks = M.ReadU32(SpriteBanksPtrAddr);
-        for (int i = 0; i < PlayerBankCount; i++)
-            _lookBanks[i] = banks == 0 ? 0 : M.ReadU32(banks + (uint)((PlayerBankFirst + i) * 4));
-
-        _lookAnimSet = M.ReadU16(PlayerEntityAddr + EntityAnimSetOffset);
-        _lookSaved = _lookAnimSet != 0;
-        if (!_lookSaved) return;
-        _lookPalette = M.ReadU16(PlayerEntityAddr + EntityPaletteOffset);
-        for (uint i = 0; i < 3; i++) _lookDraw[i] = M.ReadU32(PlayerEntityAddr + EntityDrawOffset + i * 4);
-    }
-
-    static void RestorePlayerLook()
-    {
-        if (!_lookSaved) return;
-        _lookSaved = false;
-
-        uint banks = M.ReadU32(SpriteBanksPtrAddr);
-        for (int i = 0; banks != 0 && i < PlayerBankCount; i++)
+        if (!_crossStage) return;
+        var arrived = StageArrived;
+        var c = RecompOne.Runtime.Runtime.Cpu;
+        if (arrived != null && c != null)
         {
-            uint slot = banks + (uint)((PlayerBankFirst + i) * 4);
-            uint was = _lookBanks[i];
-            if (was >= PlayerOverlayStart && was < PlayerOverlayEnd && M.ReadU32(slot) != was)
-                M.WriteU32(slot, was);
+            try { arrived(c, M); }
+            catch (Exception e) { Console.WriteLine($"[Stages] StageArrived failed: {e}"); }
         }
-        if (M.ReadU16(PlayerEntityAddr + EntityAnimSetOffset) != 0) return;
-        M.WriteU16(PlayerEntityAddr + EntityAnimSetOffset, _lookAnimSet);
-        M.WriteU16(PlayerEntityAddr + EntityPaletteOffset, _lookPalette);
-        for (uint i = 0; i < 3; i++) M.WriteU32(PlayerEntityAddr + EntityDrawOffset + i * 4, _lookDraw[i]);
+        _crossStage = false;
     }
 
     static void EnsureTicking()
@@ -384,9 +363,10 @@ public static class Stages
         }
 
         EnsureTicking();
-        SavePlayerLook();
 
         _pending = true;
+        _crossStage = true;
+        StageLoadCount++;
         _pendingStage = stage;
         _pendingX = roomX;
         _pendingY = roomY;
