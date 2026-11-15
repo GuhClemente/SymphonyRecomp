@@ -572,6 +572,7 @@ public static class MariaCharacter
             LoadGameGraphics(m, "BIN/F_GAME2.BIN");
             if (MariaLoader.TransformToMaria(c, m))
             {
+                UnloadOtherPlayerOverlays(CharacterSelection.SaturnMaria);
                 _wasMaria = true;
                 isMaria = true;
                 RedrawHud(c, m);

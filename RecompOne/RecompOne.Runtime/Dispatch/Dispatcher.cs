@@ -136,7 +136,7 @@ public static class Dispatcher
 
                     if (s < newEnd && e > newStart)
                     {
-                        if (s >= newStart && e <= newEnd)
+                        if (s == newStart || (s >= newStart && e <= newEnd))
                         {
                             overwritten ??= [];
                             overwritten.Add(activeName);

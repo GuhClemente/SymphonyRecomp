@@ -179,8 +179,7 @@ public static class Game
         InGame && Character == PlayableCharacter.Alucard && !InPrologue();
 
     public static bool InPrologue() =>
-        InGame && Character == PlayableCharacter.Alucard && (StageId & ~Stage.SecondCastle) == Stage.Prologue &&
-        Progress.GetTimeAttack(TimeAttackEvent.DraculaDefeat) == 0 && Player.HpMax == 50;
+        Available && (StageId & ~Stage.SecondCastle) == Stage.Prologue;
 }
 
 public static class Entities
