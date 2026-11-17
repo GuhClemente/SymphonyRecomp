@@ -877,7 +877,7 @@ public static class ScriptFunctions_no3
         SoTN_no3.CreateEntityFromCurrentEntity_no3(c, m);
         c.V0 = 0x80040000u; 
         c.V0 = mem.ReadU8((c.V0 - 0x41DFu)); 
-        if (c.V0 != 0u) {
+        if (c.V0 != 0u && !Recompiled.Ultimate.UltimateOptions.UltimateEnabled) {
             goto L801BEFCC;
         }
         c.V0 = 0x80040000u; 

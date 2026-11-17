@@ -33,11 +33,18 @@ public sealed class SpellWheelPanel : IPanel
             return;
         }
 
-        bool isRichter = Player.IsRichter || Game.InPrologue();
-        bool isMaria = Recompiled.Ultimate.MariaCharacter.IsSaturnMaria;
+        bool isRichter = Player.IsRichter || Game.InPrologue() ||
+            Recompiled.Ultimate.MariaCharacter.IsSaturnRichter ||
+            Recompiled.Ultimate.UltimateOptions.CharacterMode is Recompiled.Ultimate.CharacterSelection.RichterClassic or Recompiled.Ultimate.CharacterSelection.RichterSaturnCoat;
+
+        bool isSaturnMaria = (Player.IsMaria || Recompiled.Ultimate.UltimateOptions.CharacterMode == Recompiled.Ultimate.CharacterSelection.SaturnMaria) &&
+            Recompiled.Ultimate.UltimateOptions.CharacterMode != Recompiled.Ultimate.CharacterSelection.PSPMaria;
+
+        bool isPspMaria = (Player.IsMaria || Recompiled.Ultimate.UltimateOptions.CharacterMode == Recompiled.Ultimate.CharacterSelection.PSPMaria) &&
+            Recompiled.Ultimate.UltimateOptions.CharacterMode == Recompiled.Ultimate.CharacterSelection.PSPMaria;
 
         // Resource Status Bar
-        if (isRichter)
+        if (isRichter || isPspMaria)
         {
             int curHearts = Player.Hearts;
             int maxHearts = Player.HeartsMax;
@@ -61,9 +68,9 @@ public sealed class SpellWheelPanel : IPanel
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip(Localization.T("spell.quick_cast_keys_hint"));
 
-        dirty |= ImGui.Checkbox(isRichter ? "Corações Infinitos" : "Infinite Mana", ref SpellWheel.InfiniteMana);
+        dirty |= ImGui.Checkbox((isRichter || isPspMaria) ? "Corações Infinitos" : "Infinite Mana", ref SpellWheel.InfiniteMana);
         if (ImGui.IsItemHovered())
-            ImGui.SetTooltip(isRichter ? "Item Crashes nunca gastam corações" : "Casting never costs MP");
+            ImGui.SetTooltip((isRichter || isPspMaria) ? "Item Crashes nunca gastam corações" : "Casting never costs MP");
 
         if (dirty) SpellWheel.Save();
 
@@ -112,7 +119,7 @@ public sealed class SpellWheelPanel : IPanel
 
             ImGui.EndChild();
         }
-        else if (isMaria)
+        else if (isSaturnMaria)
         {
             ImGui.SeparatorText("🌟 Invocações & Especiais da Maria (Saturn)");
             ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
@@ -133,6 +140,47 @@ public sealed class SpellWheelPanel : IPanel
                     if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
                         ImGui.SetTooltip(Localization.T("spell.not_enough_mp"));
                 }
+            }
+
+            ImGui.EndChild();
+        }
+        else if (isPspMaria)
+        {
+            ImGui.SeparatorText("🕊 Invocações Celestiais da Maria (PSP)");
+            ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
+
+            (string name, int cost, Subweapon sub)[] pspMoves =
+            [
+                ("Suzaku [1] (Pássaro Carmesim / Fênix)", 15, Subweapon.Axe),
+                ("Genbu [2] (Tartaruga Sagrada)", 15, Subweapon.HolyWater),
+                ("Byakko [3] (Tigre Branco)", 15, Subweapon.Bible),
+                ("Seiryuu [4] (Dragão Azul Celeste)", 20, Subweapon.Cross),
+                ("Revoada Sagrada [5] (Mil Pombas)", 10, Subweapon.Dagger)
+            ];
+
+            for (int i = 0; i < pspMoves.Length; i++)
+            {
+                var (name, cost, sub) = pspMoves[i];
+                bool canCast = SpellWheel.InfiniteMana || Player.Hearts >= cost;
+
+                if (!canCast) ImGui.BeginDisabled();
+                if (ImGui.Button($"{name} ({cost} Corações)##psp_maria_{i}", new Vector2(-1, 36)))
+                {
+                    SpellWheel.TriggerQuickCast(i);
+                }
+                if (!canCast)
+                {
+                    ImGui.EndDisabled();
+                    if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                        ImGui.SetTooltip("Corações insuficientes!");
+                }
+            }
+
+            ImGui.Spacing();
+            ImGui.SeparatorText("🕊 Artes Celestiais");
+            if (ImGui.Button("Super Salto Celestial [6]##psp_sjump", new Vector2(-1, 36)))
+            {
+                SpellWheel.TriggerQuickCast(5);
             }
 
             ImGui.EndChild();

@@ -126,7 +126,6 @@ public sealed class UltimatePanel : IPanel
             {
                 if (!Player.CanTeleport) return;
                 Player.TeleportTo(Stage.CastleEntrance, 17, 37, 72, 164); // the save room, see FastTravelPanel
-                MariaCharacter.SwitchToCharacter(c, m, CharacterSelection.SaturnMaria);
             });
         }
         if (!inGame) ImGui.EndDisabled();

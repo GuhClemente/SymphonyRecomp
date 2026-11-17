@@ -114,11 +114,17 @@ public static class SpellWheel
 
         if (castIndex >= 0)
         {
-            if (Player.IsRichter || Game.InPrologue())
+            if (Player.IsRichter || Game.InPrologue() ||
+                Recompiled.Ultimate.UltimateOptions.CharacterMode is Recompiled.Ultimate.CharacterSelection.RichterClassic or Recompiled.Ultimate.CharacterSelection.RichterSaturnCoat)
             {
                 TriggerRichterCast(castIndex);
             }
-            else if (Recompiled.Ultimate.MariaCharacter.IsSaturnMaria)
+            else if (Recompiled.Ultimate.UltimateOptions.CharacterMode == Recompiled.Ultimate.CharacterSelection.PSPMaria)
+            {
+                TriggerPspMariaCast(castIndex);
+            }
+            else if (Recompiled.Ultimate.MariaCharacter.IsSaturnMaria ||
+                     Recompiled.Ultimate.UltimateOptions.CharacterMode == Recompiled.Ultimate.CharacterSelection.SaturnMaria)
             {
                 TriggerMariaCast(castIndex);
             }
@@ -162,6 +168,36 @@ public static class SpellWheel
             case 4: CastRichterCrash(Subweapon.Bible, "Burning Bible", 15); break;
             case 5: CastRichterBladeDash(); break;
             case 6: CastRichterSuperJump(); break;
+        }
+    }
+
+    public static void TriggerPspMariaCast(int index)
+    {
+        switch (index)
+        {
+            case 0:
+                CastRichterCrash(Subweapon.Axe, "Suzaku (Pássaro Carmesim)", 15);
+                GameApi.PlaySfx(0x6F9);
+                break;
+            case 1:
+                CastRichterCrash(Subweapon.HolyWater, "Genbu (Tartaruga Sagrada)", 15);
+                GameApi.PlaySfx(0x887);
+                break;
+            case 2:
+                CastRichterCrash(Subweapon.Bible, "Byakko (Tigre Branco)", 15);
+                GameApi.PlaySfx(0x888);
+                break;
+            case 3:
+                CastRichterCrash(Subweapon.Cross, "Seiryuu (Dragão Azul)", 20);
+                GameApi.PlaySfx(0x889);
+                break;
+            case 4:
+                CastRichterCrash(Subweapon.Dagger, "Revoada Sagrada (Pombas)", 10);
+                GameApi.PlaySfx(0x6FA);
+                break;
+            case 5:
+                CastRichterSuperJump();
+                break;
         }
     }
 

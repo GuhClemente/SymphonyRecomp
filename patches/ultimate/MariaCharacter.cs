@@ -67,6 +67,8 @@ public static class MariaCharacter
         }
     }
 
+    private static CharacterSelection _lastDesiredChar = CharacterSelection.Alucard;
+
     /// <summary>Lets the automatic transformation try again (e.g. after the option changes).</summary>
     public static void ResetState()
     {
@@ -262,9 +264,15 @@ public static class MariaCharacter
     private const uint RoomLayoutFlagsAddr = 0x8003C708u;
     private static void ReloadRoomGraphics(CpuContext c, IMemory m)
     {
-        ushort flags = m.ReadU16(RoomLayoutFlagsAddr);
-        if ((flags & 0x20) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 3);
-        if ((flags & 0x40) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 4);
+        try
+        {
+            MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 1);
+            MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 2);
+            ushort flags = m.ReadU16(RoomLayoutFlagsAddr);
+            if ((flags & 0x20) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 3);
+            if ((flags & 0x40) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 4);
+        }
+        catch { }
     }
 
     // DRA's own init for Alucard, the counterpart of the overlays' Init: it rebuilds the player entity
@@ -600,34 +608,47 @@ public static class MariaCharacter
     public static void Update(CpuContext c, IMemory m)
     {
         if (!UltimateOptions.UltimateEnabled) return;
-        if (!Game.Available || !Game.InGame || Game.IsLoading) return;
+        if (!Game.Available || !Game.InGame || Game.IsLoading || Stages.StageLoading) return;
 
         bool isMaria = Player.IsMaria;
 
         if (_wasMaria && !isMaria) MariaLoader.OnMariaLeft(m);
         _wasMaria = isMaria;
 
-        if (WantsSaturnMaria && !isMaria && !_autoTransformFailed && !Game.InPrologue())
+        // Auto-initialize character from UltimateOptions on boot or character change
+        CharacterSelection desired = UltimateOptions.CharacterMode;
+        if (desired != _lastDesiredChar)
         {
-            if (Player.IsAlucard)
+            _lastDesiredChar = desired;
+            _autoTransformFailed = false;
+        }
+
+        if (!_autoTransformFailed && !Game.InPrologue() && Player.HasControl)
+        {
+            bool needsSwitch = false;
+            switch (desired)
             {
-                uint r = Inventory.RightHand, l = Inventory.LeftHand;
-                uint wr = Inventory.GetWornEquipment(ItemSlot.RightHand), wl = Inventory.GetWornEquipment(ItemSlot.LeftHand);
-                if (r != 0 || wr != 0) { _savedAlucardRight = r != 0 ? r : wr; _savedAlucardWornRight = wr != 0 ? wr : r; }
-                if (l != 0 || wl != 0) { _savedAlucardLeft = l != 0 ? l : wl; _savedAlucardWornLeft = wl != 0 ? wl : l; }
+                case CharacterSelection.SaturnMaria:
+                    needsSwitch = !isMaria || Array.IndexOf(Dispatcher.ActiveNames, "maria") < 0;
+                    break;
+                case CharacterSelection.PSPMaria:
+                    needsSwitch = !isMaria || Array.IndexOf(Dispatcher.ActiveNames, "maria2") < 0;
+                    break;
+                case CharacterSelection.RichterClassic:
+                    needsSwitch = !Player.IsRichter || Array.IndexOf(Dispatcher.ActiveNames, "ric") < 0;
+                    break;
+                case CharacterSelection.RichterSaturnCoat:
+                    needsSwitch = !Player.IsRichter || Array.IndexOf(Dispatcher.ActiveNames, "ric2") < 0;
+                    break;
+                case CharacterSelection.Alucard:
+                    needsSwitch = !Player.IsAlucard;
+                    break;
             }
-            LoadGameGraphics(m, "BIN/F_GAME2.BIN");
-            if (MariaLoader.TransformToMaria(c, m))
+
+            if (needsSwitch)
             {
-                UnloadOtherPlayerOverlays(CharacterSelection.SaturnMaria);
-                _wasMaria = true;
-                isMaria = true;
-                ReloadRoomGraphics(c, m);
-                RedrawHud(c, m);
-            }
-            else
-            {
-                _autoTransformFailed = true;
+                _autoTransformFailed = true; // prevent repeated triggers every frame
+                SwitchToCharacter(c, m, desired);
             }
         }
 
@@ -754,7 +775,7 @@ public static class MariaCharacter
     public static void LoadGameGraphics(IMemory m, string filename)
     {
         var cd = RecompOne.Runtime.Runtime.Cd;
-        if (cd == null) return;
+        if (cd == null || !cd.Fs.Exists(filename)) return;
         try
         {
             var data = cd.Fs.ReadFile(filename);
@@ -763,16 +784,14 @@ public static class MariaCharacter
             var gpu = RecompOne.Runtime.Runtime.Gpu;
             var backend = RecompOne.Runtime.Hle.GpuHle.Backend;
 
-            // 32 chunks of 32x128 halfwords (CHUNK_X in VRAM)
+            // HUD texture page (0x200..0x220 in VRAM, y=256 and y=384)
+            // Only chunks 0..3 are HUD; chunks 4..31 contain disc/title graphics that overwrite stage tiles!
             int[] chunkX = [
-                0x200, 0x220, 0x200, 0x220, 0x240, 0x260, 0x240, 0x260,
-                0x280, 0x2A0, 0x280, 0x2A0, 0x2C0, 0x2E0, 0x2C0, 0x2E0,
-                0x300, 0x320, 0x300, 0x320, 0x340, 0x360, 0x340, 0x360,
-                0x380, 0x3A0, 0x380, 0x3A0, 0x3C0, 0x3E0, 0x3C0, 0x3E0
+                0x200, 0x220, 0x200, 0x220
             ];
 
             Span<ushort> chunk = stackalloc ushort[32 * 128];
-            for (int i = 0; i < 32; i++)
+            for (int i = 0; i < chunkX.Length; i++)
             {
                 int vx = chunkX[i];
                 int vy = (i % 4 < 2) ? 256 : 384;
