@@ -10,6 +10,11 @@ namespace Recompiled.Netplay;
 
 public sealed class MultiplayerPanel : IPanel
 {
+    static MultiplayerPanel()
+    {
+        RemotePuppetOverlay.Initialize();
+    }
+
     public string Name => "Multiplayer Co-op & PvP";
     public string TitleKey => "panel.multiplayer";
     public bool IsOpen { get; set; }

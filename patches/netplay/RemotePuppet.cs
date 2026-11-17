@@ -28,6 +28,16 @@ public static class RemotePuppet
     public static byte AttackTrigger { get; private set; } = 0;
     public static byte SubWeapon { get; private set; } = 0;
 
+    public static float InterpX => _interpX;
+    public static float InterpY => _interpY;
+
+    public static string CharacterName => Character switch
+    {
+        1 or 2 or 5 => "Richter",
+        3 or 4 => "Maria",
+        _ => "Alucard"
+    };
+
     private static float _interpX = 0f;
     private static float _interpY = 0f;
     private static bool _wasRendered = false;
@@ -105,9 +115,17 @@ public static class RemotePuppet
         // Remote player is in the same room: render entity puppet
         if (sameStage && sameRoom)
         {
-            // Smooth position interpolation (Lerp 0.35)
-            _interpX = _interpX + (PosX - _interpX) * 0.35f;
-            _interpY = _interpY + (PosY - _interpY) * 0.35f;
+            if (Math.Abs(_interpX - PosX) > 120 || Math.Abs(_interpY - PosY) > 120 || !_wasRendered)
+            {
+                _interpX = PosX;
+                _interpY = PosY;
+            }
+            else
+            {
+                // Smooth position interpolation (Lerp 0.35)
+                _interpX = _interpX + (PosX - _interpX) * 0.35f;
+                _interpY = _interpY + (PosY - _interpY) * 0.35f;
+            }
 
             var puppet = Entities.At(PuppetEntitySlot);
             puppet.PosX = (int)_interpX;

@@ -3,7 +3,7 @@ using ImGuiNET;
 
 namespace RecompOne.Runtime.Host.Window;
 
-internal sealed class OutputPanel : IPanel
+public sealed class OutputPanel : IPanel
 {
     public string Name => "Output";
     public string TitleKey => "panel.output";
@@ -23,6 +23,12 @@ internal sealed class OutputPanel : IPanel
     public static int ViewWidth { get; private set; }
     public static int ViewHeight { get; private set; }
 
+    public static Vector2 ScreenImageMin { get; private set; }
+    public static Vector2 ScreenImageSize { get; private set; }
+    public static bool IsGameRendered { get; private set; }
+
+    public static event Action<Vector2, Vector2>? OnRenderGameOverlay;
+
     public static void SetTexture(uint id, int w, int h, float aspect = 0f)
     {
         (_texId, _texW, _texH, _aspect) = (id, w, h, aspect > 0f ? aspect : 4f / 3f);
@@ -39,6 +45,7 @@ internal sealed class OutputPanel : IPanel
 
         if (!visible)
         {
+            IsGameRendered = false;
             ImGui.End();
             ImGui.PopStyleColor();
             return;
@@ -54,6 +61,23 @@ internal sealed class OutputPanel : IPanel
             var offset = (avail - imageSize) * 0.5f;
             ImGui.SetCursorPos(ImGui.GetCursorPos() + offset);
             ImGui.Image((nint)_texId, imageSize);
+
+            ScreenImageMin = ImGui.GetItemRectMin();
+            ScreenImageSize = ImGui.GetItemRectSize();
+            IsGameRendered = true;
+
+            try
+            {
+                OnRenderGameOverlay?.Invoke(ScreenImageMin, ScreenImageSize);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OutputPanel] Overlay error: {ex.Message}");
+            }
+        }
+        else
+        {
+            IsGameRendered = false;
         }
 
         ToastNotifications.Draw();

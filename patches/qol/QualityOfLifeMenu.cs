@@ -18,6 +18,7 @@ public static class QualityOfLifeMenu
         PanelManager.Register(new BossRespawnPanel());
         PanelManager.Register(new HardcoreModePanel());
         PanelManager.Register(new Recompiled.Netplay.MultiplayerPanel());
+        Recompiled.Netplay.RemotePuppetOverlay.Initialize();
 
         MenuRegistry.Menu("menu.misc").After("menu.mods")
             .Panel<QualityOfLifePanel>("panel.qol")

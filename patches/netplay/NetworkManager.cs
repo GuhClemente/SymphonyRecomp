@@ -290,8 +290,13 @@ public static class NetworkManager
             byte stageId = (byte)Stages.Current;
             byte roomX = (byte)Stages.RoomX;
             byte roomY = (byte)Stages.RoomY;
-            short posX = (short)Player.PosX;
-            short posY = (short)Player.PosY;
+            short posX = (short)m.ReadU16(0x800973F0);
+            short posY = (short)m.ReadU16(0x800973F4);
+            if (posX == 0 && posY == 0)
+            {
+                posX = (short)Player.PosX;
+                posY = (short)Player.PosY;
+            }
             short velX = (short)Player.VelocityX;
             short velY = (short)Player.VelocityY;
             bool facingLeft = Player.FacingLeft;
@@ -299,7 +304,12 @@ public static class NetworkManager
             byte frameId = (byte)m.ReadU8(0x80073406);
             ushort curHp = (ushort)Player.Hp;
             ushort maxHp = (ushort)Player.HpMax;
-            byte character = Player.IsMaria ? (byte)2 : (Player.IsRichter ? (byte)1 : (byte)0);
+            byte character = (byte)LobbyManager.LocalCharacter;
+            if (character == 0)
+            {
+                if (Player.IsMaria) character = 4;
+                else if (Player.IsRichter) character = 1;
+            }
             byte paletteId = (byte)(Role == NetworkRole.Host ? 0 : 1); // Alternate skin for Client
             byte attackTrigger = (byte)(Game.Tapped != 0 ? 1 : 0);
             byte subWeapon = (byte)Inventory.SubWeapon;
