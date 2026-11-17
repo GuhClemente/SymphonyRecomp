@@ -20,7 +20,10 @@ public enum PacketOpCode : byte
     LobbySync = 0x60,
     StartGameSync = 0x61,
     EnterLobbyRoom = 0x62,
-    EnemyDamage = 0x70
+    EnemyDamage = 0x70,
+    PlayerDowned = 0x80,
+    PlayerRevived = 0x81,
+    CoopPing = 0x82
 }
 
 public sealed class NetworkPacket
@@ -333,6 +336,85 @@ public sealed class NetworkPacket
         damage = r.ReadInt16();
         remainingHp = r.ReadInt16();
         isDead = r.ReadByte() != 0;
+        return true;
+    }
+
+    // Co-op Downed State Packet (OpCode 0x80)
+    public static byte[] CreatePlayerDowned(string playerName, byte stage, byte roomX, byte roomY)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(playerName ?? "");
+        w.Write(stage);
+        w.Write(roomX);
+        w.Write(roomY);
+        return ms.ToArray();
+    }
+
+    public static bool ReadPlayerDowned(byte[] payload, out string playerName, out byte stage, out byte roomX, out byte roomY)
+    {
+        playerName = "";
+        stage = roomX = roomY = 0;
+        if (payload == null || payload.Length < 4) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms);
+        playerName = r.ReadString();
+        stage = r.ReadByte();
+        roomX = r.ReadByte();
+        roomY = r.ReadByte();
+        return true;
+    }
+
+    // Co-op Revival Packet (OpCode 0x81)
+    public static byte[] CreatePlayerRevived(string reviverName, ushort restoredHp)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(reviverName ?? "");
+        w.Write(restoredHp);
+        return ms.ToArray();
+    }
+
+    public static bool ReadPlayerRevived(byte[] payload, out string reviverName, out ushort restoredHp)
+    {
+        reviverName = "";
+        restoredHp = 0;
+        if (payload == null || payload.Length < 3) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms);
+        reviverName = r.ReadString();
+        restoredHp = r.ReadUInt16();
+        return true;
+    }
+
+    // Co-op Tactical Ping Packet (OpCode 0x82)
+    public static byte[] CreateCoopPing(byte pingType, byte stage, byte roomX, byte roomY, string sender)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(pingType);
+        w.Write(stage);
+        w.Write(roomX);
+        w.Write(roomY);
+        w.Write(sender ?? "");
+        return ms.ToArray();
+    }
+
+    public static bool ReadCoopPing(byte[] payload, out byte pingType, out byte stage, out byte roomX, out byte roomY, out string sender)
+    {
+        pingType = stage = roomX = roomY = 0;
+        sender = "";
+        if (payload == null || payload.Length < 5) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms);
+        pingType = r.ReadByte();
+        stage = r.ReadByte();
+        roomX = r.ReadByte();
+        roomY = r.ReadByte();
+        sender = r.ReadString();
         return true;
     }
 }

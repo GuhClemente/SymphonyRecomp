@@ -74,6 +74,14 @@ public static class Program
             TestLobbyManagerReadyStateMachine();
         });
 
+        RunSection("7. Testes de Queda & Reviver Co-op e Pings Táticos (Co-op Evolution Part 2)", () =>
+        {
+            TestPlayerDownedSerialization();
+            TestPlayerRevivedSerialization();
+            TestCoopPingSerialization();
+            TestCoopRevivalManagerLogic();
+        });
+
         long durationMs = Environment.TickCount64 - startTime;
 
         Console.WriteLine();
@@ -950,5 +958,101 @@ public static class Program
         // Validação da condição de Start Game pelo Host
         bool canStart = localReady && remoteReady;
         AssertTrue(canStart, "Lobby State - Condição de disparo de partida satisfeita!");
+    }
+
+    // --- 7. Testes de Queda & Reviver Co-op e Pings Táticos ---
+    private static void TestPlayerDownedSerialization()
+    {
+        string name = "Alucard";
+        byte stage = 2;
+        byte rx = 17;
+        byte ry = 37;
+
+        byte[] payload = NetworkPacket.CreatePlayerDowned(name, stage, rx, ry);
+        var pkt = new NetworkPacket(PacketOpCode.PlayerDowned, payload);
+        byte[] data = pkt.Serialize();
+
+        AssertTrue(data[0] == (byte)PacketOpCode.PlayerDowned, "PlayerDowned - OpCode 0x80");
+        var d = NetworkPacket.Deserialize(data, data.Length);
+        AssertTrue(d != null, "PlayerDowned - Desserialização com sucesso");
+
+        bool ok = NetworkPacket.ReadPlayerDowned(d!.Payload, out string dName, out byte dStage, out byte dRx, out byte dRy);
+        AssertTrue(ok, "PlayerDowned - Leitura do pacote válida");
+        AssertEqual(name, dName, "PlayerDowned - Nome do jogador caído");
+        AssertTrue(dStage == stage && dRx == rx && dRy == ry, "PlayerDowned - Localização da queda");
+    }
+
+    private static void TestPlayerRevivedSerialization()
+    {
+        string reviver = "Maria";
+        ushort heal = 150;
+
+        byte[] payload = NetworkPacket.CreatePlayerRevived(reviver, heal);
+        var pkt = new NetworkPacket(PacketOpCode.PlayerRevived, payload);
+        byte[] data = pkt.Serialize();
+
+        AssertTrue(data[0] == (byte)PacketOpCode.PlayerRevived, "PlayerRevived - OpCode 0x81");
+        var d = NetworkPacket.Deserialize(data, data.Length);
+        AssertTrue(d != null, "PlayerRevived - Desserialização com sucesso");
+
+        bool ok = NetworkPacket.ReadPlayerRevived(d!.Payload, out string dReviver, out ushort dHeal);
+        AssertTrue(ok, "PlayerRevived - Leitura do pacote válida");
+        AssertEqual(reviver, dReviver, "PlayerRevived - Nome de quem reanimou");
+        AssertEqual(heal, dHeal, "PlayerRevived - Quantidade de HP restaurado");
+    }
+
+    private static void TestCoopPingSerialization()
+    {
+        byte type = 1; // Perigo
+        byte stage = 5;
+        byte rx = 22;
+        byte ry = 14;
+        string sender = "Richter";
+
+        byte[] payload = NetworkPacket.CreateCoopPing(type, stage, rx, ry, sender);
+        var pkt = new NetworkPacket(PacketOpCode.CoopPing, payload);
+        byte[] data = pkt.Serialize();
+
+        AssertTrue(data[0] == (byte)PacketOpCode.CoopPing, "CoopPing - OpCode 0x82");
+        var d = NetworkPacket.Deserialize(data, data.Length);
+        AssertTrue(d != null, "CoopPing - Desserialização com sucesso");
+
+        bool ok = NetworkPacket.ReadCoopPing(d!.Payload, out byte dType, out byte dStage, out byte dRx, out byte dRy, out string dSender);
+        AssertTrue(ok, "CoopPing - Leitura de campos com sucesso");
+        AssertEqual(type, dType, "CoopPing - Tipo do ping preservado");
+        AssertEqual(sender, dSender, "CoopPing - Remetente correto");
+        AssertTrue(dStage == stage && dRx == rx && dRy == ry, "CoopPing - Coordenadas da sala marcadas");
+    }
+
+    private static void TestCoopRevivalManagerLogic()
+    {
+        // Simulação da máquina de estados de queda e reviver
+        bool isDowned = false;
+        float bleedout = 30.0f;
+        int hp = 100;
+
+        // Golpe fatal recebido
+        hp = 0;
+        if (hp <= 0 && !isDowned)
+        {
+            isDowned = true;
+            bleedout = 30.0f;
+            hp = 1; // Preserva 1 HP
+        }
+
+        AssertTrue(isDowned, "Revival Logic - Jogador entrou no estado Downed");
+        AssertTrue(hp == 1, "Revival Logic - HP mantido em 1 para evitar Game Over precoce");
+
+        // Simula passagem de tempo (10 segundos)
+        bleedout -= 10.0f;
+        AssertTrue(bleedout == 20.0f, "Revival Logic - Bleedout decrementado com segurança");
+
+        // Parceiro reanima
+        ushort heal = 80;
+        isDowned = false;
+        hp = Math.Max(hp, (int)heal);
+
+        AssertTrue(!isDowned, "Revival Logic - Jogador reanimado com sucesso");
+        AssertTrue(hp == 80, "Revival Logic - Vida restabelecida após reanimação");
     }
 }

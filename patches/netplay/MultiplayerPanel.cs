@@ -474,7 +474,33 @@ public sealed class MultiplayerPanel : IPanel
             drawList.AddText(remPos + new Vector2(7, -6), ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 0.85f, 0.2f, 1f)), NetworkManager.RemotePlayerName);
         }
 
+        // Desenhar Marcador de Ping Tático Ativo
+        if (CoopPingManager.HasActivePing)
+        {
+            int pingX = Math.Clamp((int)CoopPingManager.PingRoomX, 0, 63);
+            int pingY = Math.Clamp((int)CoopPingManager.PingRoomY, 0, 31);
+            Vector2 pPos = canvasPos + new Vector2(pingX * tileSizeX + tileSizeX * 0.5f, pingY * tileSizeY + tileSizeY * 0.5f);
+            float pingPulse = (MathF.Sin((float)ImGui.GetTime() * 8f) + 1f) * 0.5f;
+            float pRadius = 6f + pingPulse * 6f;
+            drawList.AddCircle(pPos, pRadius, ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 0.9f, 0.1f, 1f)), 16, 2.5f);
+            drawList.AddCircleFilled(pPos, 3.5f, ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 0.3f, 0.1f, 1f)));
+        }
+
         ImGui.Dummy(canvasSize);
+
+        ImGui.Spacing();
+
+        // Pings Táticos Rápidos (Botões de Marcador)
+        ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), "Pings Táticos (Enviar Marcador no Mapa do Parceiro):");
+        for (byte i = 0; i < CoopPingManager.PingPresets.Length; i++)
+        {
+            var p = CoopPingManager.PingPresets[i];
+            if (ImGui.Button($"{p.Icon} {p.Label}"))
+            {
+                CoopPingManager.SendPing(i);
+            }
+            if (i < CoopPingManager.PingPresets.Length - 1) ImGui.SameLine();
+        }
 
         ImGui.Spacing();
         if (NetworkManager.IsConnected && RemotePuppet.IsActive)
@@ -492,6 +518,28 @@ public sealed class MultiplayerPanel : IPanel
         {
             ImGui.TextColored(new Vector4(1f, 0.5f, 0.2f, 1f), "Você precisa estar conectado a uma sessão multiplayer para ver os jogadores.");
             return;
+        }
+
+        // ALERTA DE QUEDA / SISTEMA DE REVIVER CO-OP
+        if (CoopRevivalManager.IsRemoteDowned)
+        {
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.40f, 0.10f, 0.10f, 0.85f));
+            ImGui.BeginChild("downed_remote_box", new Vector2(-1, 75), ImGuiChildFlags.Borders);
+            ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), $"[ALERTA DE QUEDA] {NetworkManager.RemotePlayerName} FOI DERRUBADO!");
+            ImGui.Text($"Tempo de Sangramento: {CoopRevivalManager.RemoteBleedoutTimer:F0}s restantes");
+            if (ImGui.Button("REANIMAR COMPANHEIRO AGORA (LUZ SAGRADA)", new Vector2(-1, 28)))
+            {
+                CoopRevivalManager.RequestReviveRemotePlayer();
+            }
+            ImGui.EndChild();
+            ImGui.PopStyleColor();
+            ImGui.Spacing();
+        }
+
+        if (CoopRevivalManager.IsLocalDowned)
+        {
+            ImGui.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), $"[VOCÊ ESTÁ DERRUBADO!] Restam {CoopRevivalManager.LocalBleedoutTimer:F0}s para seu parceiro reanimar você!");
+            ImGui.Spacing();
         }
 
         ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Jogadores no Castelo:");
@@ -515,6 +563,24 @@ public sealed class MultiplayerPanel : IPanel
         ImGui.Text($"[Parceiro] {NetworkManager.RemotePlayerName} ({remoteChar}):");
         ImGui.ProgressBar((float)RemotePuppet.CurHp / Math.Max(1, (int)RemotePuppet.MaxHp), new Vector2(240, 18), $"HP: {RemotePuppet.CurHp}/{RemotePuppet.MaxHp}");
         ImGui.TextDisabled($"Área Atual: {(Stage)RemotePuppet.StageId} (Sala: {RemotePuppet.RoomX}, {RemotePuppet.RoomY})");
+
+        // Informação de Batalha de Chefe Compartilhada
+        var currentBoss = BossRespawnPanel.Bosses.FirstOrDefault(b => b.Stage == (Stage)Stages.Current && b.RoomX == Stages.RoomX && b.RoomY == Stages.RoomY);
+        if (currentBoss != null)
+        {
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), $"BATALHA DE CHEFE CO-OP: {currentBoss.Name}");
+            bool defeated = Progress.GetTimeAttack(currentBoss.Event) > 0;
+            if (defeated)
+            {
+                ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "[✓] Chefe Derrotado em Cooperação!");
+            }
+            else
+            {
+                ImGui.TextColored(new Vector4(1f, 0.35f, 0.35f, 1f), "[!] Chefe Ativo na Sala! Ataquem e derrotem juntos!");
+            }
+        }
 
         ImGui.Spacing();
 

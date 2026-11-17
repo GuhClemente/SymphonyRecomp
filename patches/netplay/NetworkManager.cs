@@ -311,6 +311,11 @@ public static class NetworkManager
 
         // Update Remote Puppet in the current room
         RemotePuppet.Update(c, m);
+
+        // Update Co-op Revival and Ping Systems
+        CoopRevivalManager.CheckLocalPlayerHealth(c, m);
+        CoopRevivalManager.Update(1f / 60f);
+        CoopPingManager.Update(1f / 60f);
     }
 
     private static void HandlePacket(NetworkPacket packet, IMemory m)
@@ -396,6 +401,18 @@ public static class NetworkManager
 
             case PacketOpCode.EnemyDamage:
                 EnemySyncManager.HandleRemoteEnemyDamage(packet.Payload, m);
+                break;
+
+            case PacketOpCode.PlayerDowned:
+                CoopRevivalManager.HandleRemotePlayerDowned(packet.Payload);
+                break;
+
+            case PacketOpCode.PlayerRevived:
+                CoopRevivalManager.HandleRemotePlayerRevived(packet.Payload);
+                break;
+
+            case PacketOpCode.CoopPing:
+                CoopPingManager.ReceivePing(packet.Payload);
                 break;
         }
     }
