@@ -43,6 +43,7 @@
             </a>
             
             <nav class="nav-links">
+                <a href="#characters" class="nav-link"><i class="fa-solid fa-users-rays"></i> Personagens</a>
                 <a href="#features" class="nav-link"><i class="fa-solid fa-bolt"></i> Recursos</a>
                 <a href="#multiplayer" class="nav-link"><i class="fa-solid fa-network-wired"></i> Multiplayer</a>
                 <a href="#hardcore" class="nav-link"><i class="fa-solid fa-skull"></i> Hardcore</a>
@@ -80,8 +81,9 @@
 
             <div class="hero-buttons animate-slide-up-delay-2">
                 <a href="#install" class="btn btn-primary"><i class="fa-solid fa-play"></i> Começar a Jogar</a>
-                <a href="#multiplayer" class="btn btn-secondary"><i class="fa-solid fa-users"></i> Explorar Multiplayer</a>
-                <a href="#shortcuts" class="btn btn-outline"><i class="fa-solid fa-keyboard"></i> Guia de Atalhos</a>
+                <a href="#characters" class="btn btn-secondary"><i class="fa-solid fa-users-rays"></i> Personagens & Magias</a>
+                <a href="#multiplayer" class="btn btn-outline"><i class="fa-solid fa-network-wired"></i> Multiplayer Co-op</a>
+                <a href="#shortcuts" class="btn btn-outline"><i class="fa-solid fa-keyboard"></i> Atalhos</a>
             </div>
 
             <!-- STATS COUNTER -->
@@ -345,6 +347,522 @@
                 </div>
 
             </div>
+        </div>
+    </section>
+
+    <!-- SECTION: CHARACTERS & SPELLS SHOWCASE -->
+    <section class="section section-roster" id="characters">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge"><i class="fa-solid fa-users-rays"></i> ROSTER DEFINITIVO & MAGIAS</span>
+                <h2 class="section-title">Personagens Jogáveis & Arsenal Mágico</h2>
+                <p class="section-subtitle">
+                    Explore os sprites autênticos, habilidades exclusivas e a lista completa de magias, item crashes e invocações sagradas de cada caçador.
+                </p>
+            </div>
+
+            <!-- TABS -->
+            <div class="roster-tabs">
+                <button class="roster-tab active" data-target="char-alucard">
+                    <i class="fa-solid fa-bat"></i> <span>Alucard (Dhampir)</span>
+                </button>
+                <button class="roster-tab" data-target="char-richter">
+                    <i class="fa-solid fa-cross"></i> <span>Richter Belmont (3 Trajes)</span>
+                </button>
+                <button class="roster-tab" data-target="char-maria-saturn">
+                    <i class="fa-solid fa-dove"></i> <span>Maria Renard (Saturn)</span>
+                </button>
+                <button class="roster-tab" data-target="char-maria-psp">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> <span>Maria Renard (PSP)</span>
+                </button>
+            </div>
+
+            <!-- TAB PANE 1: ALUCARD -->
+            <div class="roster-pane active" id="char-alucard">
+                <div class="char-profile">
+                    <div class="char-visual">
+                        <span class="char-badge-role badge-vampire">Dhampir Imortal</span>
+                        <img src="assets/alucard_idle.png" alt="Alucard Sprite" class="char-main-sprite">
+                        <div class="char-gallery-thumbs">
+                            <div class="thumb-card">
+                                <img src="assets/alucard_attack.png" alt="Ataque">
+                                <span>Espada</span>
+                            </div>
+                            <div class="thumb-card">
+                                <img src="assets/alucard_spell.png" alt="Feitiço">
+                                <span>Conjuração</span>
+                            </div>
+                            <div class="thumb-card">
+                                <img src="assets/alucard_soul_steal.png" alt="Soul Steal">
+                                <span>Soul Steal</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="char-details">
+                        <h3>Alucard (Adrian Fahrenheit Ţepeş)</h3>
+                        <div class="char-subtitle">Herdeiro de Drácula & Guardião do Equilíbrio Entre Homens e Monstros</div>
+                        <p class="char-lore">
+                            Filho de Drácula e da humana Lisa, Alucard desperta de seu sono secular após o desaparecimento de Richter Belmont. Dotado de agilidade sobrenatural, metamorfoses sombrias em morcego, lobo e névoa, além de um arsenal de magias de sangue devastadoras.
+                        </p>
+                        <div class="char-traits-grid">
+                            <div class="trait-item">
+                                <i class="fa-solid fa-khanda"></i>
+                                <div class="trait-text">
+                                    <h5>Arma Principal</h5>
+                                    <p>Espadas, Escudos & Varas</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-wand-sparkles"></i>
+                                <div class="trait-text">
+                                    <h5>Fonte de Poder</h5>
+                                    <p>Barra de Mana (MP)</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-feather-pointed"></i>
+                                <div class="trait-text">
+                                    <h5>Movimentação</h5>
+                                    <p>Sprint Nativo & Salto Duplo</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-shield-heart"></i>
+                                <div class="trait-text">
+                                    <h5>Recurso QoL</h5>
+                                    <p>Death Skip Opcional</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ALUCARD SPELLS GRID -->
+                <div class="roster-spells-header">
+                    <h4><i class="fa-solid fa-book-skull"></i> Grimório de Magias de Sangue</h4>
+                    <span class="badge-tag">CONJURAÇÃO RÁPIDA (1-6)</span>
+                </div>
+                <div class="spells-grid">
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-ghost"></i> Summon Spirit</span>
+                            <span class="spell-cost cost-mp">5 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">← → ↑ ↓ + Ataque</span>
+                            <span class="spell-quick-key">Tecla [1]</span>
+                        </div>
+                        <p class="spell-desc">Invoca um espírito espectral menor que persegue e atinge o inimigo mais próximo na sala com dano das trevas.</p>
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-burst"></i> Tetra Spirit</span>
+                            <span class="spell-cost cost-mp">20 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">[Segurar ↑] ↗ → ↘ ↓ + Ataque</span>
+                            <span class="spell-quick-key">Tecla [2]</span>
+                        </div>
+                        <p class="spell-desc">Quatro espíritos vorazes disparados simultaneamente em formação em leque para aniquilar múltiplos alvos.</p>
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-droplet"></i> Dark Metamorphosis</span>
+                            <span class="spell-cost cost-mp">10 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">← ↖ ↑ ↗ → + Ataque</span>
+                            <span class="spell-quick-key">Tecla [3]</span>
+                        </div>
+                        <p class="spell-desc">Concede uma aura vampírica que restaura o HP de Alucard instantaneamente ao entrar em contato com o sangue de inimigos cortados.</p>
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-fire-flame-curved"></i> Hellfire</span>
+                            <span class="spell-cost cost-mp">15 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">↑ ↓ ↘ → + Ataque</span>
+                            <span class="spell-quick-key">Tecla [4]</span>
+                        </div>
+                        <p class="spell-desc">Alucard se envolve em sua capa escura, teleporta-se alguns passos e dispara esferas flamejantes do inferno.</p>
+                        <img src="assets/alucard_hellfire.png" alt="Hellfire" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-skull"></i> Soul Steal</span>
+                            <span class="spell-cost cost-mp">50 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">← → ↘ ↓ ↙ ← → + Ataque</span>
+                            <span class="spell-quick-key">Tecla [5]</span>
+                        </div>
+                        <p class="spell-desc">O feitiço supremo de Alucard: emite ondas espirituais gigantescas que drenam a vida de todas as entidades vivas na tela para curar seu usuário.</p>
+                        <img src="assets/alucard_soul_steal.png" alt="Soul Steal" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-shield-halved"></i> Sword Brothers</span>
+                            <span class="spell-cost cost-mp">30 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">↓ ↘ → ↗ ↑ [Segurar ↑] ↓ + Ataque</span>
+                            <span class="spell-quick-key">Tecla [6]</span>
+                        </div>
+                        <p class="spell-desc">Com o Familiar Espada ativo, invoca uma tempestade giratória de lâminas celestiais que causa dano contínuo devastador.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB PANE 2: RICHTER BELMONT -->
+            <div class="roster-pane" id="char-richter">
+                <div class="char-profile">
+                    <div class="char-visual">
+                        <span class="char-badge-role badge-hunter">Caçador de Vampiros</span>
+                        <img src="assets/richter_classic.png" alt="Richter Belmont" class="char-main-sprite">
+                        <div class="char-gallery-thumbs">
+                            <div class="thumb-card">
+                                <img src="assets/richter_classic.png" alt="Clássico">
+                                <span>Colete PS1</span>
+                            </div>
+                            <div class="thumb-card">
+                                <img src="assets/richter_saturn_coat.png" alt="Saturn Coat">
+                                <span>Sobretudo Saturn</span>
+                            </div>
+                            <div class="thumb-card">
+                                <img src="assets/richter_brown_coat.png" alt="Couro Simon">
+                                <span>Couro Marrom</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="char-details">
+                        <h3>Richter Belmont</h3>
+                        <div class="char-subtitle">Herdeiro do Chicote Sagrado & Protagonista de Rondo of Blood</div>
+                        <p class="char-lore">
+                            Um dos caçadores mais poderosos da linhagem Belmont. O SymphonyRecomp expande Richter com <strong>3 figurinos completos</strong>, permitindo alternar entre seu clássico colete azul sem mangas, o icônico sobretudo azul com mangas compridas do Sega Saturn e o novo sobretudo de couro marrom inspirado em Simon e Trevor Belmont!
+                        </p>
+                        <div class="char-traits-grid">
+                            <div class="trait-item">
+                                <i class="fa-solid fa-wand-magic"></i>
+                                <div class="trait-text">
+                                    <h5>Arma Principal</h5>
+                                    <p>Vampire Killer & Sub-armas</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-heart"></i>
+                                <div class="trait-text">
+                                    <h5>Fonte de Poder</h5>
+                                    <p>Corações Sagrados</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-bolt"></i>
+                                <div class="trait-text">
+                                    <h5>Movimentação</h5>
+                                    <p>Super Pulo, Backflip & Dash</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-shield"></i>
+                                <div class="trait-text">
+                                    <h5>Item Crash Rápido</h5>
+                                    <p>Botão Triângulo (△ / V)</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="costume-box">
+                            <h5><i class="fa-solid fa-shirt"></i> 3 Figurinos Selecionáveis em Tempo Real:</h5>
+                            <div class="costume-list">
+                                <div class="costume-item active-costume">
+                                    <strong>1. Clássico PS1</strong><br>Colete azul sem mangas original
+                                </div>
+                                <div class="costume-item">
+                                    <strong>2. Saturn Coat</strong><br>Sobretudo azul com bordados dourados
+                                </div>
+                                <div class="costume-item">
+                                    <strong>3. Couro Marrom</strong><br>Estilo rústico Simon Belmont
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RICHTER CRASHES GRID -->
+                <div class="roster-spells-header">
+                    <h4><i class="fa-solid fa-cross"></i> Arsenal de Item Crashes & Artes Marciais</h4>
+                    <span class="badge-tag">GOLPES SUPREMOS (1-6)</span>
+                </div>
+                <div class="spells-grid">
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-cloud-showers-heavy"></i> Hydro Storm</span>
+                            <span class="spell-cost cost-hearts">15 Corações</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">Sub-arma: Água Benta</span>
+                            <span class="spell-quick-key">Tecla [1]</span>
+                        </div>
+                        <p class="spell-desc">Uma chuva torrencial de água benta que atinge a sala inteira sem deixar ponto cego, purificando monstros em segundos.</p>
+                        <img src="assets/richter_hydro_storm.png" alt="Hydro Storm" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-sun"></i> Grand Cross</span>
+                            <span class="spell-cost cost-hearts">20 Corações</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">Sub-arma: Cruz Sagrada</span>
+                            <span class="spell-quick-key">Tecla [2]</span>
+                        </div>
+                        <p class="spell-desc">Ergue uma gigantesca coluna de crucifixos luminosos com invulnerabilidade absoluta e dano sagrado letal.</p>
+                        <img src="assets/richter_grand_cross.png" alt="Grand Cross" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-dagger"></i> Thousand Blades</span>
+                            <span class="spell-cost cost-hearts">10 Corações</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">Sub-arma: Adaga de Prata</span>
+                            <span class="spell-quick-key">Tecla [3]</span>
+                        </div>
+                        <p class="spell-desc">Disparo em alta cadência de centenas de adagas afiadas que varrem os inimigos em linha horizontal reta.</p>
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-gavel"></i> Axe Rain</span>
+                            <span class="spell-cost cost-hearts">10 Corações</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">Sub-arma: Machado de Batalha</span>
+                            <span class="spell-quick-key">Tecla [4]</span>
+                        </div>
+                        <p class="spell-desc">Conjura uma espiral ascendente e descendente de machados voadores giratórios que despedaçam alvos no ar.</p>
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-book-bible"></i> Burning Bible</span>
+                            <span class="spell-cost cost-hearts">15 Corações</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">Sub-arma: Bíblia Sagrada</span>
+                            <span class="spell-quick-key">Tecla [5]</span>
+                        </div>
+                        <p class="spell-desc">Livros sagrados em chamas orbitam Richter em altíssima velocidade, formando uma couraça impenetrável que detona inimigos.</p>
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-forward-fast"></i> Blade Dash</span>
+                            <span class="spell-cost cost-free">0 Corações</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">↓ ↘ → + Ataque</span>
+                            <span class="spell-quick-key">Tecla [6]</span>
+                        </div>
+                        <p class="spell-desc">Investida supersônica cortante que atravessa inimigos e barreiras com frames de invulnerabilidade e dano cortante puro.</p>
+                        <img src="assets/richter_blade_dash.png" alt="Blade Dash" class="spell-shot">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB PANE 3: MARIA RENARD (SATURN) -->
+            <div class="roster-pane" id="char-maria-saturn">
+                <div class="char-profile">
+                    <div class="char-visual">
+                        <span class="char-badge-role badge-maiden">Donzela Sagrada (Saturn)</span>
+                        <img src="assets/maria_saturn_idle.png" alt="Maria Saturn" class="char-main-sprite">
+                        <div class="char-gallery-thumbs">
+                            <div class="thumb-card">
+                                <img src="assets/maria_saturn_jump.png" alt="Pulo Triplo">
+                                <span>Pulo Triplo</span>
+                            </div>
+                            <div class="thumb-card">
+                                <img src="assets/maria_suzaku.png" alt="Suzaku">
+                                <span>Suzaku</span>
+                            </div>
+                            <div class="thumb-card">
+                                <img src="assets/maria_seiryuu.png" alt="Seiryuu">
+                                <span>Seiryuu</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="char-details">
+                        <h3>Maria Renard (Sega Saturn Edition)</h3>
+                        <div class="char-subtitle">Acrobata Mística & Mestra das Quatro Bestas Sagradas (Shijin)</div>
+                        <p class="char-lore">
+                            Aclamada por sua jogabilidade dinâmica no Sega Saturn, Maria chega ao SymphonyRecomp com toda a sua acrobacia lendária: <strong>pulo triplo no ar</strong>, disparo duplo de pombas brancas, corrida fluida, ataque carregado e a poderosa invocação das Quatro Bestas Celestes!
+                        </p>
+                        <div class="char-traits-grid">
+                            <div class="trait-item">
+                                <i class="fa-solid fa-dove"></i>
+                                <div class="trait-text">
+                                    <h5>Ataque Básico</h5>
+                                    <p>Pombas Mágicas & Carga</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-dragon"></i>
+                                <div class="trait-text">
+                                    <h5>Bestas Sagradas</h5>
+                                    <p>Suzaku, Byakko, Genbu, Seiryuu</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-shoe-prints"></i>
+                                <div class="trait-text">
+                                    <h5>Mobilidade</h5>
+                                    <p>Pulo Triplo no Ar</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-leaf"></i>
+                                <div class="trait-text">
+                                    <h5>HUD Clássico</h5>
+                                    <p>Moldura Floral de Saturn</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MARIA SATURN SPELLS GRID -->
+                <div class="roster-spells-header">
+                    <h4><i class="fa-solid fa-dragon"></i> Invocações dos Animais Celestiais</h4>
+                    <span class="badge-tag">MAGIAS DO SATURN (1-6)</span>
+                </div>
+                <div class="spells-grid">
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-hand-fist"></i> Guardian Knuckle</span>
+                            <span class="spell-cost cost-mp">10 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">↓ ↘ → + Ataque</span>
+                            <span class="spell-quick-key">Tecla [1]</span>
+                        </div>
+                        <p class="spell-desc">Projeta o punho espiritual do Guardião Sagrado à frente em alta velocidade, quebrando projéteis e causando dano de impacto.</p>
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-fire"></i> Suzaku (Fênix Vermelha)</span>
+                            <span class="spell-cost cost-mp">20 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">↑ ↗ → ↘ ↓ + Ataque</span>
+                            <span class="spell-quick-key">Tecla [2]</span>
+                        </div>
+                        <p class="spell-desc">Invoca o pássaro de fogo celeste que sobrevoa a arena incinerando todos os inimigos no caminho.</p>
+                        <img src="assets/maria_suzaku.png" alt="Suzaku" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-shield"></i> Genbu (Tartaruga Negra)</span>
+                            <span class="spell-cost cost-mp">15 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">← ↙ ↓ ↘ → + Ataque</span>
+                            <span class="spell-quick-key">Tecla [3]</span>
+                        </div>
+                        <p class="spell-desc">Forma uma concha defensiva mística impenetrável ao redor de Maria, curando seu HP e repelindo projéteis inimigos.</p>
+                        <img src="assets/maria_genbu.png" alt="Genbu" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-paw"></i> Byakko (Tigre Branco)</span>
+                            <span class="spell-cost cost-mp">25 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">← → ↘ ↓ + Ataque</span>
+                            <span class="spell-quick-key">Tecla [4]</span>
+                        </div>
+                        <p class="spell-desc">O lendário tigre reluzente avança velozmente em terra, atacando com garras elétricas de alto poder destrutivo.</p>
+                        <img src="assets/maria_byakko.png" alt="Byakko" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-bolt-lightning"></i> Seiryuu (Dragão Azul)</span>
+                            <span class="spell-cost cost-mp">30 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">→ ↘ ↓ ↙ ← + Ataque</span>
+                            <span class="spell-quick-key">Tecla [5]</span>
+                        </div>
+                        <p class="spell-desc">Um colossal dragão sagrado surge nos céus, lançando tempestades elétricas contínuas nos canais sonoros autênticos da SPU.</p>
+                        <img src="assets/maria_seiryuu.png" alt="Seiryuu" class="spell-shot">
+                    </div>
+                    <div class="spell-card">
+                        <div class="spell-top">
+                            <span class="spell-name"><i class="fa-solid fa-star-and-crescent"></i> Cântico das Quatro Bestas</span>
+                            <span class="spell-cost cost-mp">50 MP</span>
+                        </div>
+                        <div class="spell-meta">
+                            <span class="spell-input">Giro Completo + Ataque</span>
+                            <span class="spell-quick-key">Tecla [6]</span>
+                        </div>
+                        <p class="spell-desc">A invocação suprema e sagrada de Maria: as Quatro Bestas convergem em um turbilhão divino que limpa toda a sala.</p>
+                        <img src="assets/maria_quatro_bestas.png" alt="Quatro Bestas" class="spell-shot">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB PANE 4: MARIA RENARD (PSP) -->
+            <div class="roster-pane" id="char-maria-psp">
+                <div class="char-profile">
+                    <div class="char-visual">
+                        <span class="char-badge-role badge-maiden">Versão PSP DXC</span>
+                        <img src="assets/maria_psp_idle.png" alt="Maria PSP" class="char-main-sprite">
+                        <div class="char-gallery-thumbs">
+                            <div class="thumb-card">
+                                <img src="assets/maria_psp_hud.png" alt="HUD Dois Ícones">
+                                <span>HUD Duplo</span>
+                            </div>
+                            <div class="thumb-card">
+                                <img src="assets/maria_psp_special.png" alt="Ataque Especial">
+                                <span>Especial</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="char-details">
+                        <h3>Maria Renard (The Dracula X Chronicles)</h3>
+                        <div class="char-subtitle">A Versão Ágil com Subweapons Duplos Rotativos</div>
+                        <p class="char-lore">
+                            Portada diretamente da versão de PlayStation Portable (*Castlevania: The Dracula X Chronicles*), esta versão de Maria foca na velocidade, ataques mágicos rápidos e um sistema de combate refinado, trazendo seu exclusivo <strong>HUD de Subweapon Duplo</strong>!
+                        </p>
+                        <div class="char-traits-grid">
+                            <div class="trait-item">
+                                <i class="fa-solid fa-arrows-rotate"></i>
+                                <div class="trait-text">
+                                    <h5>Subweapons</h5>
+                                    <p>Dois Slots Simultâneos</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-microphone-lines"></i>
+                                <div class="trait-text">
+                                    <h5>Vozes Autênticas</h5>
+                                    <p>Vozes e Gritos do PSP</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-gauge-high"></i>
+                                <div class="trait-text">
+                                    <h5>Estilo de Jogo</h5>
+                                    <p>Combate Ágil & Rápido</p>
+                                </div>
+                            </div>
+                            <div class="trait-item">
+                                <i class="fa-solid fa-sparkles"></i>
+                                <div class="trait-text">
+                                    <h5>Magia Triângulo</h5>
+                                    <p>Disparo Mágico no Botão △</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </section>
 

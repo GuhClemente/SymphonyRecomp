@@ -415,6 +415,39 @@ tr:hover {{
     background: rgba(212, 175, 55, 0.06);
 }}
 
+.cost-mp {{
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(56, 189, 248, 0.2);
+    color: #7dd3fc;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 13px;
+}}
+
+.cost-hearts {{
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(230, 32, 53, 0.2);
+    color: #ff8a95;
+    border: 1px solid rgba(230, 32, 53, 0.4);
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 13px;
+}}
+
+.cost-free {{
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 13px;
+}}
+
 /* =========================================================
    PERSONAGENS & GALERIAS DE CAPTURA EM 1280x720
 ========================================================= */
@@ -1071,6 +1104,163 @@ tr:hover {{
             <li><span class="highlight">Arsenal do Sega Saturn:</span> Botas da Velocidade (God Speed Shoes), Terceira Mão / Holder (L2) e Efeito Dinâmico de Cor no Manto do Arco-Íris.</li>
             <li><span class="highlight">Tríplice Seleção de Dublagem:</span> Alterne em tempo real entre a dublagem da PSP (Dracula X Chronicles), a dublagem clássica de PS1 ("What is a man?") e o áudio japonês original com legendas em português.</li>
         </ul>
+    </div>
+
+    <!-- 3.6 TABELA MESTRA DE MAGIAS, ITEM CRASHES & HABILIDADES -->
+    <div class="char-card no-break" style="margin-top: 25px;">
+        <div class="char-header">
+            <div class="char-name">3.6 Grimório & Tabela Mestra de Habilidades (Alucard, Richter & Maria)</div>
+            <div class="char-badge badge-alu">COMPÊNDIO DE COMBATE</div>
+        </div>
+        <p class="char-desc">
+            Referência rápida completa de todos os feitiços, item crashes e invocações do jogo com comando clássico no controle, tecla rápida (1 a 6), custo de mana/corações e efeito:
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Personagem</th>
+                    <th>Magia / Habilidade</th>
+                    <th>Custo</th>
+                    <th>Comando Clássico (Controle)</th>
+                    <th>Atalho Teclado</th>
+                    <th>Efeito de Combate</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- ALUCARD -->
+                <tr>
+                    <td rowspan="6"><strong>Alucard</strong></td>
+                    <td><strong>Summon Spirit</strong></td>
+                    <td><span class="cost-mp">5 MP</span></td>
+                    <td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>1</kbd></td>
+                    <td>Espírito teleguiado que persegue e atinge o inimigo mais próximo.</td>
+                </tr>
+                <tr>
+                    <td><strong>Tetra Spirit</strong></td>
+                    <td><span class="cost-mp">20 MP</span></td>
+                    <td>[Segurar <kbd>↑</kbd>] <kbd>↗</kbd> <kbd>→</kbd> <kbd>↘</kbd> <kbd>↓</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>2</kbd></td>
+                    <td>Dispara 4 espíritos teleguiados em formação em leque.</td>
+                </tr>
+                <tr>
+                    <td><strong>Dark Metamorphosis</strong></td>
+                    <td><span class="cost-mp">10 MP</span></td>
+                    <td><kbd>←</kbd> <kbd>↖</kbd> <kbd>↑</kbd> <kbd>↗</kbd> <kbd>→</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>3</kbd></td>
+                    <td>Absorve o sangue de monstros cortados para restaurar o HP.</td>
+                </tr>
+                <tr>
+                    <td><strong>Hellfire</strong></td>
+                    <td><span class="cost-mp">15 MP</span></td>
+                    <td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>↘</kbd> <kbd>→</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>4</kbd></td>
+                    <td>Teletransporte envolto na capa com disparo de projéteis de fogo infernais.</td>
+                </tr>
+                <tr>
+                    <td><strong>Soul Steal</strong></td>
+                    <td><span class="cost-mp">50 MP</span></td>
+                    <td><kbd>←</kbd> <kbd>→</kbd> <kbd>↘</kbd> <kbd>↓</kbd> <kbd>↙</kbd> <kbd>←</kbd> <kbd>→</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>5</kbd></td>
+                    <td>Drena a vida de todas as entidades da sala e restaura massivamente o HP.</td>
+                </tr>
+                <tr>
+                    <td><strong>Sword Brothers</strong></td>
+                    <td><span class="cost-mp">30 MP</span></td>
+                    <td><kbd>↓</kbd> <kbd>↘</kbd> <kbd>→</kbd> <kbd>↗</kbd> <kbd>↑</kbd> [Segurar] <kbd>↓</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>6</kbd></td>
+                    <td>Tempestade de lâminas celestiais giratórias (Requer Familiar Espada).</td>
+                </tr>
+                <!-- RICHTER -->
+                <tr>
+                    <td rowspan="6"><strong>Richter Belmont</strong></td>
+                    <td><strong>Hydro Storm</strong></td>
+                    <td><span class="cost-hearts">15 Corações</span></td>
+                    <td>Sub-arma: Água Benta (<span class="pad-btn">△</span> ou Item Crash)</td>
+                    <td><kbd>1</kbd></td>
+                    <td>Chuva sagrada torrencial que purifica toda a tela.</td>
+                </tr>
+                <tr>
+                    <td><strong>Grand Cross</strong></td>
+                    <td><span class="cost-hearts">20 Corações</span></td>
+                    <td>Sub-arma: Cruz Sagrada (<span class="pad-btn">△</span> ou Item Crash)</td>
+                    <td><kbd>2</kbd></td>
+                    <td>Coluna colossal de crucifixos luminosos com invencibilidade total.</td>
+                </tr>
+                <tr>
+                    <td><strong>Thousand Blades</strong></td>
+                    <td><span class="cost-hearts">10 Corações</span></td>
+                    <td>Sub-arma: Adaga (<span class="pad-btn">△</span> ou Item Crash)</td>
+                    <td><kbd>3</kbd></td>
+                    <td>Saraivada de centenas de adagas de prata em alta cadência.</td>
+                </tr>
+                <tr>
+                    <td><strong>Axe Rain</strong></td>
+                    <td><span class="cost-hearts">10 Corações</span></td>
+                    <td>Sub-arma: Machado (<span class="pad-btn">△</span> ou Item Crash)</td>
+                    <td><kbd>4</kbd></td>
+                    <td>Espiral de machados giratórios voadores cobrindo ar e chão.</td>
+                </tr>
+                <tr>
+                    <td><strong>Burning Bible</strong></td>
+                    <td><span class="cost-hearts">15 Corações</span></td>
+                    <td>Sub-arma: Bíblia (<span class="pad-btn">△</span> ou Item Crash)</td>
+                    <td><kbd>5</kbd></td>
+                    <td>Escrituras sagradas em chamas orbitando e detonando monstros.</td>
+                </tr>
+                <tr>
+                    <td><strong>Blade Dash</strong></td>
+                    <td><span class="cost-free">0 Corações</span></td>
+                    <td><kbd>↓</kbd> <kbd>↘</kbd> <kbd>→</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>6</kbd></td>
+                    <td>Investida supersônica cortante com frames de invulnerabilidade.</td>
+                </tr>
+                <!-- MARIA -->
+                <tr>
+                    <td rowspan="6"><strong>Maria Renard</strong></td>
+                    <td><strong>Guardian Knuckle</strong></td>
+                    <td><span class="cost-mp">10 MP</span></td>
+                    <td><kbd>↓</kbd> <kbd>↘</kbd> <kbd>→</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>1</kbd></td>
+                    <td>Punho espiritual do guardião projetado em linha reta.</td>
+                </tr>
+                <tr>
+                    <td><strong>Suzaku (Fênix)</strong></td>
+                    <td><span class="cost-mp">20 MP</span></td>
+                    <td><kbd>↑</kbd> <kbd>↗</kbd> <kbd>→</kbd> <kbd>↘</kbd> <kbd>↓</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>2</kbd></td>
+                    <td>Ave de fogo sagrada que incinera inimigos voando pela tela.</td>
+                </tr>
+                <tr>
+                    <td><strong>Genbu (Tartaruga)</strong></td>
+                    <td><span class="cost-mp">15 MP</span></td>
+                    <td><kbd>←</kbd> <kbd>↙</kbd> <kbd>↓</kbd> <kbd>↘</kbd> <kbd>→</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>3</kbd></td>
+                    <td>Casco sagrado impenetrável que cura HP e repele ataques.</td>
+                </tr>
+                <tr>
+                    <td><strong>Byakko (Tigre)</strong></td>
+                    <td><span class="cost-mp">25 MP</span></td>
+                    <td><kbd>←</kbd> <kbd>→</kbd> <kbd>↘</kbd> <kbd>↓</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>4</kbd></td>
+                    <td>Tigre elétrico que corre pelo chão despedaçando inimigos.</td>
+                </tr>
+                <tr>
+                    <td><strong>Seiryuu (Dragão)</strong></td>
+                    <td><span class="cost-mp">30 MP</span></td>
+                    <td><kbd>→</kbd> <kbd>↘</kbd> <kbd>↓</kbd> <kbd>↙</kbd> <kbd>←</kbd> + <kbd>Ataque</kbd></td>
+                    <td><kbd>5</kbd></td>
+                    <td>Dragão celeste com relâmpagos contínuos em múltiplos canais SPU.</td>
+                </tr>
+                <tr>
+                    <td><strong>Quatro Bestas</strong></td>
+                    <td><span class="cost-mp">50 MP</span></td>
+                    <td>Giro 360° + <kbd>Ataque</kbd></td>
+                    <td><kbd>6</kbd></td>
+                    <td>Invocação simultânea das 4 divindades celestes com aniquilação total.</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 
     <div class="page-break"></div>

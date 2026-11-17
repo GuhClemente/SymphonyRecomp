@@ -1143,6 +1143,382 @@ kbd {
     color: var(--text-dim);
 }
 
+/* ==========================================================================
+   SECTION: CHARACTER ROSTER & SPELLS SHOWCASE
+   ========================================================================== */
+.section-roster {
+    background: radial-gradient(circle at 50% 0%, rgba(230, 32, 53, 0.08) 0%, rgba(13, 11, 20, 0.98) 70%);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.roster-tabs {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 35px;
+}
+
+.roster-tab {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 12px 24px;
+    border-radius: var(--radius-full);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.roster-tab i {
+    font-size: 1.1rem;
+}
+
+.roster-tab:hover {
+    color: #fff;
+    border-color: var(--border-gold);
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+}
+
+.roster-tab.active {
+    background: linear-gradient(135deg, rgba(230, 32, 53, 0.25), rgba(245, 185, 66, 0.2));
+    border-color: var(--accent-gold);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(245, 185, 66, 0.25);
+}
+
+.roster-pane {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+}
+
+.roster-pane.active {
+    display: block;
+    opacity: 1;
+    animation: fadeIn 0.4s ease forwards;
+}
+
+.char-profile {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 32px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    margin-bottom: 32px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.char-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.5) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    padding: 24px 16px;
+    text-align: center;
+}
+
+.char-main-sprite {
+    max-height: 220px;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.7));
+    transition: transform 0.3s ease;
+    margin-bottom: 16px;
+}
+
+.char-main-sprite:hover {
+    transform: scale(1.08);
+}
+
+.char-badge-role {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    margin-bottom: 8px;
+}
+
+.badge-vampire { background: rgba(230, 32, 53, 0.2); color: #ff8a95; border: 1px solid rgba(230, 32, 53, 0.4); }
+.badge-hunter { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); }
+.badge-maiden { background: rgba(245, 185, 66, 0.2); color: var(--accent-gold); border: 1px solid var(--border-gold); }
+
+.char-gallery-thumbs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.thumb-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 4px;
+    text-align: center;
+    transition: var(--transition);
+}
+
+.thumb-card:hover {
+    border-color: var(--accent-gold);
+    transform: translateY(-2px);
+}
+
+.thumb-card img {
+    height: 52px;
+    image-rendering: pixelated;
+    display: block;
+    margin: 0 auto 3px;
+}
+
+.thumb-card span {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+.char-details h3 {
+    font-family: var(--font-heading);
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+    color: #fff;
+}
+
+.char-subtitle {
+    font-size: 0.95rem;
+    color: var(--accent-gold);
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.char-lore {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+.char-traits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.trait-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.trait-item i {
+    font-size: 1.2rem;
+    color: var(--accent-gold);
+}
+
+.trait-text h5 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 2px;
+}
+
+.trait-text p {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+/* SPELL & SKILL CARDS */
+.roster-spells-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.roster-spells-header h4 {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.spells-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
+}
+
+.spell-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+.spell-card:hover {
+    border-color: var(--border-gold);
+    background: var(--bg-card-hover);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.spell-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.spell-name {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spell-cost {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: var(--radius-full);
+}
+
+.cost-mp { background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); }
+.cost-hearts { background: rgba(230, 32, 53, 0.15); color: #ff8a95; border: 1px solid rgba(230, 32, 53, 0.3); }
+.cost-free { background: rgba(34, 197, 94, 0.15); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.3); }
+
+.spell-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.spell-input {
+    font-size: 0.8rem;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    padding: 3px 8px;
+    color: #fce899;
+    font-family: monospace;
+}
+
+.spell-quick-key {
+    font-size: 0.75rem;
+    background: rgba(245, 185, 66, 0.15);
+    border: 1px solid var(--border-gold);
+    color: var(--accent-gold);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-weight: 700;
+}
+
+.spell-desc {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+
+.spell-shot {
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    image-rendering: pixelated;
+    transition: var(--transition);
+}
+
+.spell-shot:hover {
+    transform: scale(1.02);
+    border-color: var(--accent-gold);
+}
+
+/* RICHTER COSTUME SELECTOR */
+.costume-box {
+    margin-top: 18px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.costume-box h5 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+    margin-bottom: 8px;
+}
+
+.costume-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.costume-item {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 8px 6px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #fff;
+}
+
+.costume-item.active-costume {
+    border-color: var(--accent-gold);
+    background: rgba(245, 185, 66, 0.1);
+    font-weight: 700;
+}
+
+/* RESPONSIVE FOR ROSTER */
+@media (max-width: 900px) {
+    .char-profile {
+        grid-template-columns: 1fr;
+    }
+    .spells-grid {
+        grid-template-columns: 1fr;
+    }
+    .costume-list {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* RESPONSIVE */
 @media (max-width: 900px) {
     .multiplayer-grid {

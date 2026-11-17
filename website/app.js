@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initShortcutSearch();
     initNavbarScroll();
     initAnalyticsTrackers();
+    initCharacterRoster();
 });
 
 // 1. Interactive Co-op Radar Simulator (Canvas)
@@ -317,5 +318,33 @@ function initAnalyticsTrackers() {
                 seconds_spent: seconds
             });
         }, seconds * 1000);
+    });
+}
+
+// 5. Interactive Character Roster & Spells Tabs
+function initCharacterRoster() {
+    const tabs = document.querySelectorAll('.roster-tab');
+    const panes = document.querySelectorAll('.roster-pane');
+    if (!tabs.length || !panes.length) return;
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetId = tab.getAttribute('data-target');
+            if (!targetId) return;
+
+            tabs.forEach(t => t.classList.remove('active'));
+            panes.forEach(p => p.classList.remove('active'));
+
+            tab.classList.add('active');
+            const targetPane = document.getElementById(targetId);
+            if (targetPane) {
+                targetPane.classList.add('active');
+            }
+
+            trackEvent('select_character_roster', {
+                category: 'Characters',
+                character_id: targetId
+            });
+        });
     });
 }
