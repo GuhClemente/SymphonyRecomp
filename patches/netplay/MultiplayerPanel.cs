@@ -23,7 +23,7 @@ public sealed class MultiplayerPanel : IPanel
 
     public void Draw()
     {
-        ImGui.SetNextWindowSize(new Vector2(640, 680), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(680, 750), ImGuiCond.FirstUseEver);
         bool open = IsOpen;
         if (!ImGui.Begin(this.Title(), ref open))
         {
@@ -227,7 +227,7 @@ public sealed class MultiplayerPanel : IPanel
         }
         else
         {
-            ImGui.BeginChild("connected_status_child", new Vector2(-1, 460), ImGuiChildFlags.Borders);
+            ImGui.BeginChild("connected_status_child", new Vector2(-1, 0), ImGuiChildFlags.Borders);
 
             // Header: Status & Ping
             ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), "[STATUS: CONECTADO]");
@@ -238,16 +238,70 @@ public sealed class MultiplayerPanel : IPanel
             ImGui.TextColored(pingColor, $"| Ping: {NetworkManager.PingMs} ms ({NetworkManager.Role})");
 
             ImGui.Spacing();
+
+            // AMBIENTE INTERATIVO: SALA DE ESPERA / SANTUÁRIO CO-OP
+            if (LobbyManager.IsPlayerInSanctuary())
+            {
+                ImGui.TextColored(new Vector4(0.2f, 1f, 0.45f, 1f), "[SANTUÁRIO ATIVO] Vocês estão juntos na Sala de Espera do Castelo! Movam-se e testem golpes à vontade.");
+            }
+            else
+            {
+                if (ImGui.Button("Entrar na Sala de Espera do Castelo (Santuário Co-op)", new Vector2(-1, 30)))
+                {
+                    LobbyManager.RequestEnterLobbyRoom();
+                }
+                ImGui.TextDisabled("-> Teleporta ambos para a Save Room da Entrada onde podem se ver, andar e testar ataques!");
+            }
+
+            ImGui.Spacing();
             ImGui.Separator();
             ImGui.Spacing();
 
-            // SALA DE ESPERA & LOBBY PRÉ-JOGO
-            ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "SALA DE ESPERA CO-OP (LOBBY PRÉ-JOGO):");
-            ImGui.TextDisabled("Escolham os personagens, definam o ponto de início e comecem juntos!");
+            // ARENA DE SELEÇÃO DOS CAÇADORES (SHOWCASE VISUAL COM CARDS E SPRITES ANIMADOS)
+            ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "ARENA DE SELEÇÃO DOS CAÇADORES (SHOWCASE CO-OP):");
+
+            float availW = ImGui.GetContentRegionAvail().X;
+            float cardW = MathF.Max(260f, (availW - 14f) * 0.5f);
+            float cardH = 205f;
+            float time = (float)ImGui.GetTime();
+            var dl = ImGui.GetWindowDrawList();
+
+            // Card da Esquerda (Local Player)
+            Vector2 leftCardPos = ImGui.GetCursorScreenPos();
+            LobbyCardRenderer.DrawHunterCard(
+                dl,
+                leftCardPos,
+                new Vector2(cardW, cardH),
+                NetworkManager.LocalPlayerName,
+                NetworkManager.Role.ToString(),
+                LobbyManager.LocalCharacter,
+                LobbyManager.LocalReady,
+                true,
+                time
+            );
+
+            // Card da Direita (Remote Player)
+            Vector2 rightCardPos = leftCardPos + new Vector2(cardW + 14f, 0f);
+            string remoteRole = NetworkManager.Role == NetworkRole.Host ? "Client" : "Host";
+            LobbyCardRenderer.DrawHunterCard(
+                dl,
+                rightCardPos,
+                new Vector2(cardW, cardH),
+                NetworkManager.RemotePlayerName,
+                remoteRole,
+                LobbyManager.RemoteCharacter,
+                LobbyManager.RemoteReady,
+                false,
+                time
+            );
+
+            ImGui.Dummy(new Vector2(availW, cardH + 10f));
 
             ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
 
-            // 1. Seleção do Personagem Local
+            // PAINEL DE CONTROLE DA PARTIDA
             string[] charNames = [
                 "Alucard (Dhampir)",
                 "Richter Belmont (Clássico)",
@@ -258,18 +312,12 @@ public sealed class MultiplayerPanel : IPanel
             ];
 
             int localCharIdx = (int)LobbyManager.LocalCharacter;
-            if (ImGui.Combo("Seu Caçador", ref localCharIdx, charNames, charNames.Length))
+            if (ImGui.Combo("Trocar Seu Caçador", ref localCharIdx, charNames, charNames.Length))
             {
                 LobbyManager.SetLocalCharacter((Recompiled.Ultimate.CharacterSelection)localCharIdx);
             }
 
-            // 2. Caçador Escolhido pelo Parceiro (Exibição Dinâmica)
-            int remoteCharIdx = Math.Clamp((int)LobbyManager.RemoteCharacter, 0, charNames.Length - 1);
-            ImGui.TextColored(new Vector4(0.3f, 0.85f, 1f, 1f), $"Caçador de {NetworkManager.RemotePlayerName}: {charNames[remoteCharIdx]}");
-
-            ImGui.Spacing();
-
-            // 3. Ponto de Partida Conjunto
+            // Ponto de Partida Conjunto
             string[] locNames = LobbyManager.StartingLocations.Select(l => l.Name).ToArray();
             int locIdx = LobbyManager.SelectedLocationIndex;
             if (NetworkManager.Role == NetworkRole.Host)
@@ -286,51 +334,48 @@ public sealed class MultiplayerPanel : IPanel
 
             ImGui.Spacing();
 
-            // 4. Status de Prontidão (Ready Check)
+            // Botão Interativo de Ready
             bool ready = LobbyManager.LocalReady;
-            if (ImGui.Checkbox("Estou Pronto para Iniciar", ref ready))
+            string readyBtnText = ready ? "[✓] ESTOU PRONTO PARA A BATALHA (CLIQUE PARA CANCELAR)" : "[ ] MARCAR COMO PRONTO PARA INICIAR";
+            Vector4 readyBtnBg = ready ? new Vector4(0.15f, 0.60f, 0.28f, 1f) : new Vector4(0.24f, 0.28f, 0.35f, 1f);
+
+            ImGui.PushStyleColor(ImGuiCol.Button, readyBtnBg);
+            if (ImGui.Button(readyBtnText, new Vector2(-1, 34)))
             {
                 LobbyManager.ToggleLocalReady();
             }
-
-            ImGui.SameLine();
-            if (LobbyManager.RemoteReady)
-            {
-                ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), $"| {NetworkManager.RemotePlayerName}: [PRONTO]");
-            }
-            else
-            {
-                ImGui.TextColored(new Vector4(1f, 0.7f, 0.2f, 1f), $"| {NetworkManager.RemotePlayerName}: [ESCOLHENDO...]");
-            }
+            ImGui.PopStyleColor();
 
             ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
 
-            // 5. Botão de Início Sincronizado (Host)
+            // Botão de Início Sincronizado (Host)
             if (NetworkManager.Role == NetworkRole.Host)
             {
                 bool canStart = LobbyManager.LocalReady && LobbyManager.RemoteReady;
                 if (!canStart) ImGui.BeginDisabled();
-                if (ImGui.Button("INICIAR AVENTURA JUNTOS (START GAME)", new Vector2(-1, 38)))
+                if (canStart) ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.65f, 0.30f, 1f));
+
+                if (ImGui.Button("INICIAR AVENTURA JUNTOS (START GAME)", new Vector2(-1, 40)))
                 {
                     LobbyManager.RequestStartGame();
                 }
+
+                if (canStart) ImGui.PopStyleColor();
                 if (!canStart)
                 {
                     ImGui.EndDisabled();
-                    ImGui.TextDisabled("-> Ambos os jogadores precisam marcar 'Estou Pronto' para iniciar.");
+                    ImGui.TextDisabled("-> Ambos os caçadores precisam marcar 'Pronto' para o Host poder iniciar.");
                 }
             }
             else
             {
                 if (LobbyManager.RemoteReady && LobbyManager.LocalReady)
                 {
-                    ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "Tudo pronto! Aguardando o Host disparar a partida...");
+                    ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "Tudo pronto! Aguardando o Host disparar o início da partida...");
                 }
                 else
                 {
-                    ImGui.TextDisabled("Marque 'Estou Pronto' para o Host poder iniciar.");
+                    ImGui.TextDisabled("Marque 'Pronto' acima para o Host poder disparar o início conjunto.");
                 }
             }
 

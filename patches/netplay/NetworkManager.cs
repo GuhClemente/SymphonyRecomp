@@ -390,6 +390,10 @@ public static class NetworkManager
                 LobbyManager.HandleStartGameSync(packet.Payload);
                 break;
 
+            case PacketOpCode.EnterLobbyRoom:
+                LobbyManager.HandleEnterLobbyRoom();
+                break;
+
             case PacketOpCode.EnemyDamage:
                 EnemySyncManager.HandleRemoteEnemyDamage(packet.Payload, m);
                 break;

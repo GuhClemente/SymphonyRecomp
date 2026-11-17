@@ -19,6 +19,7 @@ public enum PacketOpCode : byte
     ChatMessage = 0x50,
     LobbySync = 0x60,
     StartGameSync = 0x61,
+    EnterLobbyRoom = 0x62,
     EnemyDamage = 0x70
 }
 
@@ -296,6 +297,10 @@ public sealed class NetworkPacket
         posY = r.ReadInt16();
         return true;
     }
+
+    // Sanctuary Lobby Room Sync Packet (OpCode 0x62)
+    public static byte[] CreateEnterLobbyRoom() => [1];
+    public static bool ReadEnterLobbyRoom(byte[] payload) => payload != null && payload.Length > 0;
 
     // Shared Room Enemy Damage Sync Packet (OpCode 0x70)
     public static byte[] CreateEnemyDamage(byte stage, byte roomX, byte roomY, byte entitySlot, short damage, short remainingHp, bool isDead)

@@ -69,6 +69,7 @@ public static class Program
         {
             TestLobbySyncSerialization();
             TestStartGameSyncSerialization();
+            TestEnterLobbyRoomSyncSerialization();
             TestEnemyDamageSyncSerialization();
             TestLobbyManagerReadyStateMachine();
         });
@@ -877,6 +878,22 @@ public static class Program
         AssertTrue(stg == 2, "StartGameSync - Estágio CastleEntrance (ID = 2)");
         AssertTrue(rx == 17 && ry == 37, "StartGameSync - Coordenadas da Sala (17, 37)");
         AssertTrue(px == 72 && py == 164, "StartGameSync - Posição do Spawn (72, 164)");
+    }
+
+    private static void TestEnterLobbyRoomSyncSerialization()
+    {
+        byte[] payload = NetworkPacket.CreateEnterLobbyRoom();
+        var pkt = new NetworkPacket(PacketOpCode.EnterLobbyRoom, payload);
+        byte[] data = pkt.Serialize();
+
+        AssertTrue(data.Length == 1 + 1, "EnterLobbyRoom - Tamanho do buffer serializado");
+        AssertTrue(data[0] == (byte)PacketOpCode.EnterLobbyRoom, "EnterLobbyRoom - OpCode 0x62");
+
+        var deserialized = NetworkPacket.Deserialize(data, data.Length);
+        AssertTrue(deserialized != null, "EnterLobbyRoom - Desserialização válida");
+
+        bool ok = NetworkPacket.ReadEnterLobbyRoom(deserialized!.Payload);
+        AssertTrue(ok, "EnterLobbyRoom - Leitura de pacote bem-sucedida");
     }
 
     private static void TestEnemyDamageSyncSerialization()
