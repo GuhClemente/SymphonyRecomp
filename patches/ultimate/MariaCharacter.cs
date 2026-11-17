@@ -68,6 +68,7 @@ public static class MariaCharacter
     }
 
     private static CharacterSelection _lastDesiredChar = CharacterSelection.Alucard;
+    private static CharacterSelection _currentRichterVariant = CharacterSelection.RichterClassic;
 
     /// <summary>Lets the automatic transformation try again (e.g. after the option changes).</summary>
     public static void ResetState()
@@ -89,7 +90,11 @@ public static class MariaCharacter
 
     public static bool IsSaturnRichter =>
         UltimateOptions.UltimateEnabled &&
-        UltimateOptions.CharacterMode == CharacterSelection.RichterSaturnCoat;
+        UltimateOptions.CharacterMode is CharacterSelection.RichterSaturnCoat or CharacterSelection.RichterBrownCoat;
+
+    public static bool IsBrownRichter =>
+        UltimateOptions.UltimateEnabled &&
+        UltimateOptions.CharacterMode == CharacterSelection.RichterBrownCoat;
 
     public static void CycleNextCharacter()
     {
@@ -100,7 +105,8 @@ public static class MariaCharacter
             CharacterSelection.SaturnMaria => CharacterSelection.PSPMaria,
             CharacterSelection.PSPMaria => CharacterSelection.RichterClassic,
             CharacterSelection.RichterClassic => CharacterSelection.RichterSaturnCoat,
-            CharacterSelection.RichterSaturnCoat => CharacterSelection.Alucard,
+            CharacterSelection.RichterSaturnCoat => CharacterSelection.RichterBrownCoat,
+            CharacterSelection.RichterBrownCoat => CharacterSelection.Alucard,
             _ => CharacterSelection.SaturnMaria
         };
         RequestCharacterSwitch(next);
@@ -193,8 +199,16 @@ public static class MariaCharacter
                     m.WriteU32(CostumeMagicAddr, RicSaturnCoatMagic);
                     LoadGameGraphics(m, "BIN/F_GAME2.BIN");
                     ok = LoadPlayerOverlay(c, m, "ric2", "RIC2.BIN", PlayableCharacter.Richter);
-                    if (ok) ApplyRichterCostume(m);
-                    if (ok) ToastNotifications.ShowText("Richter (Saturn)", "Richter com casaco longo do Saturn ativado!", null, 3f);
+                    if (ok) ApplyRichterCostume(m, brownCoat: false);
+                    if (ok) ToastNotifications.ShowText("Richter (Saturn)", "Richter com sobretudo longo azul do Saturn ativado!", null, 3f);
+                    break;
+
+                case CharacterSelection.RichterBrownCoat:
+                    m.WriteU32(CostumeMagicAddr, RicSaturnCoatMagic);
+                    LoadGameGraphics(m, "BIN/F_GAME2.BIN");
+                    ok = LoadPlayerOverlay(c, m, "ric2", "RIC2.BIN", PlayableCharacter.Richter);
+                    if (ok) ApplyRichterCostume(m, brownCoat: true);
+                    if (ok) ToastNotifications.ShowText("Richter (Couro Marrom)", "Richter com sobretudo de couro marrom ativado!", null, 3f);
                     break;
 
                 case CharacterSelection.Alucard:
@@ -234,6 +248,9 @@ public static class MariaCharacter
                 Console.WriteLine($"[CharacterSwitcher] Troca para {selection} falhou.");
                 return;
             }
+
+            if (selection is CharacterSelection.RichterClassic or CharacterSelection.RichterSaturnCoat or CharacterSelection.RichterBrownCoat)
+                _currentRichterVariant = selection;
 
             if (hadMariaVoice && selection is not (CharacterSelection.SaturnMaria or CharacterSelection.PSPMaria))
                 MariaLoader.RestoreRetailSounds(c, m, alucard: selection == CharacterSelection.Alucard);
@@ -300,6 +317,7 @@ public static class MariaCharacter
         (CharacterSelection.PSPMaria, "maria2"),
         (CharacterSelection.RichterClassic, "ric"),
         (CharacterSelection.RichterSaturnCoat, "ric2"),
+        (CharacterSelection.RichterBrownCoat, "ric2"),
     ];
 
     // The overlays share one address range and none of them covers all of another, so the dispatcher
@@ -307,8 +325,16 @@ public static class MariaCharacter
     // code that is no longer in memory. Only the active character's overlay stays mapped.
     private static void UnloadOtherPlayerOverlays(CharacterSelection active)
     {
+        string? activeOverlay = active switch
+        {
+            CharacterSelection.SaturnMaria => MariaLoader.OverlayName,
+            CharacterSelection.PSPMaria => "maria2",
+            CharacterSelection.RichterClassic => "ric",
+            CharacterSelection.RichterSaturnCoat or CharacterSelection.RichterBrownCoat => "ric2",
+            _ => null
+        };
         foreach (var (who, overlay) in PlayerOverlays)
-            if (who != active) Dispatcher.Unload(overlay);
+            if (overlay != activeOverlay) Dispatcher.Unload(overlay);
     }
 
     /// <summary>
@@ -381,7 +407,7 @@ public static class MariaCharacter
             uint init = m.ReadU32(PlayerOverlayBase + 4);
             if (init < PlayerOverlayBase) return;
             MariaLoader.Invoke(c, m, (cc, mm) => Dispatcher.Call(cc, mm, init));
-            if (IsSaturnRichter) ApplyRichterCostume(m);
+            if (IsSaturnRichter) ApplyRichterCostume(m, IsBrownRichter);
         }
 
         m.WriteU32(player, posX);
@@ -638,7 +664,10 @@ public static class MariaCharacter
                     needsSwitch = !Player.IsRichter || Array.IndexOf(Dispatcher.ActiveNames, "ric") < 0;
                     break;
                 case CharacterSelection.RichterSaturnCoat:
-                    needsSwitch = !Player.IsRichter || Array.IndexOf(Dispatcher.ActiveNames, "ric2") < 0;
+                    needsSwitch = !Player.IsRichter || Array.IndexOf(Dispatcher.ActiveNames, "ric2") < 0 || _currentRichterVariant != CharacterSelection.RichterSaturnCoat;
+                    break;
+                case CharacterSelection.RichterBrownCoat:
+                    needsSwitch = !Player.IsRichter || Array.IndexOf(Dispatcher.ActiveNames, "ric2") < 0 || _currentRichterVariant != CharacterSelection.RichterBrownCoat;
                     break;
                 case CharacterSelection.Alucard:
                     needsSwitch = !Player.IsAlucard;
@@ -711,7 +740,7 @@ public static class MariaCharacter
     private const uint Ric2HeaderAddr = PlayerOverlayBase + 0x170ACu - 8u;
     private const uint PlayerOverlayEnd = 0x80180000u;
 
-    private static void ApplyRichterCostume(IMemory m)
+    private static void ApplyRichterCostume(IMemory m, bool brownCoat = false)
     {
         try
         {
@@ -732,6 +761,13 @@ public static class MariaCharacter
                 for (int i = 0; i < Palette.Colors; i++)
                 {
                     pal[i] = m.ReadU16(p + (uint)(i * 2));
+                    if (brownCoat)
+                    {
+                        // Substitui tons de azul do sobretudo por couro marrom envelhecido (estilo Simon / Trevor)
+                        if (i == 7) pal[i] = 0x0887;       // Couro marrom escuro (sombra)
+                        else if (i == 14) pal[i] = 0x0D0F; // Couro marrom médio (corpo do casaco)
+                        else if (i == 6) pal[i] = 0x1595;  // Couro marrom iluminado (dobras)
+                    }
                     m.WriteU16(ram + (uint)(i * 2), pal[i]);
                 }
                 Palette.Write(id, pal);

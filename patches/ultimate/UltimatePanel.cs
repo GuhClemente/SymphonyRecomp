@@ -92,10 +92,11 @@ public sealed class UltimatePanel : IPanel
         int charChoice = (int)UltimateOptions.CharacterMode;
         string[] chars = [
             "Alucard (Padrão)",
-            "Richter Belmont (Clássico PS1)",
-            "Richter Belmont (Casaco Longo do Saturn)",
+            "Richter Belmont (Clássico PS1 - Sem Mangas)",
+            "Richter Belmont (Sobretudo Longo Azul - Saturn Oficial)",
             "Maria Renard (Saturn - Pulo Triplo & Pombas)",
-            "Maria Renard (PSP - Animais Celestiais)"
+            "Maria Renard (PSP - Animais Celestiais)",
+            "Richter Belmont (Sobretudo Couro Marrom - Estilo Simon)"
         ];
         if (ImGui.Combo("Personagem / Visual", ref charChoice, chars, chars.Length))
         {
@@ -106,7 +107,9 @@ public sealed class UltimatePanel : IPanel
         if (UltimateOptions.CharacterMode is CharacterSelection.PSPMaria)
             ImGui.TextColored(new Vector4(0.4f, 1f, 0.6f, 1f), "🌟 Maria PSP ativada! Pássaros, invocação de animais celestiais e voz PSP.");
         else if (UltimateOptions.CharacterMode is CharacterSelection.RichterSaturnCoat)
-            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), "🥋 Richter Saturn Coat ativado com casaco longo e física do Saturn.");
+            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), "🥋 Richter Saturn Coat ativado com sobretudo longo azul e física do Saturn.");
+        else if (UltimateOptions.CharacterMode is CharacterSelection.RichterBrownCoat)
+            ImGui.TextColored(new Vector4(0.85f, 0.6f, 0.35f, 1f), "🗡️ Richter Couro Marrom ativado com sobretudo de couro rústico estilo Simon/Trevor.");
 
         // Everything below runs recompiled game code, so it is posted to the game thread
         bool inGame = Game.Available && Game.InGame;

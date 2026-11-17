@@ -22,7 +22,8 @@ public enum CharacterSelection
     RichterClassic = 1,
     RichterSaturnCoat = 2,
     SaturnMaria = 3,
-    PSPMaria = 4
+    PSPMaria = 4,
+    RichterBrownCoat = 5
 }
 
 public enum BossMariaMode

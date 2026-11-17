@@ -115,7 +115,9 @@ public static class SpellWheel
         if (castIndex >= 0)
         {
             if (Player.IsRichter || Game.InPrologue() ||
-                Recompiled.Ultimate.UltimateOptions.CharacterMode is Recompiled.Ultimate.CharacterSelection.RichterClassic or Recompiled.Ultimate.CharacterSelection.RichterSaturnCoat)
+                Recompiled.Ultimate.UltimateOptions.CharacterMode is Recompiled.Ultimate.CharacterSelection.RichterClassic
+                or Recompiled.Ultimate.CharacterSelection.RichterSaturnCoat
+                or Recompiled.Ultimate.CharacterSelection.RichterBrownCoat)
             {
                 TriggerRichterCast(castIndex);
             }

@@ -181,6 +181,7 @@ public static class CharacterTest
                          (CharacterSelection.PSPMaria, "maria_psp"),
                          (CharacterSelection.RichterClassic, "richter"),
                          (CharacterSelection.RichterSaturnCoat, "richter_casaco"),
+                         (CharacterSelection.RichterBrownCoat, "richter_marrom"),
                          (CharacterSelection.Alucard, "alucard"),
                          (CharacterSelection.SaturnMaria, "maria_saturn_volta"),
                      })
@@ -225,11 +226,12 @@ public static class CharacterTest
         Wait(20);
         Press(Button.Up | Button.Square); Wait(14); Shot("subweapon_4"); Release(Button.Up | Button.Square); Wait(120);
 
-        // ---------------- Richter, both costumes ----------------
+        // ---------------- Richter, all 3 costumes ----------------
         foreach (var (who, name) in new[]
                  {
                      (CharacterSelection.RichterClassic, "richter"),
                      (CharacterSelection.RichterSaturnCoat, "richter_casaco"),
+                     (CharacterSelection.RichterBrownCoat, "richter_marrom"),
                  })
         {
             Switch(who, name);
@@ -358,6 +360,7 @@ public static class CharacterTest
                 (CharacterSelection.PSPMaria, "psp_maria"),
                 (CharacterSelection.RichterClassic, "richter_classic"),
                 (CharacterSelection.RichterSaturnCoat, "richter_coat"),
+                (CharacterSelection.RichterBrownCoat, "richter_brown"),
                 (CharacterSelection.Alucard, "alucard"),
             ];
 

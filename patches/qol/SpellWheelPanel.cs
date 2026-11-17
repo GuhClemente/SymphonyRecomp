@@ -35,7 +35,9 @@ public sealed class SpellWheelPanel : IPanel
 
         bool isRichter = Player.IsRichter || Game.InPrologue() ||
             Recompiled.Ultimate.MariaCharacter.IsSaturnRichter ||
-            Recompiled.Ultimate.UltimateOptions.CharacterMode is Recompiled.Ultimate.CharacterSelection.RichterClassic or Recompiled.Ultimate.CharacterSelection.RichterSaturnCoat;
+            Recompiled.Ultimate.UltimateOptions.CharacterMode is Recompiled.Ultimate.CharacterSelection.RichterClassic
+            or Recompiled.Ultimate.CharacterSelection.RichterSaturnCoat
+            or Recompiled.Ultimate.CharacterSelection.RichterBrownCoat;
 
         bool isSaturnMaria = (Player.IsMaria || Recompiled.Ultimate.UltimateOptions.CharacterMode == Recompiled.Ultimate.CharacterSelection.SaturnMaria) &&
             Recompiled.Ultimate.UltimateOptions.CharacterMode != Recompiled.Ultimate.CharacterSelection.PSPMaria;
