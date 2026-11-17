@@ -365,6 +365,20 @@ public static class NetworkManager
                     ToastNotifications.ShowText($"[{sender}]", msg, null, 5.0f);
                 }
                 break;
+
+            case PacketOpCode.PvPHit:
+                if (NetworkPacket.ReadPvPHit(packet.Payload, out ushort dmg, out byte hitType, out short kbX, out string attacker))
+                {
+                    PvPManager.ApplyPvPHit(dmg, hitType, kbX, attacker);
+                }
+                break;
+
+            case PacketOpCode.PvPKnockout:
+                if (NetworkPacket.ReadPvPKnockout(packet.Payload, out string winner, out string loser, out ushort round))
+                {
+                    PvPManager.OnRemoteKnockout(winner, loser, round);
+                }
+                break;
         }
     }
 

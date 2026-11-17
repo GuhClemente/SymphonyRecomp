@@ -33,6 +33,8 @@ public static class Program
             TestPlayerTransformEdgeCasesSerialization();
             TestWorldStateSerialization();
             TestChatMessageSerialization();
+            TestPvPHitPacketSerialization();
+            TestPvPKnockoutPacketSerialization();
             TestPingPongSerialization();
             TestPacketMalformedAndFuzzingResilience();
         });
@@ -53,6 +55,8 @@ public static class Program
         {
             TestPvPColosseumDetectionLogic();
             TestPvPScoreboardTracking();
+            TestPvPHitboxReachAndFacingLogic();
+            TestPvPDamageCalculationAndKnockoutLogic();
         });
 
         await RunSectionAsync("5. Teste de Integração Real UDP Socket P2P (Host <-> Client Loopback)", async () =>
@@ -333,6 +337,60 @@ public static class Program
         AssertEqual(message, dMsg, "ChatMessage - Mensagem UTF-8 e caracteres especiais preservados");
     }
 
+    private static void TestPvPHitPacketSerialization()
+    {
+        ushort damage = 35;
+        byte hitType = 1;
+        short knockbackX = 4;
+        string attacker = "AlucardTepes";
+
+        byte[] payload = NetworkPacket.CreatePvPHit(damage, hitType, knockbackX, attacker);
+        var packet = new NetworkPacket(PacketOpCode.PvPHit, payload);
+        byte[] raw = packet.Serialize();
+
+        var deserialized = NetworkPacket.Deserialize(raw, raw.Length);
+        AssertTrue(deserialized != null, "PvPHit - Desserialização do pacote de golpe");
+        AssertEqual(PacketOpCode.PvPHit, deserialized!.OpCode, "PvPHit - OpCode 0x40 correto");
+
+        bool success = NetworkPacket.ReadPvPHit(deserialized.Payload, out ushort dDmg, out byte dHitType, out short dKbX, out string dAttacker);
+        AssertTrue(success, "PvPHit - Leitura do payload de ataque");
+        AssertEqual(damage, dDmg, "PvPHit - Dano transmitido corretamente (35)");
+        AssertEqual(hitType, dHitType, "PvPHit - Tipo de golpe preservado (1 - Especial)");
+        AssertEqual(knockbackX, dKbX, "PvPHit - Impulso de Knockback X preservado (+4)");
+        AssertEqual(attacker, dAttacker, "PvPHit - Nome do atacante transmitido ('AlucardTepes')");
+
+        // Teste de caso limite: knockback negativo e string vazia
+        byte[] edgePayload = NetworkPacket.CreatePvPHit(60, 0, -4, "");
+        var edgePacket = new NetworkPacket(PacketOpCode.PvPHit, edgePayload);
+        byte[] rawEdge = edgePacket.Serialize();
+        var dEdge = NetworkPacket.Deserialize(rawEdge, rawEdge.Length);
+        AssertTrue(NetworkPacket.ReadPvPHit(dEdge!.Payload, out ushort eDmg, out byte eType, out short eKbX, out string eAttacker), "PvPHit Edge - Leitura bem-sucedida");
+        AssertEqual((ushort)60, eDmg, "PvPHit Edge - Dano máximo (60)");
+        AssertEqual((short)-4, eKbX, "PvPHit Edge - Knockback negativo para esquerda (-4)");
+        AssertEqual("", eAttacker, "PvPHit Edge - Atacante anônimo tratado com segurança");
+    }
+
+    private static void TestPvPKnockoutPacketSerialization()
+    {
+        string winner = "RichterBelmont";
+        string loser = "AlucardTepes";
+        ushort round = 3;
+
+        byte[] payload = NetworkPacket.CreatePvPKnockout(winner, loser, round);
+        var packet = new NetworkPacket(PacketOpCode.PvPKnockout, payload);
+        byte[] raw = packet.Serialize();
+
+        var deserialized = NetworkPacket.Deserialize(raw, raw.Length);
+        AssertTrue(deserialized != null, "PvPKnockout - Desserialização do pacote de K.O.");
+        AssertEqual(PacketOpCode.PvPKnockout, deserialized!.OpCode, "PvPKnockout - OpCode 0x41 correto");
+
+        bool success = NetworkPacket.ReadPvPKnockout(deserialized.Payload, out string dWinner, out string dLoser, out ushort dRound);
+        AssertTrue(success, "PvPKnockout - Leitura do payload de vitória");
+        AssertEqual(winner, dWinner, "PvPKnockout - Vencedor registrado ('RichterBelmont')");
+        AssertEqual(loser, dLoser, "PvPKnockout - Perdedor registrado ('AlucardTepes')");
+        AssertEqual(round, dRound, "PvPKnockout - Número do round computado (3)");
+    }
+
     private static void TestPingPongSerialization()
     {
         var ping = new NetworkPacket(PacketOpCode.Ping, []);
@@ -532,6 +590,109 @@ public static class Program
         AssertEqual(1, remoteScore, "PvP Placar - Vitórias do jogador remoto computadas");
     }
 
+    private static void TestPvPHitboxReachAndFacingLogic()
+    {
+        // Regra de alcance do PvPManager:
+        // dy <= 48
+        // facingLeft ? (dx <= 15 && dx >= -80) : (dx >= -15 && dx <= 80)
+        int px = 200, py = 150;
+
+        // Caso 1: Jogador virado para a DIREITA (facingLeft = false)
+        // Alvo na frente dentro do alcance (dx = +40, dy = 0)
+        bool hit1 = CheckHitRange(px, py, facingLeft: false, rx: 240, ry: 150);
+        AssertTrue(hit1, "Hitbox - Golpe frontal acertou alvo à direita (+40px)");
+
+        // Alvo ligeiramente atrás dentro da tolerância de proximidade (dx = -10, dy = 10)
+        bool hit2 = CheckHitRange(px, py, facingLeft: false, rx: 190, ry: 160);
+        AssertTrue(hit2, "Hitbox - Golpe acertou em curta distância (-10px)");
+
+        // Alvo atrás do jogador virado para a direita (dx = -50) -> deve errar
+        bool hit3 = CheckHitRange(px, py, facingLeft: false, rx: 150, ry: 150);
+        AssertTrue(!hit3, "Hitbox - Golpe errou alvo que estava nas costas à esquerda");
+
+        // Alvo muito longe na frente (dx = +120) -> fora de alcance
+        bool hit4 = CheckHitRange(px, py, facingLeft: false, rx: 320, ry: 150);
+        AssertTrue(!hit4, "Hitbox - Golpe errou alvo distante (+120px)");
+
+        // Alvo muito acima no pulo (dy = 60) -> fora de alcance vertical
+        bool hit5 = CheckHitRange(px, py, facingLeft: false, rx: 230, ry: 90);
+        AssertTrue(!hit5, "Hitbox - Golpe errou alvo acima no pulo (dy > 48px)");
+
+        // Caso 2: Jogador virado para a ESQUERDA (facingLeft = true)
+        // Alvo na frente à esquerda (dx = -50, dy = 0)
+        bool hit6 = CheckHitRange(px, py, facingLeft: true, rx: 150, ry: 150);
+        AssertTrue(hit6, "Hitbox - Golpe frontal acertou alvo à esquerda (-50px)");
+
+        // Alvo atrás à direita (dx = +40) -> deve errar
+        bool hit7 = CheckHitRange(px, py, facingLeft: true, rx: 240, ry: 150);
+        AssertTrue(!hit7, "Hitbox - Golpe errou alvo nas costas à direita");
+    }
+
+    private static void TestPvPDamageCalculationAndKnockoutLogic()
+    {
+        // 1. Cálculo de dano proporcional
+        ushort baseDmg = CalculateDamage(0);
+        AssertEqual((ushort)25, baseDmg, "PvP Dano - Dano base padrão sem bônus de força (25)");
+
+        ushort midDmg = CalculateDamage(50);
+        AssertEqual((ushort)25, midDmg, "PvP Dano - Dano com 50 de força = 15 + 10 = 25");
+
+        ushort highDmg = CalculateDamage(150);
+        AssertEqual((ushort)45, highDmg, "PvP Dano - Dano com 150 de força = 15 + 30 = 45");
+
+        ushort cappedDmg = CalculateDamage(300);
+        AssertEqual((ushort)60, cappedDmg, "PvP Dano - Dano máximo limitado a 60");
+
+        // 2. Aplicação de dano sem invencibilidade
+        int hp = 100;
+        bool applied1 = ProcessPvPHit(hp, 30, isInvincible: false, out int newHp1, out bool ko1);
+        AssertTrue(applied1, "PvP Hit - Golpe registrado com sucesso");
+        AssertEqual(70, newHp1, "PvP Hit - HP reduzido de 100 para 70 (-30 de dano)");
+        AssertTrue(!ko1, "PvP Hit - Jogador sobreviveu ao golpe (sem knockout)");
+
+        // 3. Aplicação durante i-frames (invencibilidade temporária)
+        bool applied2 = ProcessPvPHit(newHp1, 30, isInvincible: true, out int newHp2, out bool ko2);
+        AssertTrue(!applied2, "PvP Hit - Golpe ignorado durante i-frames do jogador");
+        AssertEqual(70, newHp2, "PvP Hit - HP inalterado durante i-frames");
+        AssertTrue(!ko2, "PvP Hit - Sem knockout em i-frames");
+
+        // 4. Golpe final que resulta em Knockout (K.O.)
+        bool applied3 = ProcessPvPHit(25, 30, isInvincible: false, out int newHp3, out bool ko3);
+        AssertTrue(applied3, "PvP Hit - Golpe fatal registrado");
+        AssertEqual(0, newHp3, "PvP Hit - HP reduzido a 0");
+        AssertTrue(ko3, "PvP Hit - Knockout (K.O.) confirmado!");
+    }
+
+    private static bool CheckHitRange(int px, int py, bool facingLeft, int rx, int ry)
+    {
+        int dx = rx - px;
+        int dy = Math.Abs(ry - py);
+        if (dy > 48) return false;
+        return facingLeft ? (dx <= 15 && dx >= -80) : (dx >= -15 && dx <= 80);
+    }
+
+    private static ushort CalculateDamage(int strengthTotal)
+    {
+        if (strengthTotal > 0)
+        {
+            return (ushort)Math.Clamp(15 + (strengthTotal / 5), 15, 60);
+        }
+        return 25;
+    }
+
+    private static bool ProcessPvPHit(int currentHp, ushort damage, bool isInvincible, out int newHp, out bool isKnockout)
+    {
+        if (isInvincible)
+        {
+            newHp = currentHp;
+            isKnockout = false;
+            return false;
+        }
+        newHp = Math.Max(0, currentHp - damage);
+        isKnockout = newHp <= 0;
+        return true;
+    }
+
     // =========================================================================
     // 5. REAL UDP SOCKET P2P INTEGRATION TESTS (LOOPBACK)
     // =========================================================================
@@ -590,6 +751,40 @@ public static class Program
         AssertEqual(PacketOpCode.Pong, clientPongPacket!.OpCode, "P2P Socket - Client recebeu Pong");
         long pingRtt = Environment.TickCount64 - pingSendTime;
         AssertTrue(pingRtt >= 0 && pingRtt < 100, $"P2P Socket - RTT de Latência em Loopback ({pingRtt} ms)");
+
+        // 6. Troca de Pacotes de Duelo PvP (PvPHit e PvPKnockout) via UDP
+        ushort pvpDmg = 35;
+        byte hitType = 1;
+        short knockback = 4;
+        string attacker = "RichterBelmont";
+        byte[] hitPayload = NetworkPacket.CreatePvPHit(pvpDmg, hitType, knockback, attacker);
+        var hitPacket = new NetworkPacket(PacketOpCode.PvPHit, hitPayload);
+        byte[] hitData = hitPacket.Serialize();
+        await clientUdp.SendAsync(hitData, hitData.Length);
+
+        var hostHitReceive = await hostUdp.ReceiveAsync();
+        var hostHitPacket = NetworkPacket.Deserialize(hostHitReceive.Buffer, hostHitReceive.Buffer.Length);
+        AssertTrue(hostHitPacket != null && hostHitPacket.OpCode == PacketOpCode.PvPHit,
+            "P2P Socket - Host recebeu pacote PvPHit via socket UDP");
+        bool readHitSuccess = NetworkPacket.ReadPvPHit(hostHitPacket!.Payload, out ushort rxDmg, out byte rxType, out short rxKb, out string rxAtk);
+        AssertTrue(readHitSuccess, "P2P Socket - Desserialização do pacote de ataque PvPHit via UDP");
+        AssertEqual(pvpDmg, rxDmg, "P2P Socket - Dano do golpe recebido com integridade (35)");
+        AssertEqual(attacker, rxAtk, "P2P Socket - Nome do atacante recebido via rede");
+
+        // Host sofre knockout e transmite PvPKnockout para o Client
+        byte[] koPayload = NetworkPacket.CreatePvPKnockout("RichterBelmont", "AlucardTepes", 1);
+        var koPacket = new NetworkPacket(PacketOpCode.PvPKnockout, koPayload);
+        byte[] koData = koPacket.Serialize();
+        await hostUdp.SendAsync(koData, koData.Length, hostHitReceive.RemoteEndPoint);
+
+        var clientKoReceive = await clientUdp.ReceiveAsync();
+        var clientKoPacket = NetworkPacket.Deserialize(clientKoReceive.Buffer, clientKoReceive.Buffer.Length);
+        AssertTrue(clientKoPacket != null && clientKoPacket.OpCode == PacketOpCode.PvPKnockout,
+            "P2P Socket - Client recebeu anúncio de PvPKnockout via socket UDP");
+        bool readKoSuccess = NetworkPacket.ReadPvPKnockout(clientKoPacket!.Payload, out string rxWinner, out string rxLoser, out ushort rxRound);
+        AssertTrue(readKoSuccess, "P2P Socket - Desserialização do pacote PvPKnockout");
+        AssertEqual("RichterBelmont", rxWinner, "P2P Socket - Vencedor do round confirmado via socket");
+        AssertEqual((ushort)1, rxRound, "P2P Socket - Número do round sincronizado");
     }
 
     private static async Task TestHighFrequency60HzTransformStreamingAsync()

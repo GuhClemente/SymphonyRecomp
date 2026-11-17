@@ -383,6 +383,11 @@ public sealed class MultiplayerPanel : IPanel
             ImGui.Separator();
             ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "DUELO NO COLISEU ATIVO!");
             ImGui.Text($"Placar: {NetworkManager.LocalPlayerName} {PvPManager.LocalScore} x {PvPManager.RemoteScore} {NetworkManager.RemotePlayerName}");
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Zerar Placar"))
+            {
+                PvPManager.ResetScores();
+            }
         }
     }
 

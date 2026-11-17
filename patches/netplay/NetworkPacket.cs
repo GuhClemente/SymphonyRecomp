@@ -15,6 +15,7 @@ public enum PacketOpCode : byte
     WorldState = 0x20,
     BuddyWarp = 0x30,
     PvPHit = 0x40,
+    PvPKnockout = 0x41,
     ChatMessage = 0x50
 }
 
@@ -185,6 +186,64 @@ public sealed class NetworkPacket
         using var r = new BinaryReader(ms, Encoding.UTF8);
         sender = r.ReadString();
         message = r.ReadString();
+        return true;
+    }
+
+    // PvP Hit Packet (OpCode 0x40)
+    public static byte[] CreatePvPHit(ushort damage, byte hitType, short knockbackX, string attackerName)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms, Encoding.UTF8);
+        w.Write(damage);
+        w.Write(hitType);
+        w.Write(knockbackX);
+        w.Write(attackerName ?? "");
+        return ms.ToArray();
+    }
+
+    public static bool ReadPvPHit(byte[] payload, out ushort damage, out byte hitType, out short knockbackX, out string attackerName)
+    {
+        damage = 0;
+        hitType = 0;
+        knockbackX = 0;
+        attackerName = "";
+        if (payload == null || payload.Length < 5) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms, Encoding.UTF8);
+        damage = r.ReadUInt16();
+        hitType = r.ReadByte();
+        knockbackX = r.ReadInt16();
+        if (ms.Position < ms.Length)
+        {
+            attackerName = r.ReadString();
+        }
+        return true;
+    }
+
+    // PvP Knockout Packet (OpCode 0x41)
+    public static byte[] CreatePvPKnockout(string winnerName, string loserName, ushort round)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms, Encoding.UTF8);
+        w.Write(winnerName ?? "");
+        w.Write(loserName ?? "");
+        w.Write(round);
+        return ms.ToArray();
+    }
+
+    public static bool ReadPvPKnockout(byte[] payload, out string winnerName, out string loserName, out ushort round)
+    {
+        winnerName = "";
+        loserName = "";
+        round = 0;
+        if (payload == null || payload.Length < 4) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms, Encoding.UTF8);
+        winnerName = r.ReadString();
+        loserName = r.ReadString();
+        round = r.ReadUInt16();
         return true;
     }
 }
