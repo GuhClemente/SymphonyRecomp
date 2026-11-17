@@ -23,7 +23,7 @@ public sealed class MultiplayerPanel : IPanel
 
     public void Draw()
     {
-        ImGui.SetNextWindowSize(new Vector2(620, 640), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(640, 680), ImGuiCond.FirstUseEver);
         bool open = IsOpen;
         if (!ImGui.Begin(this.Title(), ref open))
         {
@@ -227,18 +227,118 @@ public sealed class MultiplayerPanel : IPanel
         }
         else
         {
-            ImGui.BeginChild("connected_status_child", new Vector2(-1, 160), ImGuiChildFlags.Borders);
-            ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), "[STATUS: CONECTADO]");
-            ImGui.Text($"Modo de Conexão: {NetworkManager.Role}");
-            ImGui.Text($"Parceiro Remoto: {NetworkManager.RemotePlayerName}");
+            ImGui.BeginChild("connected_status_child", new Vector2(-1, 460), ImGuiChildFlags.Borders);
 
+            // Header: Status & Ping
+            ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), "[STATUS: CONECTADO]");
+            ImGui.SameLine();
             Vector4 pingColor = NetworkManager.PingMs < 50 ? new Vector4(0.2f, 1f, 0.3f, 1f) :
                                 NetworkManager.PingMs < 120 ? new Vector4(1f, 0.85f, 0.2f, 1f) :
                                 new Vector4(1f, 0.3f, 0.3f, 1f);
-            ImGui.TextColored(pingColor, $"Latência (Ping): {NetworkManager.PingMs} ms");
+            ImGui.TextColored(pingColor, $"| Ping: {NetworkManager.PingMs} ms ({NetworkManager.Role})");
 
             ImGui.Spacing();
-            if (ImGui.Button("Desconectar da Sessão", new Vector2(-1, 32)))
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            // SALA DE ESPERA & LOBBY PRÉ-JOGO
+            ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "SALA DE ESPERA CO-OP (LOBBY PRÉ-JOGO):");
+            ImGui.TextDisabled("Escolham os personagens, definam o ponto de início e comecem juntos!");
+
+            ImGui.Spacing();
+
+            // 1. Seleção do Personagem Local
+            string[] charNames = [
+                "Alucard (Dhampir)",
+                "Richter Belmont (Clássico)",
+                "Richter Belmont (Sobretudo Azul Saturn)",
+                "Maria Renard (Sega Saturn)",
+                "Maria Renard (PSP)",
+                "Richter Belmont (Sobretudo Couro Marrom)"
+            ];
+
+            int localCharIdx = (int)LobbyManager.LocalCharacter;
+            if (ImGui.Combo("Seu Caçador", ref localCharIdx, charNames, charNames.Length))
+            {
+                LobbyManager.SetLocalCharacter((Recompiled.Ultimate.CharacterSelection)localCharIdx);
+            }
+
+            // 2. Caçador Escolhido pelo Parceiro (Exibição Dinâmica)
+            int remoteCharIdx = Math.Clamp((int)LobbyManager.RemoteCharacter, 0, charNames.Length - 1);
+            ImGui.TextColored(new Vector4(0.3f, 0.85f, 1f, 1f), $"Caçador de {NetworkManager.RemotePlayerName}: {charNames[remoteCharIdx]}");
+
+            ImGui.Spacing();
+
+            // 3. Ponto de Partida Conjunto
+            string[] locNames = LobbyManager.StartingLocations.Select(l => l.Name).ToArray();
+            int locIdx = LobbyManager.SelectedLocationIndex;
+            if (NetworkManager.Role == NetworkRole.Host)
+            {
+                if (ImGui.Combo("Ponto de Partida Inicial", ref locIdx, locNames, locNames.Length))
+                {
+                    LobbyManager.SetStartingLocation(locIdx);
+                }
+            }
+            else
+            {
+                ImGui.TextDisabled($"Ponto de Partida definido pelo Host: {locNames[locIdx]}");
+            }
+
+            ImGui.Spacing();
+
+            // 4. Status de Prontidão (Ready Check)
+            bool ready = LobbyManager.LocalReady;
+            if (ImGui.Checkbox("Estou Pronto para Iniciar", ref ready))
+            {
+                LobbyManager.ToggleLocalReady();
+            }
+
+            ImGui.SameLine();
+            if (LobbyManager.RemoteReady)
+            {
+                ImGui.TextColored(new Vector4(0.2f, 1f, 0.3f, 1f), $"| {NetworkManager.RemotePlayerName}: [PRONTO]");
+            }
+            else
+            {
+                ImGui.TextColored(new Vector4(1f, 0.7f, 0.2f, 1f), $"| {NetworkManager.RemotePlayerName}: [ESCOLHENDO...]");
+            }
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            // 5. Botão de Início Sincronizado (Host)
+            if (NetworkManager.Role == NetworkRole.Host)
+            {
+                bool canStart = LobbyManager.LocalReady && LobbyManager.RemoteReady;
+                if (!canStart) ImGui.BeginDisabled();
+                if (ImGui.Button("INICIAR AVENTURA JUNTOS (START GAME)", new Vector2(-1, 38)))
+                {
+                    LobbyManager.RequestStartGame();
+                }
+                if (!canStart)
+                {
+                    ImGui.EndDisabled();
+                    ImGui.TextDisabled("-> Ambos os jogadores precisam marcar 'Estou Pronto' para iniciar.");
+                }
+            }
+            else
+            {
+                if (LobbyManager.RemoteReady && LobbyManager.LocalReady)
+                {
+                    ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "Tudo pronto! Aguardando o Host disparar a partida...");
+                }
+                else
+                {
+                    ImGui.TextDisabled("Marque 'Estou Pronto' para o Host poder iniciar.");
+                }
+            }
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            if (ImGui.Button("Desconectar da Sessão", new Vector2(-1, 28)))
             {
                 NetworkManager.Stop();
             }

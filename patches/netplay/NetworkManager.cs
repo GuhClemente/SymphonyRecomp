@@ -323,6 +323,7 @@ public static class NetworkManager
                 SendPacket(new NetworkPacket(PacketOpCode.HandshakeAck, System.Text.Encoding.UTF8.GetBytes(LocalPlayerName)));
                 ToastNotifications.ShowText("Multiplayer Conectado!", $"{RemotePlayerName} entrou na sessão!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
+                LobbyManager.SendLobbySync();
                 break;
 
             case PacketOpCode.HandshakeAck:
@@ -330,6 +331,7 @@ public static class NetworkManager
                 State = NetConnectionState.Connected;
                 ToastNotifications.ShowText("Multiplayer Conectado!", $"Conectado ao mundo de {RemotePlayerName}!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
+                LobbyManager.SendLobbySync();
                 break;
 
             case PacketOpCode.Ping:
@@ -378,6 +380,18 @@ public static class NetworkManager
                 {
                     PvPManager.OnRemoteKnockout(winner, loser, round);
                 }
+                break;
+
+            case PacketOpCode.LobbySync:
+                LobbyManager.HandleLobbySync(packet.Payload);
+                break;
+
+            case PacketOpCode.StartGameSync:
+                LobbyManager.HandleStartGameSync(packet.Payload);
+                break;
+
+            case PacketOpCode.EnemyDamage:
+                EnemySyncManager.HandleRemoteEnemyDamage(packet.Payload, m);
                 break;
         }
     }

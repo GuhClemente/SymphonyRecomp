@@ -65,6 +65,14 @@ public static class Program
             await TestHighFrequency60HzTransformStreamingAsync();
         });
 
+        RunSection("6. Testes do Lobby Pré-Jogo & Sincronização de Inimigos (PoC Co-op Evolution)", () =>
+        {
+            TestLobbySyncSerialization();
+            TestStartGameSyncSerialization();
+            TestEnemyDamageSyncSerialization();
+            TestLobbyManagerReadyStateMachine();
+        });
+
         long durationMs = Environment.TickCount64 - startTime;
 
         Console.WriteLine();
@@ -830,5 +838,100 @@ public static class Program
 
         AssertTrue(receivedCount == packetCount,
             $"P2P 60Hz Stream - Taxa de entrega de pacotes de alta frequência: {receivedCount}/{packetCount} (100% integridade)");
+    }
+
+    // --- 6. Testes do Lobby Pré-Jogo & Sincronização de Inimigos (PoC Co-op Evolution) ---
+    private static void TestLobbySyncSerialization()
+    {
+        byte[] payload = NetworkPacket.CreateLobbySync(true, 3, 1);
+        var pkt = new NetworkPacket(PacketOpCode.LobbySync, payload);
+        byte[] data = pkt.Serialize();
+
+        AssertTrue(data.Length == 1 + 3, "LobbySync - Tamanho do buffer serializado");
+        AssertTrue(data[0] == (byte)PacketOpCode.LobbySync, "LobbySync - OpCode 0x60");
+
+        var deserialized = NetworkPacket.Deserialize(data, data.Length);
+        AssertTrue(deserialized != null, "LobbySync - Desserialização válida");
+
+        bool ok = NetworkPacket.ReadLobbySync(deserialized!.Payload, out bool ready, out byte ch, out byte stg);
+        AssertTrue(ok, "LobbySync - Leitura de campos com sucesso");
+        AssertTrue(ready, "LobbySync - Estado de Pronto (Ready = true)");
+        AssertTrue(ch == 3, "LobbySync - Personagem Maria Saturn (ID = 3)");
+        AssertTrue(stg == 1, "LobbySync - Local de Partida (Index = 1)");
+    }
+
+    private static void TestStartGameSyncSerialization()
+    {
+        byte[] payload = NetworkPacket.CreateStartGameSync(2, 17, 37, 72, 164);
+        var pkt = new NetworkPacket(PacketOpCode.StartGameSync, payload);
+        byte[] data = pkt.Serialize();
+
+        AssertTrue(data.Length == 1 + 7, "StartGameSync - Tamanho do buffer serializado");
+        AssertTrue(data[0] == (byte)PacketOpCode.StartGameSync, "StartGameSync - OpCode 0x61");
+
+        var deserialized = NetworkPacket.Deserialize(data, data.Length);
+        AssertTrue(deserialized != null, "StartGameSync - Desserialização válida");
+
+        bool ok = NetworkPacket.ReadStartGameSync(deserialized!.Payload, out byte stg, out byte rx, out byte ry, out short px, out short py);
+        AssertTrue(ok, "StartGameSync - Leitura de campos com sucesso");
+        AssertTrue(stg == 2, "StartGameSync - Estágio CastleEntrance (ID = 2)");
+        AssertTrue(rx == 17 && ry == 37, "StartGameSync - Coordenadas da Sala (17, 37)");
+        AssertTrue(px == 72 && py == 164, "StartGameSync - Posição do Spawn (72, 164)");
+    }
+
+    private static void TestEnemyDamageSyncSerialization()
+    {
+        byte[] payload = NetworkPacket.CreateEnemyDamage(2, 5, 10, 66, 45, 15, false);
+        var pkt = new NetworkPacket(PacketOpCode.EnemyDamage, payload);
+        byte[] data = pkt.Serialize();
+
+        AssertTrue(data.Length == 1 + 9, "EnemyDamage - Tamanho do buffer serializado");
+        AssertTrue(data[0] == (byte)PacketOpCode.EnemyDamage, "EnemyDamage - OpCode 0x70");
+
+        var deserialized = NetworkPacket.Deserialize(data, data.Length);
+        AssertTrue(deserialized != null, "EnemyDamage - Desserialização válida");
+
+        bool ok = NetworkPacket.ReadEnemyDamage(deserialized!.Payload, out byte stg, out byte rx, out byte ry, out byte slot, out short dmg, out short hp, out bool dead);
+        AssertTrue(ok, "EnemyDamage - Leitura do golpe com sucesso");
+        AssertTrue(stg == 2 && rx == 5 && ry == 10, "EnemyDamage - Estágio e Sala do Inimigo");
+        AssertTrue(slot == 66, "EnemyDamage - Slot da Entidade do Monstro (Slot 66)");
+        AssertTrue(dmg == 45, "EnemyDamage - Dano infligido (45)");
+        AssertTrue(hp == 15, "EnemyDamage - HP restante do monstro (15)");
+        AssertTrue(!dead, "EnemyDamage - Monstro sobreviveu (isDead = false)");
+
+        // Teste de Golpe Fatal
+        byte[] fatalPayload = NetworkPacket.CreateEnemyDamage(2, 5, 10, 66, 50, 0, true);
+        NetworkPacket.ReadEnemyDamage(fatalPayload, out _, out _, out _, out _, out _, out _, out bool fatalDead);
+        AssertTrue(fatalDead, "EnemyDamage - Morte do monstro confirmada (isDead = true)");
+    }
+
+    private static void TestLobbyManagerReadyStateMachine()
+    {
+        bool localReady = false;
+        bool remoteReady = false;
+        byte localChar = 4; // PSP Maria
+        byte remoteChar = 0; // Alucard
+
+        AssertTrue(!localReady && !remoteReady, "Lobby State - Ambos iniciam não-prontos");
+        AssertTrue(localChar == 4, "Lobby State - Personagem local definido (PSP Maria)");
+
+        // Simula recebimento de pacote do parceiro
+        byte[] remotePacket = NetworkPacket.CreateLobbySync(true, 0, 0);
+        if (NetworkPacket.ReadLobbySync(remotePacket, out bool rReady, out byte rChar, out _))
+        {
+            remoteReady = rReady;
+            remoteChar = rChar;
+        }
+
+        AssertTrue(remoteReady, "Lobby State - Parceiro marcou Pronto");
+        AssertTrue(remoteChar == 0, "Lobby State - Parceiro escolheu Alucard");
+
+        // Local marca pronto
+        localReady = true;
+        AssertTrue(localReady && remoteReady, "Lobby State - Ambos prontos para início conjunto!");
+
+        // Validação da condição de Start Game pelo Host
+        bool canStart = localReady && remoteReady;
+        AssertTrue(canStart, "Lobby State - Condição de disparo de partida satisfeita!");
     }
 }

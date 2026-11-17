@@ -16,7 +16,10 @@ public enum PacketOpCode : byte
     BuddyWarp = 0x30,
     PvPHit = 0x40,
     PvPKnockout = 0x41,
-    ChatMessage = 0x50
+    ChatMessage = 0x50,
+    LobbySync = 0x60,
+    StartGameSync = 0x61,
+    EnemyDamage = 0x70
 }
 
 public sealed class NetworkPacket
@@ -244,6 +247,87 @@ public sealed class NetworkPacket
         winnerName = r.ReadString();
         loserName = r.ReadString();
         round = r.ReadUInt16();
+        return true;
+    }
+
+    // Pre-Game Lobby Sync Packet (OpCode 0x60)
+    public static byte[] CreateLobbySync(bool isReady, byte character, byte stageIndex)
+    {
+        return [(byte)(isReady ? 1 : 0), character, stageIndex];
+    }
+
+    public static bool ReadLobbySync(byte[] payload, out bool isReady, out byte character, out byte stageIndex)
+    {
+        isReady = false;
+        character = 0;
+        stageIndex = 0;
+        if (payload == null || payload.Length < 3) return false;
+        isReady = payload[0] != 0;
+        character = payload[1];
+        stageIndex = payload[2];
+        return true;
+    }
+
+    // Synchronized Game Launch Packet (OpCode 0x61)
+    public static byte[] CreateStartGameSync(byte stage, byte roomX, byte roomY, short posX, short posY)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(stage);
+        w.Write(roomX);
+        w.Write(roomY);
+        w.Write(posX);
+        w.Write(posY);
+        return ms.ToArray();
+    }
+
+    public static bool ReadStartGameSync(byte[] payload, out byte stage, out byte roomX, out byte roomY, out short posX, out short posY)
+    {
+        stage = roomX = roomY = 0;
+        posX = posY = 0;
+        if (payload == null || payload.Length < 7) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms);
+        stage = r.ReadByte();
+        roomX = r.ReadByte();
+        roomY = r.ReadByte();
+        posX = r.ReadInt16();
+        posY = r.ReadInt16();
+        return true;
+    }
+
+    // Shared Room Enemy Damage Sync Packet (OpCode 0x70)
+    public static byte[] CreateEnemyDamage(byte stage, byte roomX, byte roomY, byte entitySlot, short damage, short remainingHp, bool isDead)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(stage);
+        w.Write(roomX);
+        w.Write(roomY);
+        w.Write(entitySlot);
+        w.Write(damage);
+        w.Write(remainingHp);
+        w.Write((byte)(isDead ? 1 : 0));
+        return ms.ToArray();
+    }
+
+    public static bool ReadEnemyDamage(byte[] payload, out byte stage, out byte roomX, out byte roomY, out byte entitySlot, out short damage, out short remainingHp, out bool isDead)
+    {
+        stage = roomX = roomY = entitySlot = 0;
+        damage = remainingHp = 0;
+        isDead = false;
+        if (payload == null || payload.Length < 9) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms);
+        stage = r.ReadByte();
+        roomX = r.ReadByte();
+        roomY = r.ReadByte();
+        entitySlot = r.ReadByte();
+        damage = r.ReadInt16();
+        remainingHp = r.ReadInt16();
+        isDead = r.ReadByte() != 0;
         return true;
     }
 }

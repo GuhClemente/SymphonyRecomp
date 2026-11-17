@@ -479,7 +479,23 @@ public static partial class WidescreenPatch
                         else if (hp < damage * 4) hf |= 2;
                         else hf |= 1;
                         m.WriteU8(entityHit + EntHitFlags, hf);
-                        m.WriteU16(entityHit + EntHitPoints, (ushort)(short)(hp - (int)damage));
+                        short newHp = (short)(hp - (int)damage);
+                        m.WriteU16(entityHit + EntHitPoints, (ushort)newHp);
+
+                        // Broadcast shared room enemy damage if in co-op session
+                        if (entityHit >= Sotn.Game.EntitiesAddr + (uint)(Sotn.Entities.StageStart * Sotn.Entity.Stride))
+                        {
+                            int slot = (int)((entityHit - Sotn.Game.EntitiesAddr) / Sotn.Entity.Stride);
+                            Recompiled.Netplay.EnemySyncManager.BroadcastEnemyDamage(
+                                (byte)Sotn.Stages.Current,
+                                (byte)Sotn.Stages.RoomX,
+                                (byte)Sotn.Stages.RoomY,
+                                (byte)slot,
+                                (short)damage,
+                                newHp,
+                                newHp <= 0
+                            );
+                        }
                     }
 
                     if ((m.ReadU16(iterEnt + EntAttackElement) & 0x40) != 0 &&
