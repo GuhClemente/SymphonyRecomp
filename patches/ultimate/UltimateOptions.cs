@@ -44,6 +44,8 @@ public static class UltimateOptions
     public static bool ThirdHandHolder = true;
     public static bool SaturnStages = true;
     public static bool RainbowCapeCycle = true;
+    public static bool BypassDeath = false;
+    public static bool DeathCutsceneForAll = false;
 
     public static void Load()
     {
@@ -57,6 +59,8 @@ public static class UltimateOptions
         ThirdHandHolder = v.GetBool("Ultimate_ThirdHandHolder", true);
         SaturnStages = v.GetBool("Ultimate_SaturnStages", true);
         RainbowCapeCycle = v.GetBool("Ultimate_RainbowCapeCycle", true);
+        BypassDeath = v.GetBool("Ultimate_BypassDeath", false);
+        DeathCutsceneForAll = v.GetBool("Ultimate_DeathCutsceneForAll", false);
     }
 
     public static void Save()
@@ -71,6 +75,8 @@ public static class UltimateOptions
         v.SetBool("Ultimate_ThirdHandHolder", ThirdHandHolder);
         v.SetBool("Ultimate_SaturnStages", SaturnStages);
         v.SetBool("Ultimate_RainbowCapeCycle", RainbowCapeCycle);
+        v.SetBool("Ultimate_BypassDeath", BypassDeath);
+        v.SetBool("Ultimate_DeathCutsceneForAll", DeathCutsceneForAll);
         RecompOne.Runtime.Runtime.SaveView();
     }
 }

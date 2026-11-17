@@ -176,6 +176,15 @@ public sealed class UltimatePanel : IPanel
             QualityOfLifeOptions.SkipPrologue.Value = skipPrologue;
         }
 
+        bool bypassDeath = UltimateOptions.BypassDeath;
+        if (ImGui.Checkbox("Ignorar Encontro com a Morte (Bypass Death / Manter Equipamentos)", ref bypassDeath))
+        {
+            UltimateOptions.BypassDeath = bypassDeath;
+            dirty = true;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Pula o encontro com a Morte na Entrada do Castelo: Alucard mantém todos os seus equipamentos lendários iniciais e o corredor fica livre.");
+
         ImGui.Spacing();
 
         // 5. Saturn Relics & Gear
