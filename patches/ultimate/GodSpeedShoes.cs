@@ -36,7 +36,7 @@ public static class GodSpeedShoes
         _hasShoes = true;
         _active = active;
         ToastNotifications.ShowText(
-            "👟 Botas da Velocidade (God Speed Shoes)!",
+            "Botas da Velocidade (God Speed Shoes)!",
             "Relíquia do Sega Saturn ativada! Toque duas vezes para frente para correr em alta velocidade.",
             null,
             4.0f);

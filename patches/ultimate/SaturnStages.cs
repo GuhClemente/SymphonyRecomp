@@ -43,7 +43,7 @@ public static class SaturnStages
     {
         if (!CanWarp) return;
         ToastNotifications.ShowText(
-            "🌿 Underground Garden (Jardim Subterrâneo)",
+            "Underground Garden (Jardim Subterrâneo)",
             "Viajando para o Jardim Subterrâneo exclusivo do Sega Saturn...",
             null,
             3.0f);
@@ -54,7 +54,7 @@ public static class SaturnStages
     {
         if (!CanWarp) return;
         ToastNotifications.ShowText(
-            "⛓ Cursed Prison (Prisão Amaldiçoada)",
+            "Cursed Prison (Prisão Amaldiçoada)",
             "Viajando para a Prisão Amaldiçoada exclusiva do Sega Saturn...",
             null,
             3.0f);
@@ -65,7 +65,7 @@ public static class SaturnStages
     {
         if (!CanWarp) return;
         ToastNotifications.ShowText(
-            "🔥 Hell Garden (Jardim do Inferno)",
+            "Hell Garden (Jardim do Inferno)",
             "Viajando para o Jardim do Inferno (Castelo Invertido Saturn)...",
             null,
             3.0f);
@@ -76,7 +76,7 @@ public static class SaturnStages
     {
         if (!CanWarp) return;
         ToastNotifications.ShowText(
-            "💀 Soul Prison (Prisão das Almas)",
+            "Soul Prison (Prisão das Almas)",
             "Viajando para a Prisão das Almas (Castelo Invertido Saturn)...",
             null,
             3.0f);

@@ -185,7 +185,7 @@ public static class MariaCharacter
                     ok = LoadPlayerOverlay(c, m, "maria2", "MARIA2.BIN", PlayableCharacter.Maria);
                     // her PSP voice sits in Richter's voice slots, with the retail priorities
                     if (ok) MariaLoader.LoadMariaSounds(c, m, "MARIA2_SD.BIN", saturnPriorities: false);
-                    if (ok) ToastNotifications.ShowText("🌟 Maria Renard (PSP)", "Maria do PSP Dracula X Chronicles ativada!", null, 3f);
+                    if (ok) ToastNotifications.ShowText("Maria Renard (PSP)", "Maria do PSP Dracula X Chronicles ativada!", null, 3f);
                     break;
 
                 case CharacterSelection.RichterClassic:

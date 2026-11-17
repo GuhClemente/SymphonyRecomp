@@ -147,7 +147,7 @@ public static class MariaLoader
 
             Console.WriteLine("[MariaLoader] Maria Renard carregada e inicializada.");
             ToastNotifications.ShowText(
-                "🌟 Maria Renard (Saturn)",
+                "Maria Renard (Saturn)",
                 sounds
                     ? "Transformação concluída! Sprites, paletas, rotinas e áudio ativados."
                     : "Transformação concluída, mas os sons da Maria não puderam ser carregados.",

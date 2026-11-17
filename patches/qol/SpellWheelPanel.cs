@@ -78,7 +78,7 @@ public sealed class SpellWheelPanel : IPanel
 
         if (isRichter)
         {
-            ImGui.SeparatorText("🗡 Habilidades & Item Crashes de Richter");
+            ImGui.SeparatorText("Habilidades & Item Crashes de Richter");
             ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
             (string name, int cost, Subweapon sub)[] richterMoves =
@@ -109,7 +109,7 @@ public sealed class SpellWheelPanel : IPanel
             }
 
             ImGui.Spacing();
-            ImGui.SeparatorText("🥋 Artes Marciais de Richter");
+            ImGui.SeparatorText("Artes Marciais de Richter");
             if (ImGui.Button("Blade Dash [6] (Avanço Cortante)##dash", new Vector2(-1, 36)))
             {
                 SpellWheel.TriggerQuickCast(5);
@@ -123,7 +123,7 @@ public sealed class SpellWheelPanel : IPanel
         }
         else if (isSaturnMaria)
         {
-            ImGui.SeparatorText("🌟 Invocações & Especiais da Maria (Saturn)");
+            ImGui.SeparatorText("Invocações & Especiais da Maria (Saturn)");
             ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
             for (int i = 0; i < SpellWheel.MariaSpecials.Length; i++)
@@ -148,7 +148,7 @@ public sealed class SpellWheelPanel : IPanel
         }
         else if (isPspMaria)
         {
-            ImGui.SeparatorText("🕊 Invocações Celestiais da Maria (PSP)");
+            ImGui.SeparatorText("Invocações Celestiais da Maria (PSP)");
             ImGui.BeginChild("spell_list_child", Vector2.Zero, ImGuiChildFlags.Borders);
 
             (string name, int cost, Subweapon sub)[] pspMoves =
@@ -179,7 +179,7 @@ public sealed class SpellWheelPanel : IPanel
             }
 
             ImGui.Spacing();
-            ImGui.SeparatorText("🕊 Artes Celestiais");
+            ImGui.SeparatorText("Artes Celestiais");
             if (ImGui.Button("Super Salto Celestial [6]##psp_sjump", new Vector2(-1, 36)))
             {
                 SpellWheel.TriggerQuickCast(5);

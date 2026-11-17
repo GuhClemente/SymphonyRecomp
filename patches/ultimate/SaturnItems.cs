@@ -81,13 +81,13 @@ public static class SaturnItems
 
         if (ItemsSupported)
             ToastNotifications.ShowText(
-                "🎁 Arsenal do Sega Saturn Entregue!",
+                "Arsenal do Sega Saturn Entregue!",
                 "Lança de Alucard, Escudo da Floresta, Adaga Astral, Machado Duplo, Manto do Arco-íris, Tecido Brilhante e Botas da Velocidade adicionados ao seu inventário!",
                 null,
                 5.0f);
         else
             ToastNotifications.ShowText(
-                "🎁 Arsenal do Sega Saturn",
+                "Arsenal do Sega Saturn",
                 "Botas da Velocidade entregues. As armas e mantos do Saturn ainda não existem nas tabelas de itens do DRA retail.",
                 null,
                 5.0f);
@@ -144,7 +144,7 @@ public static class SaturnItems
                 _l2Cooldown = 30; // 0.5s cooldown
                 // Trigger item activation
                 ToastNotifications.ShowText(
-                    "✋ Terceira Mão (Holder)",
+                    "Terceira Mão (Holder)",
                     $"Item utilizado da terceira mão: ID {item}",
                     null,
                     2.0f);

@@ -49,7 +49,7 @@ public sealed class UltimatePanel : IPanel
         ImGui.Spacing();
 
         // 2. Balance Selection
-        ImGui.SeparatorText("⚖ Balanceamento de Jogabilidade");
+        ImGui.SeparatorText("Balanceamento de Jogabilidade");
         int balance = (int)UltimateOptions.Balance;
         if (ImGui.RadioButton("Equilíbrio Saturn (I-frames 21f em armas pesadas, combos de escudo)", balance == (int)SaturnBalanceMode.Saturn))
         {
@@ -67,7 +67,7 @@ public sealed class UltimatePanel : IPanel
         ImGui.Spacing();
 
         // 3. Dub & Audio Mode
-        ImGui.SeparatorText("🎙 Dublagem & Áudio");
+        ImGui.SeparatorText("Dublagem & Áudio");
         int dub = (int)UltimateOptions.Dub;
         if (ImGui.RadioButton("Dublagem PSP (Dracula X Chronicles - Script Revisado)", dub == (int)DubMode.PSPEnglish))
         {
@@ -88,7 +88,7 @@ public sealed class UltimatePanel : IPanel
         ImGui.Spacing();
 
         // 4. Playable Characters
-        ImGui.SeparatorText("👤 Personagens & Estilos");
+        ImGui.SeparatorText("Personagens & Estilos");
         int charChoice = (int)UltimateOptions.CharacterMode;
         string[] chars = [
             "Alucard (Padrão)",
@@ -105,22 +105,22 @@ public sealed class UltimatePanel : IPanel
             MariaCharacter.RequestCharacterSwitch((CharacterSelection)charChoice);
         }
         if (UltimateOptions.CharacterMode is CharacterSelection.PSPMaria)
-            ImGui.TextColored(new Vector4(0.4f, 1f, 0.6f, 1f), "🌟 Maria PSP ativada! Pássaros, invocação de animais celestiais e voz PSP.");
+            ImGui.TextColored(new Vector4(0.4f, 1f, 0.6f, 1f), "Maria PSP ativada! Pássaros, invocação de animais celestiais e voz PSP.");
         else if (UltimateOptions.CharacterMode is CharacterSelection.RichterSaturnCoat)
-            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), "🥋 Richter Saturn Coat ativado com sobretudo longo azul e física do Saturn.");
+            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), "Richter Saturn Coat ativado com sobretudo longo azul e física do Saturn.");
         else if (UltimateOptions.CharacterMode is CharacterSelection.RichterBrownCoat)
-            ImGui.TextColored(new Vector4(0.85f, 0.6f, 0.35f, 1f), "🗡️ Richter Couro Marrom ativado com sobretudo de couro rústico estilo Simon/Trevor.");
+            ImGui.TextColored(new Vector4(0.85f, 0.6f, 0.35f, 1f), "Richter Couro Marrom ativado com sobretudo de couro rústico estilo Simon/Trevor.");
 
         // Everything below runs recompiled game code, so it is posted to the game thread
         bool inGame = Game.Available && Game.InGame;
         if (!inGame) ImGui.BeginDisabled();
-        if (ImGui.Button("🌟 Ativar Maria Renard no Gameplay (Saturn)"))
+        if (ImGui.Button("Ativar Maria Renard no Gameplay (Saturn)"))
         {
             MariaCharacter.ResetState();
             MariaCharacter.RequestCharacterSwitch(CharacterSelection.SaturnMaria);
         }
         ImGui.SameLine();
-        if (ImGui.Button("🚀 Pular para Entrada com Maria"))
+        if (ImGui.Button("Pular para Entrada com Maria"))
         {
             UltimateOptions.CharacterMode = CharacterSelection.SaturnMaria;
             dirty = true;
@@ -149,7 +149,7 @@ public sealed class UltimatePanel : IPanel
             }
 
             ImGui.Spacing();
-            ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "🔊 Teste de Voz e Áudio da Maria (Saturn):");
+            ImGui.TextColored(new Vector4(1f, 0.84f, 0f, 1f), "Teste de Voz e Áudio da Maria (Saturn):");
             if (!inGame) ImGui.BeginDisabled();
             if (ImGui.Button("Recarregar Sons da Maria")) MariaLoader.RequestReloadSounds();
             ImGui.SameLine();
@@ -179,7 +179,7 @@ public sealed class UltimatePanel : IPanel
         ImGui.Spacing();
 
         // 5. Saturn Relics & Gear
-        ImGui.SeparatorText("👟 Relíquias & Arsenal do Saturn");
+        ImGui.SeparatorText("Relíquias & Arsenal do Saturn");
         bool godSpeed = UltimateOptions.GodSpeedShoes;
         if (ImGui.Checkbox("Botas da Velocidade (God Speed Shoes - Relíquia 30)", ref godSpeed))
         {
@@ -207,7 +207,7 @@ public sealed class UltimatePanel : IPanel
             dirty = true;
         }
 
-        if (ImGui.Button("🎁 Conceder Arsenal do Sega Saturn"))
+        if (ImGui.Button("Conceder Arsenal do Sega Saturn"))
         {
             if (inGame) GameThread.Post(SaturnItems.GiftAllSaturnGear);
         }
@@ -218,7 +218,7 @@ public sealed class UltimatePanel : IPanel
         ImGui.Spacing();
 
         // 6. Stages & Teleports
-        ImGui.SeparatorText("🏰 Fases Secretas Exclusivas do Sega Saturn");
+        ImGui.SeparatorText("Fases Secretas Exclusivas do Sega Saturn");
         bool stagesEnabled = UltimateOptions.SaturnStages;
         if (ImGui.Checkbox("Conectar Fosso da Entrada às Fases Secretas", ref stagesEnabled))
         {
@@ -233,16 +233,16 @@ public sealed class UltimatePanel : IPanel
 
         ImGui.Text("Acesso Direto às Novas Fases:");
         if (!stagesReady || !inGame) ImGui.BeginDisabled();
-        if (ImGui.Button("🌿 Underground Garden (Jardim Subterrâneo)"))
+        if (ImGui.Button("Underground Garden (Jardim Subterrâneo)"))
             GameThread.Post(SaturnStages.WarpToUndergroundGarden);
         ImGui.SameLine();
-        if (ImGui.Button("⛓ Cursed Prison (Prisão Amaldiçoada)"))
+        if (ImGui.Button("Cursed Prison (Prisão Amaldiçoada)"))
             GameThread.Post(SaturnStages.WarpToCursedPrison);
 
-        if (ImGui.Button("🔥 Hell Garden (Jardim do Inferno)"))
+        if (ImGui.Button("Hell Garden (Jardim do Inferno)"))
             GameThread.Post(SaturnStages.WarpToHellGarden);
         ImGui.SameLine();
-        if (ImGui.Button("💀 Soul Prison (Prisão das Almas)"))
+        if (ImGui.Button("Soul Prison (Prisão das Almas)"))
             GameThread.Post(SaturnStages.WarpToSoulPrison);
         if (!stagesReady || !inGame) ImGui.EndDisabled();
 

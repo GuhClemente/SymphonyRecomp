@@ -93,13 +93,13 @@ public sealed class BossRespawnPanel : IPanel
 
             if (isDefeated)
             {
-                ImGui.TextColored(new Vector4(0.9f, 0.4f, 0.4f, 1f), $"☠ {b.Name}");
+                ImGui.TextColored(new Vector4(0.9f, 0.4f, 0.4f, 1f), $"[X] {b.Name}");
                 ImGui.SameLine();
                 ImGui.TextDisabled("(Derrotado)");
             }
             else
             {
-                ImGui.TextColored(new Vector4(0.3f, 1f, 0.4f, 1f), $"⚔ {b.Name}");
+                ImGui.TextColored(new Vector4(0.3f, 1f, 0.4f, 1f), $"[!] {b.Name}");
                 ImGui.SameLine();
                 ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.4f, 1f), "(Vivo / Pronto para Batalha)");
             }
