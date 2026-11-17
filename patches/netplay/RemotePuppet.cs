@@ -57,15 +57,6 @@ public static class RemotePuppet
 
     public static void DespawnPuppet()
     {
-        if (_wasRendered && Game.Available && Game.InGame)
-        {
-            try
-            {
-                var puppet = Entities.At(PuppetEntitySlot);
-                puppet.Destroy();
-            }
-            catch { }
-        }
         _wasRendered = false;
     }
 
@@ -112,7 +103,7 @@ public static class RemotePuppet
         bool sameStage = StageId == (byte)Stages.Current;
         bool sameRoom = RoomX == (byte)Stages.RoomX && RoomY == (byte)Stages.RoomY;
 
-        // Remote player is in the same room: render entity puppet
+        // Remote player is in the same room: track interpolated position
         if (sameStage && sameRoom)
         {
             if (Math.Abs(_interpX - PosX) > 120 || Math.Abs(_interpY - PosY) > 120 || !_wasRendered)
@@ -127,11 +118,6 @@ public static class RemotePuppet
                 _interpY = _interpY + (PosY - _interpY) * 0.35f;
             }
 
-            var puppet = Entities.At(PuppetEntitySlot);
-            puppet.PosX = (int)_interpX;
-            puppet.PosY = (int)_interpY;
-            puppet.FacingLeft = (ushort)(FacingLeft ? 1 : 0);
-            puppet.Step = 1; // Active entity step
             _wasRendered = true;
         }
         else

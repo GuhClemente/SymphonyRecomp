@@ -11,7 +11,11 @@ public static class LobbyManager
 {
     public static bool LocalReady { get; private set; } = false;
     public static bool RemoteReady { get; private set; } = false;
-    public static CharacterSelection LocalCharacter { get; private set; } = CharacterSelection.Alucard;
+    public static CharacterSelection LocalCharacter
+    {
+        get => UltimateOptions.CharacterMode;
+        set => UltimateOptions.CharacterMode = value;
+    }
     public static CharacterSelection RemoteCharacter { get; private set; } = CharacterSelection.Alucard;
     public static int SelectedLocationIndex { get; set; } = 0;
     public static bool IsInSanctuaryLobby { get; private set; } = false;
@@ -33,7 +37,6 @@ public static class LobbyManager
     {
         LocalReady = false;
         RemoteReady = false;
-        LocalCharacter = CharacterSelection.Alucard;
         RemoteCharacter = CharacterSelection.Alucard;
         SelectedLocationIndex = 0;
         IsInSanctuaryLobby = false;
@@ -41,8 +44,9 @@ public static class LobbyManager
 
     public static void SetLocalCharacter(CharacterSelection character)
     {
-        if (LocalCharacter == character) return;
-        LocalCharacter = character;
+        if (UltimateOptions.CharacterMode == character) return;
+        UltimateOptions.CharacterMode = character;
+        UltimateOptions.Save();
         SendLobbySync();
 
         // Dynamically switch local character model so the player and partner see the updated sprite live!

@@ -103,6 +103,7 @@ public sealed class UltimatePanel : IPanel
             UltimateOptions.CharacterMode = (CharacterSelection)charChoice;
             dirty = true;
             MariaCharacter.RequestCharacterSwitch((CharacterSelection)charChoice);
+            Recompiled.Netplay.LobbyManager.SendLobbySync();
         }
         if (UltimateOptions.CharacterMode is CharacterSelection.PSPMaria)
             ImGui.TextColored(new Vector4(0.4f, 1f, 0.6f, 1f), "Maria PSP ativada! Pássaros, invocação de animais celestiais e voz PSP.");
@@ -116,8 +117,11 @@ public sealed class UltimatePanel : IPanel
         if (!inGame) ImGui.BeginDisabled();
         if (ImGui.Button("Ativar Maria Renard no Gameplay (Saturn)"))
         {
+            UltimateOptions.CharacterMode = CharacterSelection.SaturnMaria;
+            dirty = true;
             MariaCharacter.ResetState();
             MariaCharacter.RequestCharacterSwitch(CharacterSelection.SaturnMaria);
+            Recompiled.Netplay.LobbyManager.SendLobbySync();
         }
         ImGui.SameLine();
         if (ImGui.Button("Pular para Entrada com Maria"))
@@ -125,6 +129,7 @@ public sealed class UltimatePanel : IPanel
             UltimateOptions.CharacterMode = CharacterSelection.SaturnMaria;
             dirty = true;
             MariaCharacter.ResetState();
+            Recompiled.Netplay.LobbyManager.SendLobbySync();
             GameThread.Post((c, m) =>
             {
                 if (!Player.CanTeleport) return;

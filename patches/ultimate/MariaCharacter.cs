@@ -239,6 +239,21 @@ public static class MariaCharacter
                     Inventory.RightHand = rh;
                     Inventory.LeftHand = lh;
 
+                    // Ensure weapon programs and VRAM sprite tiles are cleanly initialized
+                    try
+                    {
+                        c.A0 = 0;
+                        SoTN_dra.LoadWeaponPrg(c, m);
+                        c.A0 = 0;
+                        SoTN_dra.InitWeapon(c, m);
+
+                        c.A0 = 1;
+                        SoTN_dra.LoadWeaponPrg(c, m);
+                        c.A0 = 1;
+                        SoTN_dra.InitWeapon(c, m);
+                    }
+                    catch { }
+
                     ToastNotifications.ShowText("Alucard", "Alucard reativado!", null, 3f);
                     break;
             }
@@ -283,8 +298,6 @@ public static class MariaCharacter
     {
         try
         {
-            MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 1);
-            MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 2);
             ushort flags = m.ReadU16(RoomLayoutFlagsAddr);
             if ((flags & 0x20) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 3);
             if ((flags & 0x40) != 0) MariaLoader.Invoke(c, m, SoTN_dra.LoadGfxAsync, 4);
@@ -820,10 +833,17 @@ public static class MariaCharacter
             var gpu = RecompOne.Runtime.Runtime.Gpu;
             var backend = RecompOne.Runtime.Hle.GpuHle.Backend;
 
-            // HUD texture page (0x200..0x220 in VRAM, y=256 and y=384)
-            // Only chunks 0..3 are HUD; chunks 4..31 contain disc/title graphics that overwrite stage tiles!
+            // 16 chunks of 32x128 halfwords in VRAM (y=256 and y=384):
+            // - Chunks 0..3 (0x200..0x23F): HUD, life gauge, numerals, Maria HUD art
+            // - Chunks 4..7 (0x240..0x27F): Richter whip, brandish arms, subweapons & weapon art
+            // - Chunks 8..11 (0x280..0x2BF): Subweapon projectiles
+            // - Chunks 12..15 (0x2C0..0x2FF): Common effects & items
+            // Chunks 16..31 (0x300..0x3FF) are left to stage/save room loaders to prevent room tile corruption.
             int[] chunkX = [
-                0x200, 0x220, 0x200, 0x220
+                0x200, 0x220, 0x200, 0x220,
+                0x240, 0x260, 0x240, 0x260,
+                0x280, 0x2A0, 0x280, 0x2A0,
+                0x2C0, 0x2E0, 0x2C0, 0x2E0
             ];
 
             Span<ushort> chunk = stackalloc ushort[32 * 128];
