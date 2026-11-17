@@ -84,9 +84,12 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
 
 ---
 
-### 🪄 7. Magias Rápidas (Spell Quick Cast)
-- Atalhos numéricos no teclado de **`1` a `6`** para conjuração imediata de magias (*Summon Spirit*, *Tetra Spirit*, *Dark Metamorphosis*, *Hellfire*, *Soul Steal*, *Sword Brothers*).
-- Paleta gráfica no ImGui com validação em tempo real de custo de MP.
+### 🪄 7. Magias Rápidas & Roda de Habilidades Adaptativa
+- **Adaptação Dinâmica ao Personagem Ativo**:
+  - **Alucard**: Magias com consumo de MP (*Summon Spirit [1]*, *Tetra Spirit [2]*, *Dark Metamorphosis [3]*, *Hellfire [4]*, *Soul Steal [5]*, *Sword Brothers [6]*).
+  - **Richter (Clássico, Saturn Coat, Couro Simon)**: Barra de Corações e disparo imediato de Item Crashes e Artes Marciais (*Hydro Storm [1]*, *Grand Cross [2]*, *Thousand Blades [3]*, *Axe Rain [4]*, *Burning Bible [5]*, *Blade Dash [6]*).
+  - **Maria (Saturn e PSP)**: Barra de MP e Invocações dos Animais Celestiais (*Guardian Knuckle [1]*, *Suzaku [2]*, *Genbu [3]*, *Byakko [4]*, *Seiryuu [5]*, *Quatro Bestas [6]*).
+- Atalhos numéricos universais no teclado de **`1` a `6`** e paleta gráfica no ImGui com barras dinâmicas.
 
 ---
 
@@ -99,6 +102,7 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
 
 ### 🗡️ 9. Controles Aprimorados para o Richter Belmont
 - **Item Crash no botão Triângulo (`△` / `V`)** para disparar o golpe supremo da sub-arma imediatamente.
+- **Atalhos 1 a 6** para disparar qualquer Item Crash ou Blade Dash sem precisar de motion inputs complexos.
 
 ---
 
@@ -108,7 +112,34 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
 
 ---
 
-### 🌐 11. Website Moderno Interativo & Guia de Manutenção
+### 🏰 11. SOTN Ultimate Integrado (Sega Saturn & PSP)
+- **Maria Renard 100% Jogável**:
+  - **Saturn Maria**: Pulo triplo aéreo, pombas mágicas, carga de ataque e as Quatro Bestas Sagradas (*Suzaku*, *Genbu*, *Byakko*, *Seiryuu*).
+  - **PSP Maria**: Subweapons duplos rotativos, HUD autêntico de dois ícones e animais celestiais.
+- **3 Trajes Selecionáveis de Richter Belmont**:
+  - **Richter Clássico**: Figurino original de PS1 com colete azul sem mangas.
+  - **Richter Saturn Coat**: Sobretudo azul longo com mangas compridas e detalhes dourados do Sega Saturn.
+  - **Richter Couro Marrom**: Sobretudo de couro rústico inspirado nos trajes clássicos de Simon e Trevor Belmont.
+- **Arsenal e Relíquias do Saturn**:
+  - Botas da Velocidade (*God Speed Shoes - Relíquia 30*).
+  - Terceira Mão / Holder (*Item rápido no botão L2*).
+  - Efeito Dinâmico de Cor no Manto do Arco-Íris.
+- **Dublagens e Áudio Múltiplo**:
+  - Dublagem PSP (*Dracula X Chronicles* com roteiro revisado).
+  - Dublagem Clássica de PS1 (*"What is a man? A miserable little pile of secrets!"*).
+  - Dublagem Japonesa Original com legendas.
+
+---
+
+### ⚡ 12. Bypass da Morte (Death Skip Oficial)
+- **Morte Opcional na Entrada do Castelo**:
+  - Ative a opção **`Ignorar Encontro com a Morte`** no painel SOTN Ultimate.
+  - A entidade da Morte é apagada imediatamente ao entrar no corredor: Alucard não assiste à cena e **mantém intacto todo o seu arsenal supremo inicial** (*Alucard Sword, Alucard Shield, Dragon Helm, Alucard Mail, Twilight Cloak, Ring of Ares*).
+  - O corredor fica livre e desobstruído até o Laboratório Alquímico.
+
+---
+
+### 🌐 13. Website Moderno Interativo & Guia de Manutenção
 - Website moderno em `website/index.html` com arte cinemática gótica, vitrine de recursos, simulador de radar co-op e cheatsheet pesquisável.
 - Guia mandatório em `website/INSTRUCTIONS_FOR_AI.md` para qualquer desenvolvedor ou IA manter o site atualizado.
 
@@ -116,10 +147,8 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
 
 ## 🔮 O Que o Projeto Terá no Futuro (Master Roadmap)
 
-1. **🏯 Fase Sega Saturn via Ghidra**:
-   - Extração, descompilação e porte dos binários da **Maria Renard** do Saturn (`BIN/MAR.BIN`).
-   - Extração das áreas exclusivas do Saturn: **Underground Garden** (`ST/NO0.BIN`) e **Cursed Prison** (`ST/NO1.BIN`).
-   - Músicas extras e equipamentos exclusivos do Saturn.
+1. **🏯 Fases Exclusivas do Sega Saturn**:
+   - Portagem e recompilação completa dos overlays de cenários: **Underground Garden** e **Cursed Prison**.
 2. **🎵 Trilha Sonora Orquestrada em Alta Resolução (FLAC/OGG)**:
    - Sistema de carregamento de faixas de áudio externas em `packs/soundtrack_hd/`.
 3. **📱 Ports Multiplataforma**:
@@ -133,13 +162,12 @@ Este projeto foi construído com profundo respeito e reconhecimento aos pioneiro
 | :--- | :---: | :---: | :--- |
 | **Troca Rápida de Armas** | <kbd>Q</kbd> | <kbd>R3</kbd> *(Clique Analógico)* | Alterna entre os 3 perfis de armas e escudos. |
 | **Corrida do Alucard** | <kbd>→</kbd><kbd>→</kbd> / <kbd>←</kbd><kbd>←</kbd> | <kbd>→</kbd><kbd>→</kbd> ou Segurar <kbd>L1</kbd>/<kbd>R1</kbd> | Corrida em alta velocidade (Godspeed Boots). |
-| **Invocar Espírito (5 MP)** | <kbd>1</kbd> | Menu de Magias | Conjura *Summon Spirit* instantaneamente. |
-| **Tetra Espírito (20 MP)** | <kbd>2</kbd> | Menu de Magias | Conjura *Tetra Spirit* instantaneamente. |
-| **Metamorfose Sombria (10 MP)**| <kbd>3</kbd> | Menu de Magias | Conjura *Dark Metamorphosis* instantaneamente. |
-| **Fogo do Inferno (15 MP)** | <kbd>4</kbd> | Menu de Magias | Conjura *Hellfire* instantaneamente. |
-| **Roubo de Almas (50 MP)** | <kbd>5</kbd> | Menu de Magias | Conjura *Soul Steal* instantaneamente. |
-| **Irmãos da Espada (30 MP)** | <kbd>6</kbd> | Menu de Magias | Conjura *Sword Brothers* (requer Familiar). |
+| **Magias de Alucard (1 a 6)** | <kbd>1</kbd> a <kbd>6</kbd> | Menu de Magias Rápidas | Dispara Summon Spirit, Tetra, Metamorphosis, Hellfire, Soul Steal, Sword Brothers. |
+| **Habilidades de Richter (1 a 6)** | <kbd>1</kbd> a <kbd>6</kbd> | Menu de Magias Rápidas | Dispara Hydro Storm, Grand Cross, Thousand Blades, Axe Rain, Bible e Blade Dash. |
+| **Habilidades de Maria (1 a 6)** | <kbd>1</kbd> a <kbd>6</kbd> | Menu de Magias Rápidas | Invoca Guardian Knuckle, Suzaku, Genbu, Byakko, Seiryuu e Quatro Bestas. |
 | **Item Crash do Richter** | <kbd>V</kbd> | <kbd>△</kbd> *(Triângulo / Y)* | Dispara o golpe supremo da sub-arma imediatamente. |
+| **Seleção de Personagens & Trajes**| Menu <kbd>F11</kbd> | Menu SOTN Ultimate | Alterna entre Alucard, Maria Saturn, Maria PSP e os 3 trajes de Richter. |
+| **Bypass da Morte (Death Skip)** | Menu <kbd>F11</kbd> | Menu SOTN Ultimate | Pula a cena da Morte e preserva todo o equipamento inicial de Alucard. |
 | **Barra de Menus ImGui** | <kbd>F11</kbd> / Mouse no Topo | Menu Superior | Abre/fecha a barra com todos os painéis. |
 
 ---

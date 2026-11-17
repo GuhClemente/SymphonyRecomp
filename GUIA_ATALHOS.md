@@ -10,12 +10,10 @@ Este documento reúne todas as teclas de atalho, controles e novos painéis impl
 | :--- | :---: | :---: | :--- |
 | **Troca Rápida de Armas** *(Quick Weapon Swap)* | **`Q`** | **`R3`** *(Clique Analógico Direito)* | Alterna ciclicamente entre os 3 conjuntos de armas (mão direita e esquerda) instantaneamente. |
 | **Corrida do Alucard** *(Godspeed Boots / Sprint)* | **`→ →`** ou **`← ←`** | **`→ →`** / **`← ←`** ou segurar **`L1`** / **`R1`** | Dois toques na direção ou segurar botão de ombro para correr em alta velocidade. |
-| **Invocar Espírito** *(Summon Spirit)* | **`1`** | Menu de Magias | Conjura a magia instantaneamente consumindo 5 MP. |
-| **Tetra Espírito** *(Tetra Spirit)* | **`2`** | Menu de Magias | Conjura a magia instantaneamente consumindo 20 MP. |
-| **Metamorfose Sombria** *(Dark Metamorphosis)* | **`3`** | Menu de Magias | Conjura a magia instantaneamente consumindo 10 MP. |
-| **Fogo do Inferno** *(Hellfire)* | **`4`** | Menu de Magias | Conjura a magia instantaneamente consumindo 15 MP. |
-| **Roubo de Almas** *(Soul Steal)* | **`5`** | Menu de Magias | Conjura a magia instantaneamente consumindo 50 MP. |
-| **Irmãos da Espada** *(Sword Brothers)* | **`6`** | Menu de Magias | Conjura a magia instantaneamente consumindo 30 MP (requer familiar Espada). |
+| **Magias de Alucard** *(Alucard Spells)* | **`1` a `6`** | Menu de Magias Rápidas | Dispara Summon Spirit [1], Tetra [2], Dark Metamorphosis [3], Hellfire [4], Soul Steal [5] e Sword Brothers [6]. |
+| **Habilidades de Richter** *(Item Crashes & Artes)* | **`1` a `6`** | Menu de Magias Rápidas | Dispara Hydro Storm [1], Grand Cross [2], Thousand Blades [3], Axe Rain [4], Burning Bible [5] e Blade Dash [6]. |
+| **Habilidades de Maria** *(Animais Celestiais)* | **`1` a `6`** | Menu de Magias Rápidas | Invoca Guardian Knuckle [1], Suzaku [2], Genbu [3], Byakko [4], Seiryuu [5] e Quatro Bestas [6]. |
+| **Item Crash do Richter** | **`V`** | **`△`** *(Triângulo / Y)* | Dispara o Item Crash supremo da sub-arma imediatamente. |
 | **Barra de Menus ImGui** | **`F11`** ou Mover Mouse ao Topo | Menu Superior | Abre/oculta a barra superior de painéis e opções. |
 
 ---
@@ -65,6 +63,25 @@ Este documento reúne todas as teclas de atalho, controles e novos painéis impl
   - *Transições Rápidas (Pular Salas de CD)*
   - *Música Secreta da Fada em Japonês*
   - *Modo Daltônico e Correções Anti-Freeze*
+
+### 🏰 9. SOTN Ultimate - Saturn & PSP (`Diversos -> SOTN Ultimate (Saturn & PSP)`)
+- **Seleção de Personagens & Estilos**:
+  - *Alucard*
+  - *Maria Renard (Sega Saturn - Pulo triplo e Quatro Bestas)*
+  - *Maria Renard (PSP - Subweapon duplo)*
+  - *Richter Belmont (Colete Azul Clássico PS1)*
+  - *Richter Belmont (Sobretudo Azul do Saturn)*
+  - *Richter Belmont (Sobretudo Couro Marrom - Estilo Simon Belmont)*
+- **Bypass da Morte (Death Skip Oficial)**:
+  - *Ignorar Encontro com a Morte*: Pula a cutscene da Morte na Entrada do Castelo. O Alucard mantém todo o seu equipamento inicial e o corredor fica livre.
+- **Relíquias e Arsenal do Sega Saturn**:
+  - *Botas da Velocidade (God Speed Shoes)*
+  - *Terceira Mão / Holder (Item rápido com L2)*
+  - *Efeito Dinâmico de Cor no Manto do Arco-Íris*
+- **Seleção de Dublagem & Áudio**:
+  - *Dublagem PSP (Dracula X Chronicles - Script Revisado)*
+  - *Dublagem Clássica PS1 ("What is a man?")*
+  - *Dublagem Japonesa Original (Vozes em JP com legendas)*
 
 ---
 

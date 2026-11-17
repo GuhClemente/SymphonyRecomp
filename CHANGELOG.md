@@ -1,3 +1,35 @@
+# SymphonyRecomp v2.0 - Ultimate State of the Art Edition (2026-11-17)
+
+Esta versão unifica a recompilação estática de Castlevania: Symphony of the Night (.NET 10) com o ecossistema completo de recursos State of the Art: Multiplayer Co-op & PvP 60Hz, Modo Hardcore, Conquistas, Shaders CRT, e a integração massiva do mod **SOTN Ultimate (Sega Saturn & PSP)**.
+
+### Destaques Recentes & SOTN Ultimate
+- **Richter Belmont com 3 Trajes Selecionáveis:**
+  - *Richter Clássico:* Colete azul sem mangas original do PS1.
+  - *Richter Saturn Coat:* Sobretudo longo azul com mangas compridas e acabamento dourado do Sega Saturn.
+  - *Richter Couro Marrom:* Sobretudo rústico de couro marrom inspirado no estilo clássico de Simon e Trevor Belmont, com injeção de paleta dedicada no VRAM preservando acabamentos dourados, botas e tom de pele.
+- **Roda de Magias e Habilidades Adaptativa (Spell Wheel):**
+  - Adaptação dinâmica automática baseada no personagem ativo em jogo.
+  - **Alucard:** Barra de MP em tempo real e atalhos rápidos `1` a `6` para *Summon Spirit [1]*, *Tetra Spirit [2]*, *Dark Metamorphosis [3]*, *Hellfire [4]*, *Soul Steal [5]* e *Sword Brothers [6]*.
+  - **Richter (todos os 3 trajes):** Barra de Corações em tempo real e atalhos rápidos `1` a `6` para *Hydro Storm [1]*, *Grand Cross [2]*, *Thousand Blades [3]*, *Axe Rain [4]*, *Burning Bible [5]* e *Blade Dash [6]*.
+  - **Maria (Saturn e PSP):** Barra de MP em tempo real e atalhos rápidos `1` a `6` para *Guardian Knuckle [1]*, *Suzaku [2]*, *Genbu [3]*, *Byakko [4]*, *Seiryuu [5]* e *Quatro Bestas [6]*.
+- **Bypass da Morte (Death Skip Oficial):**
+  - Novo toggle `[X] Ignorar Encontro com a Morte (Bypass Death / Manter Equipamentos)` no painel SOTN Ultimate.
+  - Destruição condicional da entidade da Morte na Entrada do Castelo (`no3`).
+  - Alucard mantém intacto todo o seu arsenal supremo inicial (*Alucard Sword, Alucard Shield, Dragon Helm, Alucard Mail, Twilight Cloak, Ring of Ares*) e caminha livremente até o Laboratório Alquímico sem interrupções.
+- **Interface ImGui 100% Limpa (Fix dos Glifos `?`):**
+  - Substituição de emojis Unicode que extrapolavam o atlas ASCII/Latin-1 do Dear ImGui por textos limpos e descritivos, eliminando completamente os pontos de interrogação indesejados.
+- **Maria Renard (Sega Saturn & PSP):**
+  - Saturn Maria com física de pulo triplo, pombas mágicas, carga de ataque, Quatro Bestas Sagradas e HUD próprio de vinhas.
+  - PSP Maria com subweapons duplos rotativos e HUD de dois ícones.
+  - Pipeline de áudio SPU corrigido (`libsnd` fix) com reprodução autêntica de SFX e vozes em todos os canais.
+- **Arsenal e Relíquias do Saturn:**
+  - Botas da Velocidade (*God Speed Shoes - Relíquia 30*).
+  - Terceira Mão / Holder (*Item rápido no botão L2*).
+  - Efeito Dinâmico de Cor no Manto do Arco-Íris.
+- **Seleção de Dublagens:** PSP Dracula X Chronicles, PS1 Original e Japonês com legendas.
+
+---
+
 # pre-release 1.1.2 (this is a pre-release for 1.0.0)
 this is a pre-release, it has a lot of new stuff and wasnt tested as much as a full release, so expect some bugs, please report anything you find!
 

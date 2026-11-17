@@ -98,6 +98,10 @@ def build_html():
     img_rcoat_hydro = image_to_base64(IMG_DIR / "073_richter_casaco_crash_1_hydro_storm.png")
     img_rcoat_grand = image_to_base64(IMG_DIR / "075_richter_casaco_crash_2_grand_cross.png")
 
+    # Imagens Richter Sobretudo Couro Marrom (Estilo Simon Belmont)
+    img_rbrown_idle = image_to_base64(IMG_DIR / "028_richter_couro_marrom.png")
+    img_rbrown_gameplay = image_to_base64(IMG_DIR / "029_gameplay_richter_couro_marrom.jpg")
+
     # Imagens Alucard
     img_al_idle = image_to_base64(IMG_DIR / "085_alucard_parado.png")
     img_al_atk = image_to_base64(IMG_DIR / "086_alucard_ataque.png")
@@ -683,8 +687,8 @@ tr:hover {{
 
         <div class="cover-features-grid">
             <div class="cover-feat-box">
-                <h4>🎭 5 Personagens</h4>
-                <p>Alucard, Maria (Saturn), Maria (PSP), Richter clássico e Richter Saturn Coat alternáveis em tempo real.</p>
+                <h4>🎭 6 Personagens & Estilos</h4>
+                <p>Alucard, Maria (Saturn), Maria (PSP), Richter clássico, Richter Saturn Coat e Richter Couro Marrom.</p>
             </div>
             <div class="cover-feat-box">
                 <h4>🌐 Multiplayer Co-op & PvP</h4>
@@ -927,14 +931,14 @@ tr:hover {{
 
     <div class="page-break"></div>
 
-    <!-- 3.3 RICHTER CLÁSSICO E SATURN COAT -->
+    <!-- 3.3 RICHTER CLÁSSICO, SATURN COAT E COURO MARROM -->
     <div class="char-card no-break">
         <div class="char-header">
-            <div class="char-name">3.3 Richter Belmont (Clássico & Figurino Saturn Coat)</div>
-            <div class="char-badge badge-coat">SOBRETUDO SEGA SATURN</div>
+            <div class="char-name">3.3 Richter Belmont (Clássico, Saturn Coat & Sobretudo Couro Marrom)</div>
+            <div class="char-badge badge-coat">3 FIGURINOS SELECIONÁVEIS</div>
         </div>
         <p class="char-desc">
-            O lendário caçador de vampiros com seu chicote sagrado Vampire Killer. O SymphonyRecomp oferece tanto o visual clássico de colete azul do PS1 quanto o figurino exclusivo do Sega Saturn (<em>RIC2</em>), com sobretudo longo azul e ornamentos dourados.
+            O lendário caçador de vampiros com seu chicote sagrado Vampire Killer. O SymphonyRecomp oferece 3 figurinos distintos: o visual clássico de colete azul do PS1, o sobretudo azul com detalhes dourados do Sega Saturn (<em>RIC2</em>) e o novo sobretudo rústico de couro marrom inspirado no visual clássico de Simon e Trevor Belmont!
         </p>
 
         <ul class="bullet-list">
@@ -959,6 +963,16 @@ tr:hover {{
                 <img src="{img_rcoat_idle}" alt="Richter Belmont - Sobretudo Saturn Coat com Bordados Dourados" onclick="openModal(this.src, this.alt)">
                 <span class="gameplay-label">Richter Saturn Coat</span>
                 <span class="gameplay-sublabel">Sobretudo longo azul com detalhes dourados do Sega Saturn</span>
+            </div>
+            <div class="gameplay-card">
+                <img src="{img_rbrown_gameplay}" alt="Richter Belmont - Sobretudo Couro Marrom Estilo Simon Belmont" onclick="openModal(this.src, this.alt)">
+                <span class="gameplay-label">Richter Couro Marrom</span>
+                <span class="gameplay-sublabel">Sobretudo de couro rústico estilo Simon/Trevor Belmont</span>
+            </div>
+            <div class="gameplay-card">
+                <img src="{img_rbrown_idle}" alt="Comparativo dos 3 Trajes de Richter Belmont" onclick="openModal(this.src, this.alt)">
+                <span class="gameplay-label">Os 3 Trajes de Richter</span>
+                <span class="gameplay-sublabel">Colete clássico, Sobretudo Saturn e Couro Simon</span>
             </div>
             <div class="gameplay-card">
                 <img src="{img_rc_whip}" alt="Richter Belmont - Chicotada Vampire Killer Estendida" onclick="openModal(this.src, this.alt)">
@@ -1040,6 +1054,23 @@ tr:hover {{
                 <span class="gameplay-sublabel">Ondas de almas absorvidas de toda a sala com recuperação massiva de vida</span>
             </div>
         </div>
+    </div>
+
+    <!-- 3.5 SOTN ULTIMATE & QOL MASTER -->
+    <div class="char-card no-break" style="margin-top: 25px;">
+        <div class="char-header">
+            <div class="char-name">3.5 Recursos Mestres do SOTN Ultimate & QoL</div>
+            <div class="char-badge badge-coat">EXCLUSIVO PC</div>
+        </div>
+        <p class="char-desc">
+            O SymphonyRecomp integra o conjunto definitivo de expansões e correções do ecossistema clássico:
+        </p>
+        <ul class="bullet-list">
+            <li><span class="highlight">Bypass da Morte (Death Skip Oficial):</span> Pule a cutscene da Morte na Entrada do Castelo pelo menu <span class="pad-btn">F11</span>. O Alucard mantém intacto todo o seu arsenal supremo inicial (Alucard Sword, Shield, Dragon Helm, Alucard Mail, Twilight Cloak e Anel de Ares) e o corredor fica desobstruído!</li>
+            <li><span class="highlight">Roda de Habilidades Adaptativa:</span> Adaptação dinâmica para qualquer personagem com atalhos numéricos <kbd>1</kbd> a <kbd>6</kbd> (Magias de Sangue para Alucard, Item Crashes e Artes Marciais para Richter, Invocações Sagradas para Maria).</li>
+            <li><span class="highlight">Arsenal do Sega Saturn:</span> Botas da Velocidade (God Speed Shoes), Terceira Mão / Holder (L2) e Efeito Dinâmico de Cor no Manto do Arco-Íris.</li>
+            <li><span class="highlight">Tríplice Seleção de Dublagem:</span> Alterne em tempo real entre a dublagem da PSP (Dracula X Chronicles), a dublagem clássica de PS1 ("What is a man?") e o áudio japonês original com legendas em português.</li>
+        </ul>
     </div>
 
     <div class="page-break"></div>

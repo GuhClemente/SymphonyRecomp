@@ -430,13 +430,39 @@ O Alucard não tem overlay próprio, mas o espaço do overlay do jogador (`0x801
 
 ---
 
-## 24. Matriz Comparativa dos 5 Personagens
-| Personagem | Overlay | Binário | Base | HUD | Habilidade Especial |
+## 24. Matriz Comparativa dos Personagens & Estilos
+| Personagem / Estilo | Overlay | Binário | Base | HUD | Habilidade Especial |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Saturn Maria** | `maria` | `MARIA.BIN` | `0x8013C000` | Vinhas Saturn + HP/MP | Pulo Triplo, 6 Bestas Sagradas, Carga de Ataque |
 | **PSP Maria** | `maria2` | `MARIA2.BIN` | `0x8013C000` | Subweapon Duplo | Subweapons duplos rotativos, 4 animais celestiais |
-| **Richter Clássico** | `ric` | `RIC.BIN` | `0x8013C000` | Richter Retail | Chicote, 5 Item Crashes, Dash, Super Jump |
-| **Richter Casaco** | `ric2` | `RIC2.BIN` | `0x8013C000` | Richter Retail | Casaco longo com física do Saturn + 5 Crashes |
-| **Alucard** | `dra` | `DRA.BIN` | Core | Alucard Clássico | Espada/Escudo, 5 Magias, Relíquias |
+| **Richter Clássico** | `ric` | `RIC.BIN` | `0x8013C000` | Richter Retail | Colete sem mangas PS1, Chicote, 5 Item Crashes, Dash |
+| **Richter Saturn Coat** | `ric2` | `RIC2.BIN` | `0x8013C000` | Richter Retail | Casaco longo azul com mangas e acabamento dourado do Saturn |
+| **Richter Couro Marrom**| `ric2` | `RIC2.BIN` (Paleta Simon) | `0x8013C000` | Richter Retail | Sobretudo rústico de couro marrom estilo Simon/Trevor |
+| **Alucard** | `dra` | `DRA.BIN` | Core | Alucard Clássico | Espada/Escudo, 6 Magias, Relíquias, Transformações |
+
+---
+
+## 25. Bypass da Morte (Death Skip Oficial)
+* **Arquivo:** `patches/translation/scripts/ScriptFunctions_no3.cs` e `patches/ultimate/UltimateOptions.cs`.
+* **Mecânica:**
+  * No código original de PS1 da Entrada do Castelo (`no3`), o encontro com a Morte verifica `g_PlayableCharacter` (`0x8003BE21`). Para Richter (`!= 0`), a Morte sempre era destruída nativamente (`DestroyEntity_no3`).
+  * Para o Alucard, a cena padrão retirava todo o equipamento lendário inicial.
+  * O novo toggle **`BypassDeath`** (`[X] Ignorar Encontro com a Morte`) estende essa destruição condicional imediata para o Alucard também: a entidade da Morte é apagada antes de rodar o script de cutscene.
+  * Com isso, o Alucard mantém integralmente o arsenal supremo (*Alucard Sword, Alucard Shield, Dragon Helm, Alucard Mail, Twilight Cloak, Ring of Ares*) e o corredor fica desobstruído.
+
+---
+
+## 26. Roda de Magias Adaptativa por Personagem (`SpellWheel`)
+* **Arquivo:** `patches/qol/SpellWheel.cs` e `patches/qol/SpellWheelPanel.cs`.
+* **Comportamento Dinâmico:**
+  * **Alucard:** Exibe a barra de MP e permite disparo rápido com teclas `1` a `6` das magias: *Summon Spirit [1]*, *Tetra Spirit [2]*, *Dark Metamorphosis [3]*, *Hellfire [4]*, *Soul Steal [5]* e *Sword Brothers [6]*.
+  * **Richter (Clássico, Saturn Coat, Couro Marrom):** Exibe a barra de Corações e dispara os Item Crashes e Artes Marciais pelas teclas `1` a `6`: *Hydro Storm [1]*, *Grand Cross [2]*, *Thousand Blades [3]*, *Axe Rain [4]*, *Burning Bible [5]* e *Blade Dash [6]*.
+  * **Maria (Saturn e PSP):** Exibe a barra de MP e aciona as Invocações e Animais Celestiais pelas teclas `1` a `6`: *Guardian Knuckle [1]*, *Suzaku [2]*, *Genbu [3]*, *Byakko [4]*, *Seiryuu [5]* e *Quatro Bestas [6]*.
+
+---
+
+## 27. Correção de Glifos e Limpeza da Interface ImGui
+* **Diagnóstico:** O atlas de fontes padrão do Dear ImGui suporta apenas a faixa de caracteres ASCII e Latin-1. Emojis Unicode (> `0x2500`) em títulos e botões eram substituídos automaticamente pelo glifo de fallback `'?'`.
+* **Resolução:** Todos os emojis foram removidos de todos os painéis e ferramentas ([UltimatePanel.cs](file:///c:/github/SymphonyRecomp/patches/ultimate/UltimatePanel.cs), [SpellWheelPanel.cs](file:///c:/github/SymphonyRecomp/patches/qol/SpellWheelPanel.cs), etc.), resultando em uma interface gráfica limpa, consistente e sem glifos corrompidos.
 
 
