@@ -97,11 +97,13 @@ public static class NetworkManager
             NatHelper.TryOpenPort(port);
             NatHelper.FetchPublicIpAsync();
 
+            Console.WriteLine($"[Netplay] Servidor Host aberto na porta UDP {port}. IP Local: {NatHelper.LocalIp}. Aguardando cliente...");
             Task.Run(() => ReceiveLoop(_cts.Token));
             ToastNotifications.ShowText("Multiplayer Host", $"Servidor aberto na porta {port}. Aguardando parceiro...", null, 4.0f);
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[Netplay] Erro ao abrir Host: {ex.Message}");
             State = NetConnectionState.Disconnected;
             ToastNotifications.ShowText("Erro ao Hospedar", ex.Message, null, 5.0f);
         }
@@ -130,6 +132,7 @@ public static class NetworkManager
             State = NetConnectionState.Connecting;
             _lastPacketReceivedTimer = 0f;
 
+            Console.WriteLine($"[Netplay] Conectando como Cliente a {ip}:{port} (Jogador Local: '{LocalPlayerName}')...");
             Task.Run(() => ReceiveLoop(_cts.Token));
 
             // Send Handshake
@@ -140,6 +143,7 @@ public static class NetworkManager
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[Netplay] Erro ao conectar a {ip}:{port}: {ex.Message}");
             State = NetConnectionState.Disconnected;
             ToastNotifications.ShowText("Erro de Conexão", ex.Message, null, 5.0f);
         }
@@ -326,6 +330,7 @@ public static class NetworkManager
                 RemotePlayerName = System.Text.Encoding.UTF8.GetString(packet.Payload);
                 State = NetConnectionState.Connected;
                 SendPacket(new NetworkPacket(PacketOpCode.HandshakeAck, System.Text.Encoding.UTF8.GetBytes(LocalPlayerName)));
+                Console.WriteLine($"[Netplay] Handshake recebido! Conectado com '{RemotePlayerName}'!");
                 ToastNotifications.ShowText("Multiplayer Conectado!", $"{RemotePlayerName} entrou na sessão!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
                 LobbyManager.SendLobbySync();
@@ -334,6 +339,7 @@ public static class NetworkManager
             case PacketOpCode.HandshakeAck:
                 RemotePlayerName = System.Text.Encoding.UTF8.GetString(packet.Payload);
                 State = NetConnectionState.Connected;
+                Console.WriteLine($"[Netplay] HandshakeAck recebido! Sessão estabelecida com '{RemotePlayerName}'!");
                 ToastNotifications.ShowText("Multiplayer Conectado!", $"Conectado ao mundo de {RemotePlayerName}!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
                 LobbyManager.SendLobbySync();
@@ -369,6 +375,7 @@ public static class NetworkManager
                 {
                     string time = DateTime.Now.ToString("HH:mm");
                     AddChatMessage(sender, msg, time);
+                    Console.WriteLine($"[Netplay/Chat] [{time}] {sender}: {msg}");
                     ToastNotifications.ShowText($"[{sender}]", msg, null, 5.0f);
                 }
                 break;
@@ -389,13 +396,16 @@ public static class NetworkManager
 
             case PacketOpCode.LobbySync:
                 LobbyManager.HandleLobbySync(packet.Payload);
+                Console.WriteLine($"[Netplay/Lobby] Sync: Parceiro={RemotePlayerName}, Caçador={LobbyManager.RemoteCharacter}, Pronto={LobbyManager.RemoteReady}");
                 break;
 
             case PacketOpCode.StartGameSync:
+                Console.WriteLine($"[Netplay/Lobby] StartGameSync recebido! Partida disparada em conjunto!");
                 LobbyManager.HandleStartGameSync(packet.Payload);
                 break;
 
             case PacketOpCode.EnterLobbyRoom:
+                Console.WriteLine($"[Netplay/Lobby] EnterLobbyRoom: Entrando na Sala de Espera (Santuário)...");
                 LobbyManager.HandleEnterLobbyRoom();
                 break;
 
@@ -404,14 +414,17 @@ public static class NetworkManager
                 break;
 
             case PacketOpCode.PlayerDowned:
+                Console.WriteLine($"[Netplay/Coop] Alerta: Jogador caiu em combate!");
                 CoopRevivalManager.HandleRemotePlayerDowned(packet.Payload);
                 break;
 
             case PacketOpCode.PlayerRevived:
+                Console.WriteLine($"[Netplay/Coop] Jogador reanimado com sucesso!");
                 CoopRevivalManager.HandleRemotePlayerRevived(packet.Payload);
                 break;
 
             case PacketOpCode.CoopPing:
+                Console.WriteLine($"[Netplay/Ping] Marcador tático recebido de {RemotePlayerName}!");
                 CoopPingManager.ReceivePing(packet.Payload);
                 break;
         }

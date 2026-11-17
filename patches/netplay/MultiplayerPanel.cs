@@ -246,11 +246,20 @@ public sealed class MultiplayerPanel : IPanel
             }
             else
             {
+                if (!Game.InGame) ImGui.BeginDisabled();
                 if (ImGui.Button("Entrar na Sala de Espera do Castelo (Santuário Co-op)", new Vector2(-1, 30)))
                 {
                     LobbyManager.RequestEnterLobbyRoom();
                 }
-                ImGui.TextDisabled("-> Teleporta ambos para a Save Room da Entrada onde podem se ver, andar e testar ataques!");
+                if (!Game.InGame)
+                {
+                    ImGui.EndDisabled();
+                    ImGui.TextDisabled("-> Disponível após carregar um save ou iniciar um Novo Jogo no castelo.");
+                }
+                else
+                {
+                    ImGui.TextDisabled("-> Teleporta ambos para a Save Room da Entrada onde podem se ver, andar e testar ataques!");
+                }
             }
 
             ImGui.Spacing();
@@ -300,6 +309,18 @@ public sealed class MultiplayerPanel : IPanel
             ImGui.Spacing();
             ImGui.Separator();
             ImGui.Spacing();
+
+            // AVISO CASO ESTEJA FORA DO JOGO (MENU INICIAL / SAVE)
+            if (!Game.InGame)
+            {
+                ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.38f, 0.22f, 0.05f, 0.90f));
+                ImGui.BeginChild("in_game_warning", new Vector2(-1, 54), ImGuiChildFlags.Borders);
+                ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), "[!] AVISO: VOCÊ ESTÁ NO MENU INICIAL / TELA DE SAVE");
+                ImGui.TextWrapped("Carregue seu save ou inicie um jogo para entrar no castelo antes de disparar o início conjunto!");
+                ImGui.EndChild();
+                ImGui.PopStyleColor();
+                ImGui.Spacing();
+            }
 
             // PAINEL DE CONTROLE DA PARTIDA
             string[] charNames = [
@@ -351,7 +372,7 @@ public sealed class MultiplayerPanel : IPanel
             // Botão de Início Sincronizado (Host)
             if (NetworkManager.Role == NetworkRole.Host)
             {
-                bool canStart = LobbyManager.LocalReady && LobbyManager.RemoteReady;
+                bool canStart = LobbyManager.LocalReady && LobbyManager.RemoteReady && Game.InGame;
                 if (!canStart) ImGui.BeginDisabled();
                 if (canStart) ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.65f, 0.30f, 1f));
 
@@ -364,14 +385,20 @@ public sealed class MultiplayerPanel : IPanel
                 if (!canStart)
                 {
                     ImGui.EndDisabled();
-                    ImGui.TextDisabled("-> Ambos os caçadores precisam marcar 'Pronto' para o Host poder iniciar.");
+                    if (!Game.InGame)
+                        ImGui.TextDisabled("-> É necessário estar dentro do jogo (carregue um save) para iniciar a aventura conjunta.");
+                    else
+                        ImGui.TextDisabled("-> Ambos os caçadores precisam marcar 'Pronto' para o Host poder iniciar.");
                 }
             }
             else
             {
                 if (LobbyManager.RemoteReady && LobbyManager.LocalReady)
                 {
-                    ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "Tudo pronto! Aguardando o Host disparar o início da partida...");
+                    if (Game.InGame)
+                        ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "Tudo pronto! Aguardando o Host disparar o início da partida...");
+                    else
+                        ImGui.TextColored(new Vector4(1f, 0.8f, 0.2f, 1f), "Carregue seu save no jogo enquanto aguarda o Host disparar!");
                 }
                 else
                 {

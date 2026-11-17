@@ -74,11 +74,16 @@ public static class LobbyManager
         IsInSanctuaryLobby = true;
         GameThread.Post((c, m) =>
         {
-            if (Game.Available)
+            if (Game.Available && Game.InGame && !Game.IsLoading)
             {
                 MariaCharacter.SwitchToCharacter(c, m, LocalCharacter);
                 Player.TeleportTo(Stage.CastleEntrance, 17, 37, 72, 164);
                 Player.Hp = Player.HpMax;
+            }
+            else
+            {
+                Console.WriteLine("[Netplay] Tentativa de entrar na Sala de Espera fora do jogo. Carregue um save primeiro.");
+                ToastNotifications.ShowText("Aviso: Jogo Não Iniciado", "Carregue um save ou inicie um jogo antes de entrar na Sala de Espera!", null, 5.0f);
             }
         });
     }
@@ -147,7 +152,7 @@ public static class LobbyManager
     {
         GameThread.Post((c, m) =>
         {
-            if (Game.Available)
+            if (Game.Available && Game.InGame && !Game.IsLoading)
             {
                 // 1. Switch character
                 MariaCharacter.SwitchToCharacter(c, m, character);
@@ -158,7 +163,13 @@ public static class LobbyManager
                 // 3. Restore full health
                 Player.Hp = Player.HpMax;
 
+                Console.WriteLine($"[Netplay] Aventura Co-op iniciada com sucesso em {stage} ({roomX}, {roomY}) com {character}!");
                 ToastNotifications.ShowText("Aventura Co-op Iniciada!", $"Caçadores unidos em {stage}! Que a caçada a Drácula comece!", null, 5.0f);
+            }
+            else
+            {
+                Console.WriteLine("[Netplay] ERRO: Tentativa de iniciar partida conjunta fora do jogo (Menu/Tela de Arquivos).");
+                ToastNotifications.ShowText("Aviso: Jogo Não Iniciado", "Vocês precisam carregar um save ou iniciar um Novo Jogo antes de sincronizar o início conjunto!", null, 6.0f);
             }
         });
     }
