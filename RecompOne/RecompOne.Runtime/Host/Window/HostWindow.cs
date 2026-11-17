@@ -825,6 +825,8 @@ public static class HostWindow
         _gl?.DeleteTexture(_displayTex);
         _gl?.DeleteTexture(_vramTex);
         _gl?.DeleteTexture(_ramTex);
+        InputManager.Shutdown();
+        Audio.Shutdown();
     }
 
     public static uint UploadPng(byte[] png)

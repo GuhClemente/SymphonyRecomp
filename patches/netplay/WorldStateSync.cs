@@ -7,17 +7,18 @@ namespace Recompiled.Netplay;
 
 public static class WorldStateSync
 {
-    // Buffer storing what the remote partner has explored separately
-    public static readonly byte[] RemoteMapBitset = new byte[512];
-    public static readonly byte[] LocalMapBitset = new byte[512];
+    // Full castle map size (64 columns x 32 rows = 2048 bytes / 0x800)
+    public const int MapBufferLength = Map.Length;
+    public static readonly byte[] RemoteMapBitset = new byte[MapBufferLength];
+    public static readonly byte[] LocalMapBitset = new byte[MapBufferLength];
 
     public static void SendSyncPacket(IMemory m)
     {
         if (!Game.Available || !NetworkManager.IsConnected) return;
 
-        // Read Map Visited Buffer (512 bytes for normal + inverted castles)
-        byte[] mapData = new byte[512];
-        for (uint i = 0; i < 512; i++)
+        // Read Map Visited Buffer (2048 bytes for complete castle map)
+        byte[] mapData = new byte[MapBufferLength];
+        for (uint i = 0; i < MapBufferLength; i++)
         {
             byte b = m.ReadU8(Map.CastleMapAddr + i);
             mapData[i] = b;
@@ -46,7 +47,7 @@ public static class WorldStateSync
         int newRoomsDiscovered = 0;
 
         // Bitwise OR merge discovered map rooms into game memory
-        for (uint i = 0; i < mapBitset.Length && i < 512; i++)
+        for (uint i = 0; i < mapBitset.Length && i < MapBufferLength; i++)
         {
             byte localByte = m.ReadU8(Map.CastleMapAddr + i);
             byte remoteByte = mapBitset[i];

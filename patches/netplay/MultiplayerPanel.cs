@@ -289,7 +289,7 @@ public sealed class MultiplayerPanel : IPanel
             for (int x = 0; x < 64; x++)
             {
                 int index = y * 64 + x;
-                if (index >= 512) break;
+                if (index >= WorldStateSync.RemoteMapBitset.Length) break;
 
                 bool localVisited = (WorldStateSync.LocalMapBitset[index] != 0);
                 bool remoteVisited = (WorldStateSync.RemoteMapBitset[index] != 0);
@@ -353,14 +353,21 @@ public sealed class MultiplayerPanel : IPanel
         ImGui.Separator();
 
         // Local Player
-        ImGui.Text($"[Você] {NetworkManager.LocalPlayerName}:");
+        string localChar = Player.IsMaria ? "Maria Renard" : (Player.IsRichter ? "Richter Belmont" : "Alucard");
+        ImGui.Text($"[Você] {NetworkManager.LocalPlayerName} ({localChar}):");
         ImGui.ProgressBar((float)Player.Hp / Math.Max(1, (int)Player.HpMax), new Vector2(240, 18), $"HP: {Player.Hp}/{Player.HpMax}");
         ImGui.TextDisabled($"Área Atual: {Stages.Current} (Sala: {Stages.RoomX}, {Stages.RoomY})");
 
         ImGui.Separator();
 
         // Remote Player
-        ImGui.Text($"[Parceiro] {NetworkManager.RemotePlayerName}:");
+        string remoteChar = RemotePuppet.Character switch
+        {
+            1 => "Richter Belmont",
+            2 => "Maria Renard",
+            _ => "Alucard"
+        };
+        ImGui.Text($"[Parceiro] {NetworkManager.RemotePlayerName} ({remoteChar}):");
         ImGui.ProgressBar((float)RemotePuppet.CurHp / Math.Max(1, (int)RemotePuppet.MaxHp), new Vector2(240, 18), $"HP: {RemotePuppet.CurHp}/{RemotePuppet.MaxHp}");
         ImGui.TextDisabled($"Área Atual: {(Stage)RemotePuppet.StageId} (Sala: {RemotePuppet.RoomX}, {RemotePuppet.RoomY})");
 

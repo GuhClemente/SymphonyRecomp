@@ -25,17 +25,7 @@ public static class SkipCdRooms
 
     public static void Update(CpuContext c, IMemory m)
     {
-        if (!Enabled || !Game.Available || !Game.InGame) return;
-
-        // When in loading or CD transition room, accelerate the corridor timer
-        if (Game.IsLoading)
-        {
-            // Boost game timer during transition
-            uint step = m.ReadU32(Game.EngineStepAddr);
-            if (step > 0 && step < 10)
-            {
-                m.WriteU32(Game.EngineStepAddr, step + 1);
-            }
-        }
+        // Safe: never advance state while CD is actively streaming stage data (prevents file/audio corruption)
+        if (!Enabled || !Game.Available || !Game.InGame || Game.IsLoading) return;
     }
 }

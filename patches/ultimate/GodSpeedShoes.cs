@@ -15,31 +15,43 @@ public static class GodSpeedShoes
     private static int _lastTapDir = 0; // -1: Left, 1: Right
     private static bool _isSprinting = false;
     private static int _sprintEffectTimer = 0;
+    private static bool _hasShoes = true;
+    private static bool _active = true;
 
-    public static bool HasShoes => Game.Available && Inventory.HasRelic(RelicId);
-    public static bool IsActive => Game.Available && Inventory.IsRelicActive(RelicId);
+    // Managed cleanly in memory without stomping on the PS1 retail spells array (Game.StatusAddr + 0x1E)
+    public static bool HasShoes
+    {
+        get => Game.Available && (_hasShoes || UltimateOptions.GodSpeedShoes);
+        set => _hasShoes = value;
+    }
+
+    public static bool IsActive
+    {
+        get => HasShoes && _active;
+        set => _active = value;
+    }
 
     public static void Grant(bool active = true)
     {
-        Inventory.SetRelic(RelicId, (byte)(active ? 3 : 1));
+        _hasShoes = true;
+        _active = active;
         ToastNotifications.ShowText(
             "👟 Botas da Velocidade (God Speed Shoes)!",
-            "Relíquia 30 do Sega Saturn obtida! Toque duas vezes para frente para correr em alta velocidade.",
+            "Relíquia do Sega Saturn ativada! Toque duas vezes para frente para correr em alta velocidade.",
             null,
             4.0f);
     }
 
     public static void Revoke()
     {
-        Inventory.SetRelic(RelicId, 0);
+        _hasShoes = false;
+        _active = false;
     }
 
     public static void ToggleActive()
     {
-        byte current = Inventory.GetRelic(RelicId);
-        if (current == 0) Grant(true);
-        else if (current == 3) Inventory.SetRelic(RelicId, 1);
-        else Inventory.SetRelic(RelicId, 3);
+        if (!_hasShoes) Grant(true);
+        else _active = !_active;
     }
 
     public static void Update(CpuContext c, IMemory m)

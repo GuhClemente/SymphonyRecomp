@@ -11,7 +11,7 @@ public static class Dispatcher
     private static readonly Dictionary<string, IOverlay> _registry = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<int, string> _lbaToName = [];
     private static readonly List<string> _active = [];
-    private static readonly Dictionary<uint, Action<CpuContext, IMemory>> _funcMap = [];
+    private static volatile Dictionary<uint, Action<CpuContext, IMemory>> _funcMap = [];
     private static IOverlay? _pending;
 
     public static void Register(string name, IOverlay overlay)
@@ -75,7 +75,7 @@ public static class Dispatcher
             _active.Clear();
         }
 
-        _funcMap.Clear();
+        _funcMap = [];
     }
 
     public static void Load(string name)
@@ -96,8 +96,10 @@ public static class Dispatcher
             _active.Add(name);
         }
 
+        var newMap = new Dictionary<uint, Action<CpuContext, IMemory>>(_funcMap);
         foreach (var (addr, fn) in overlay.Functions)
-            _funcMap[addr] = fn;
+            newMap[addr] = fn;
+        _funcMap = newMap;
 
         if (already) return;
         Runtime.OverlayLog.Record(name, OverlayEventKind.Loaded);
@@ -273,12 +275,13 @@ public static class Dispatcher
 
     private static void Rebuild()
     {
-        _funcMap.Clear();
+        var newMap = new Dictionary<uint, Action<CpuContext, IMemory>>();
         lock (_active)
         {
             foreach (var name in _active)
             foreach (var (addr, fn) in _registry[name].Functions)
-                _funcMap[addr] = fn;
+                newMap[addr] = fn;
         }
+        _funcMap = newMap;
     }
 }

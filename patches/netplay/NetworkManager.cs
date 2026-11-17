@@ -295,7 +295,7 @@ public static class NetworkManager
             byte frameId = (byte)m.ReadU8(0x80073406);
             ushort curHp = (ushort)Player.Hp;
             ushort maxHp = (ushort)Player.HpMax;
-            byte character = (byte)(Player.IsRichter ? 1 : 0);
+            byte character = Player.IsMaria ? (byte)2 : (Player.IsRichter ? (byte)1 : (byte)0);
             byte paletteId = (byte)(Role == NetworkRole.Host ? 0 : 1); // Alternate skin for Client
             byte attackTrigger = (byte)(Game.Tapped != 0 ? 1 : 0);
             byte subWeapon = (byte)Inventory.SubWeapon;

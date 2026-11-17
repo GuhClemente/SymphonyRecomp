@@ -70,11 +70,11 @@ public static class QuickWeaponSwap
 
         if (r3Tapped || qTapped)
         {
-            SwapToNextSlot(m);
+            SwapToNextSlot(c, m);
         }
     }
 
-    public static void SwapToNextSlot(IMemory m)
+    public static void SwapToNextSlot(CpuContext c, IMemory m)
     {
         // 1. Record the current equipment in the current slot
         uint currRight = Inventory.GetWornEquipment(ItemSlot.RightHand);
@@ -107,6 +107,21 @@ public static class QuickWeaponSwap
         Inventory.SetWornEquipment(ItemSlot.LeftHand, targetLeft);
         Inventory.RightHand = targetRight;
         Inventory.LeftHand = targetLeft;
+
+        // Re-load weapon code and re-initialize weapon states in the engine
+        try
+        {
+            c.A0 = 0;
+            SoTN_dra.LoadWeaponPrg(c, m);
+            c.A0 = 0;
+            SoTN_dra.InitWeapon(c, m);
+
+            c.A0 = 1;
+            SoTN_dra.LoadWeaponPrg(c, m);
+            c.A0 = 1;
+            SoTN_dra.InitWeapon(c, m);
+        }
+        catch { }
 
         Save();
 

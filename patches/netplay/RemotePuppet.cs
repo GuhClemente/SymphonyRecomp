@@ -7,7 +7,8 @@ namespace Recompiled.Netplay;
 
 public static class RemotePuppet
 {
-    public const int PuppetEntitySlot = 64; // Dedicated entity slot for remote player
+    // Safe entity slot (top of player-owned entities 1..63, avoiding stage entities which start at 64)
+    public const int PuppetEntitySlot = 63;
 
     public static bool IsActive { get; private set; } = false;
     public static byte StageId { get; private set; } = 0;
