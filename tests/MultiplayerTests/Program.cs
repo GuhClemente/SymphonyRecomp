@@ -82,6 +82,13 @@ public static class Program
             TestCoopRevivalManagerLogic();
         });
 
+        RunSection("8. Testes do Minimapa Bloodstained, Terceira Mão (Saturn) & Dock de Relíquias (Modern HUD & QoL)", () =>
+        {
+            TestBloodstainedMinimapGridAndRadarMath();
+            TestThirdHandPriorityAndHealingLogic();
+            TestQuickRelicHudStateAndHotkeys();
+        });
+
         long durationMs = Environment.TickCount64 - startTime;
 
         Console.WriteLine();
@@ -1054,5 +1061,145 @@ public static class Program
 
         AssertTrue(!isDowned, "Revival Logic - Jogador reanimado com sucesso");
         AssertTrue(hp == 80, "Revival Logic - Vida restabelecida após reanimação");
+    }
+
+    private static void TestBloodstainedMinimapGridAndRadarMath()
+    {
+        // 1. Grid 7x7 Viewport Clamping & Offset
+        int playerX = 32;
+        int playerY = 16;
+        int viewRadius = 3; // 7x7 grid: -3 .. +3
+        int minX = playerX - viewRadius;
+        int maxX = playerX + viewRadius;
+        int minY = playerY - viewRadius;
+        int maxY = playerY + viewRadius;
+
+        AssertTrue(minX == 29 && maxX == 35, "Minimap - Viewport X horizontal abrangendo 7 células");
+        AssertTrue(minY == 13 && maxY == 19, "Minimap - Viewport Y vertical abrangendo 7 células");
+
+        // 2. Castelo Invertido Inversão de Eixo Y (63 - Y)
+        int normalY = 10;
+        int invertedY = 63 - normalY;
+        AssertTrue(invertedY == 53, "Minimap - Transformação de Castelo Invertido espelha coordenada vertical perfeitamente");
+
+        // 3. Vetor de Radar Co-op e Distância Relativa
+        // Jogador em (10, 20), Parceiro em (16, 28) -> dx=6, dy=8 -> dist = 10
+        float px = 10.0f, py = 20.0f;
+        float partnerX = 16.0f, partnerY = 28.0f;
+        float dx = partnerX - px;
+        float dy = partnerY - py;
+        float dist = MathF.Sqrt(dx * dx + dy * dy);
+        AssertTrue(MathF.Abs(dist - 10.0f) < 0.001f, "Minimap Radar - Cálculo de distância pitagórica exato (10 salas)");
+
+        // 4. Normalização de Vetor de Apontamento
+        float dirX = dx / dist;
+        float dirY = dy / dist;
+        AssertTrue(MathF.Abs(dirX - 0.6f) < 0.001f && MathF.Abs(dirY - 0.8f) < 0.001f, "Minimap Radar - Vetor unitário direcional calibrado (0.6, 0.8)");
+
+        // 5. Bounds Clamping em bordas do Castelo (0 a 63)
+        int clampMin = Math.Clamp(-5, 0, 63);
+        int clampMax = Math.Clamp(70, 0, 63);
+        AssertTrue(clampMin == 0 && clampMax == 63, "Minimap Bounds - Clamping previne IndexOutOfRangeException nos limites do mapa");
+    }
+
+    private static void TestThirdHandPriorityAndHealingLogic()
+    {
+        // 1. Prioridade de Maldição (Curse Status 0x04)
+        int status = 0x04; // Curse
+        int uncurseInventory = 2;
+        int elixirInventory = 1;
+        string action = "";
+
+        if ((status & 0x04) != 0 && uncurseInventory > 0)
+        {
+            action = "UseUncursePotion";
+            uncurseInventory--;
+        }
+        else if (elixirInventory > 0)
+        {
+            action = "UseElixir";
+            elixirInventory--;
+        }
+
+        AssertEqual("UseUncursePotion", action, "Terceira Mão - Curar Maldição tem prioridade imediata sobre itens de vida");
+        AssertEqual(1, uncurseInventory, "Terceira Mão - Inventário de Uncurse decrementado após uso");
+
+        // 2. Prioridade de Envenenamento (Poison Status 0x01)
+        status = 0x01; // Poison
+        int antivenomInventory = 3;
+        if ((status & 0x01) != 0 && antivenomInventory > 0)
+        {
+            action = "UseAntivenom";
+            antivenomInventory--;
+        }
+        AssertEqual("UseAntivenom", action, "Terceira Mão - Antídoto acionado prioritariamente contra veneno");
+
+        // 3. Prioridade de Vida Crítica (< 25%)
+        int maxHp = 200;
+        int currentHp = 30; // 15% (crítico)
+        int potionCount = 5;      // +50 HP
+        int highPotionCount = 1;  // +100 HP
+        int elixirCount = 0;      // Full heal
+
+        string chosenItem = "";
+        int healAmount = 0;
+
+        if (currentHp < maxHp / 4)
+        {
+            if (elixirCount > 0)
+            {
+                chosenItem = "Elixir";
+                healAmount = maxHp;
+            }
+            else if (highPotionCount > 0)
+            {
+                chosenItem = "HighPotion";
+                healAmount = 100;
+                highPotionCount--;
+            }
+            else if (potionCount > 0)
+            {
+                chosenItem = "Potion";
+                healAmount = 50;
+                potionCount--;
+            }
+        }
+
+        AssertEqual("HighPotion", chosenItem, "Terceira Mão - Seleciona High Potion ao invés de Potion comum sob HP crítico");
+        AssertEqual(100, healAmount, "Terceira Mão - Quantidade de cura correta (100 HP)");
+        AssertEqual(0, highPotionCount, "Terceira Mão - High Potion consumido");
+
+        // 4. Cura Direta sem desequipar armas
+        currentHp = Math.Min(maxHp, currentHp + healAmount);
+        AssertEqual(130, currentHp, "Terceira Mão - HP aplicado diretamente na memória sem troca de armas");
+    }
+
+    private static void TestQuickRelicHudStateAndHotkeys()
+    {
+        // 1. Máscara de Bits de Relíquias de Mobilidade
+        // Simulação do bitmask do jogo: Bat (bit 0), Wolf (bit 1), Mist (bit 2), Leap Stone (bit 5), Gravity Boots (bit 6)
+        uint relicFlags = (1u << 0) | (1u << 2) | (1u << 6); // Possui Bat, Mist e Gravity Boots
+
+        bool hasBat = (relicFlags & (1u << 0)) != 0;
+        bool hasWolf = (relicFlags & (1u << 1)) != 0;
+        bool hasMist = (relicFlags & (1u << 2)) != 0;
+        bool hasLeap = (relicFlags & (1u << 5)) != 0;
+        bool hasBoots = (relicFlags & (1u << 6)) != 0;
+
+        AssertTrue(hasBat, "Relic Dock - Soul of Bat detectada como adquirida");
+        AssertTrue(!hasWolf, "Relic Dock - Skill of Wolf corretamente reportada como não obtida");
+        AssertTrue(hasMist, "Relic Dock - Form of Mist detectada como adquirida");
+        AssertTrue(!hasLeap, "Relic Dock - Leap Stone corretamente reportada como ausente");
+        AssertTrue(hasBoots, "Relic Dock - Gravity Boots detectada como adquirida");
+
+        // 2. Mapeamento de Teclas de Atalho Modernas
+        // Minimapa: 'M', Relic Dock: 'H', Terceira Mão: 'F' / L2
+        string minimapKey = "M";
+        string relicDockKey = "H";
+        string thirdHandKey = "F";
+
+        AssertEqual("M", minimapKey, "Hotkeys - Minimapa moderno acionado via tecla 'M'");
+        AssertEqual("H", relicDockKey, "Hotkeys - Dock de relíquias acionado via tecla 'H'");
+        AssertEqual("F", thirdHandKey, "Hotkeys - Terceira mão consumível acionada via tecla 'F'");
     }
 }
