@@ -69,6 +69,9 @@ internal class QualityOfLife
         RichterQoL.Load();
         Recompiled.Netplay.NetworkManager.Load();
         Recompiled.Ultimate.UltimateMode.Load();
+        BloodstainedMinimapHud.Initialize();
+        ThirdHandManager.Initialize();
+        QuickRelicHud.Initialize();
     }
 
     public static void Save()
@@ -82,6 +85,9 @@ internal class QualityOfLife
         RichterQoL.Save();
         Recompiled.Netplay.NetworkManager.Save();
         Recompiled.Ultimate.UltimateMode.Save();
+        BloodstainedMinimapHud.Save();
+        ThirdHandManager.Save();
+        QuickRelicHud.Save();
 
         RecompOne.Runtime.Runtime.SaveView();
     }
@@ -92,6 +98,7 @@ internal class QualityOfLife
         TelemetryRecorder.Update(c, m);
         FunctionFixes.AlucardEffectPoolFix(c, m);
         QuickWeaponSwap.Update(c, m);
+        ThirdHandManager.Update(c, m);
         SpellWheel.Update(c, m);
         Achievements.Update(c, m);
         AlucardDash.Update(c, m);
