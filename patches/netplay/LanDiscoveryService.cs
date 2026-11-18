@@ -193,25 +193,28 @@ public static class LanDiscoveryService
             return;
         }
 
-        // 2. Try quick active probe on 127.0.0.1:7777
+        // 2. Try quick active probe on 127.0.0.1:7777 and LAN Broadcast
         try
         {
             using var testSocket = new UdpClient();
-            testSocket.Client.ReceiveTimeout = 300;
+            testSocket.EnableBroadcast = true;
+            testSocket.Client.ReceiveTimeout = 400;
             byte[] ping = new NetworkPacket(PacketOpCode.DiscoveryPing, []).Serialize();
             await testSocket.SendAsync(ping, ping.Length, new IPEndPoint(IPAddress.Loopback, 7777));
+            await testSocket.SendAsync(ping, ping.Length, new IPEndPoint(IPAddress.Broadcast, 7777));
 
             var receiveTask = testSocket.ReceiveAsync();
-            var completed = await Task.WhenAny(receiveTask, Task.Delay(350));
+            var completed = await Task.WhenAny(receiveTask, Task.Delay(400));
             if (completed == receiveTask)
             {
                 var res = receiveTask.Result;
                 if (res.Buffer.Length > 0 && res.Buffer[0] == (byte)PacketOpCode.DiscoveryPong)
                 {
-                    Console.WriteLine("[SmartConnect] Host local ativo detectado na porta 7777! Conectando como Cliente...");
-                    NetworkManager.TargetIp = "127.0.0.1";
-                    NetworkManager.Port = 7777;
-                    NetworkManager.ConnectTo("127.0.0.1", 7777);
+                    string target = res.RemoteEndPoint.Address.Equals(IPAddress.Loopback) ? "127.0.0.1" : res.RemoteEndPoint.Address.ToString();
+                    Console.WriteLine($"[SmartConnect] Host ativo detectado em {target}:{res.RemoteEndPoint.Port}! Conectando como Cliente...");
+                    NetworkManager.TargetIp = target;
+                    NetworkManager.Port = res.RemoteEndPoint.Port;
+                    NetworkManager.ConnectTo(target, res.RemoteEndPoint.Port);
                     return;
                 }
             }

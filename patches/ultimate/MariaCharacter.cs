@@ -242,6 +242,12 @@ public static class MariaCharacter
                     // Ensure weapon programs and VRAM sprite tiles are cleanly initialized
                     try
                     {
+                        // Invalidate cached weapon IDs so LoadWeaponPrg and InitWeapon reload textures into VRAM
+                        m.WriteU32(0x8003C90Cu, 0xFFFFFFFFu);
+                        m.WriteU32(0x8003C910u, 0xFFFFFFFFu);
+                        m.WriteU32(0x8013905Cu, 0xFFFFFFFFu);
+                        m.WriteU32(0x80139060u, 0xFFFFFFFFu);
+
                         c.A0 = 0;
                         SoTN_dra.LoadWeaponPrg(c, m);
                         c.A0 = 0;
@@ -482,8 +488,16 @@ public static class MariaCharacter
             if (Player.HpMax <= 0) Player.HpMax = 50;
             if (Player.Hp <= 0) Player.Hp = Player.HpMax;
 
-            MariaLoader.Invoke(c, m, SoTN_dra.DrawHud);
-            MariaLoader.Invoke(c, m, SoTN_dra.DrawHudSubweapon);
+            if (Player.IsAlucard)
+            {
+                MariaLoader.Invoke(c, m, SoTN_dra.DrawHud);
+                MariaLoader.Invoke(c, m, SoTN_dra.DrawHudSubweapon);
+            }
+            else
+            {
+                MariaLoader.Invoke(c, m, SoTN_dra.DrawRichterHud);
+                MariaLoader.Invoke(c, m, SoTN_dra.DrawRichterHudSubweapon);
+            }
 
             Console.WriteLine($"[CharacterSwitcher] HUD redesenhado para {UltimateOptions.CharacterMode} (PlayableChar={m.ReadU32(Game.PlayableCharacterAddr)})");
             if (TestMode) DumpHudPrims(m, $"AfterRedraw-{UltimateOptions.CharacterMode}");
@@ -533,6 +547,8 @@ public static class MariaCharacter
         _pspMariaLoaded = false;
         _mariaHud = false;
         m.WriteU32(ModMar2HudIconsAddr, 0);
+        uint icon = HudPrimAt(m, HudSubweaponPrim);
+        if (icon != 0) m.WriteU16(icon + 0x32u, DrawHide);
     }
 
     /// <summary>Called by WidescreenPatch.PostDrawRichterHudSubweapon (game thread), every frame.</summary>
@@ -619,28 +635,58 @@ public static class MariaCharacter
             var w0 = cd.Fs.ReadFile("BIN/WEAPON0.BIN");
             if (w0 != null)
             {
-                // w0_043 (Alucard Sword): offset 1232896 + skip 16384 = 1249280, size 12288
+                // w0_043 (Alucard Sword): offset 1232896
+                // First 16384 bytes: sprite textures in chunks 4 & 6 (vx=0x240, vy=256 & 384)
+                UploadWeaponGfx(w0, 1232896, 0x240);
+
+                // Code: offset 1232896 + skip 16384 = 1249280, size 12288
                 int srcOff = 1232896 + 16384;
                 uint dest = 0x8017A000u;
                 for (int i = 0; i < 12288 && (srcOff + i) < w0.Length; i++)
                     m.WriteU8(dest + (uint)i, w0[srcOff + i]);
-                Console.WriteLine("[CharacterSwitcher] w0_043 (Alucard Sword) restaurado em 0x8017A000");
+                Console.WriteLine("[CharacterSwitcher] w0_043 (Alucard Sword) restaurado em 0x8017A000 e VRAM 0x240");
             }
 
             var w1 = cd.Fs.ReadFile("BIN/WEAPON1.BIN");
             if (w1 != null)
             {
-                // w1_052 (Alucard Shield): offset 1490944 + skip 16384 = 1507328, size 12288
+                // w1_052 (Alucard Shield): offset 1490944
+                // First 16384 bytes: sprite textures in chunks 5 & 7 (vx=0x260, vy=256 & 384)
+                UploadWeaponGfx(w1, 1490944, 0x260);
+
+                // Code: offset 1490944 + skip 16384 = 1507328, size 12288
                 int srcOff = 1490944 + 16384;
                 uint dest = 0x8017D000u;
                 for (int i = 0; i < 12288 && (srcOff + i) < w1.Length; i++)
                     m.WriteU8(dest + (uint)i, w1[srcOff + i]);
-                Console.WriteLine("[CharacterSwitcher] w1_052 (Alucard Shield) restaurado em 0x8017D000");
+                Console.WriteLine("[CharacterSwitcher] w1_052 (Alucard Shield) restaurado em 0x8017D000 e VRAM 0x260");
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[CharacterSwitcher] Erro ao restaurar armas de Alucard: {ex.Message}");
+        }
+    }
+
+    private static void UploadWeaponGfx(byte[] data, int baseOff, int vx)
+    {
+        var gpu = RecompOne.Runtime.Runtime.Gpu;
+        var backend = RecompOne.Runtime.Hle.GpuHle.Backend;
+        Span<ushort> chunk = stackalloc ushort[32 * 128];
+        // 2 chunks: vy=256 and vy=384
+        for (int cIdx = 0; cIdx < 2; cIdx++)
+        {
+            int vy = 256 + cIdx * 128;
+            int src = baseOff + cIdx * 32 * 128 * 2;
+            if (src + 32 * 128 * 2 > data.Length) break;
+            for (int p = 0; p < 32 * 128; p++)
+            {
+                ushort pixel = (ushort)(data[src + p * 2] | (data[src + p * 2 + 1] << 8));
+                chunk[p] = pixel;
+                if (gpu != null) gpu.Shadow[vx + p % 32, vy + p / 32] = pixel;
+            }
+            if (RecompOne.Runtime.Hle.GpuHle.Active && backend is { Ready: true })
+                backend.WriteVram(vx, vy, 32, 128, chunk);
         }
     }
 

@@ -154,7 +154,7 @@ public static class LobbyCardRenderer
         {
             dl.AddRectFilled(badgeMin, badgeMax, ImGui.ColorConvertFloat4ToU32(new Vector4(0.12f, 0.55f, 0.25f, 0.85f)), 4.0f);
             dl.AddRect(badgeMin, badgeMax, ImGui.ColorConvertFloat4ToU32(new Vector4(0.25f, 0.95f, 0.45f, 1f)), 4.0f);
-            string readyText = "[✓ PRONTO PARA A AVENTURA]";
+            string readyText = "[PRONTO PARA A AVENTURA]";
             float txtW = ImGui.CalcTextSize(readyText).X;
             dl.AddText(badgeMin + new Vector2((badgeMax.X - badgeMin.X - txtW) * 0.5f, 3), 0xFFFFFFFF, readyText);
         }

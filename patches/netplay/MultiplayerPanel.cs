@@ -125,11 +125,11 @@ public sealed class MultiplayerPanel : IPanel
 
         if (!NetworkManager.IsConnected)
         {
-            // ⚡ BOTÃO DE AUTO-CONEXÃO / HOSPEDAGEM (1 CLIQUE)
+            // BOTÃO DE AUTO-CONEXÃO / HOSPEDAGEM (1 CLIQUE)
             ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.15f, 0.55f, 0.35f, 1.0f));
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.20f, 0.70f, 0.45f, 1.0f));
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.10f, 0.45f, 0.28f, 1.0f));
-            if (ImGui.Button("⚡ AUTO-CONECTAR / HOSPEDAR (1 CLIQUE)", new Vector2(-1, 38)))
+            if (ImGui.Button("[>> AUTO-CONECTAR / HOSPEDAR (1 CLIQUE) <<]", new Vector2(-1, 38)))
             {
                 _ = LanDiscoveryService.SmartConnectOrHostAsync();
             }
@@ -144,7 +144,7 @@ public sealed class MultiplayerPanel : IPanel
             if (discovered.Count > 0)
             {
                 ImGui.Spacing();
-                ImGui.TextColored(new Vector4(0.2f, 1f, 0.5f, 1f), "🟢 SERVIDORES DETECTADOS (Clique para entrar):");
+                ImGui.TextColored(new Vector4(0.2f, 1f, 0.5f, 1f), "[*] SERVIDORES DETECTADOS (Clique para entrar):");
                 foreach (var s in discovered)
                 {
                     string locTag = s.IsLocalhost ? "Mesmo PC" : "LAN/Wi-Fi";
@@ -405,7 +405,7 @@ public sealed class MultiplayerPanel : IPanel
 
             // Botão Interativo de Ready
             bool ready = LobbyManager.LocalReady;
-            string readyBtnText = ready ? "[✓] ESTOU PRONTO PARA A BATALHA (CLIQUE PARA CANCELAR)" : "[ ] MARCAR COMO PRONTO PARA INICIAR";
+            string readyBtnText = ready ? "[OK] ESTOU PRONTO PARA A BATALHA (CLIQUE PARA CANCELAR)" : "[ ] MARCAR COMO PRONTO PARA INICIAR";
             Vector4 readyBtnBg = ready ? new Vector4(0.15f, 0.60f, 0.28f, 1f) : new Vector4(0.24f, 0.28f, 0.35f, 1f);
 
             ImGui.PushStyleColor(ImGuiCol.Button, readyBtnBg);
@@ -664,7 +664,7 @@ public sealed class MultiplayerPanel : IPanel
             bool defeated = Progress.GetTimeAttack(currentBoss.Event) > 0;
             if (defeated)
             {
-                ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "[✓] Chefe Derrotado em Cooperação!");
+                ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "[OK] Chefe Derrotado em Cooperação!");
             }
             else
             {
