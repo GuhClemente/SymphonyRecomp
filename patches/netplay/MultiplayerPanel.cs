@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using ImGuiNET;
+using Recompiled.Ultimate;
 using RecompOne.Runtime.Host.Window;
 using Sotn;
 
@@ -21,7 +22,7 @@ public sealed class MultiplayerPanel : IPanel
 
     private string _inputIp = "127.0.0.1";
     private int _inputPort = 7777;
-    private string _inputName = "Alucard";
+    private string _inputName = "";
     private string _chatInput = "";
     private int _selectedPresetIndex = 0;
     private bool _autoScrollChat = true;
@@ -109,13 +110,55 @@ public sealed class MultiplayerPanel : IPanel
         ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), "Castlevania Netplay P2P 60Hz:");
         ImGui.Separator();
 
-        ImGui.InputText("Seu Nome", ref _inputName, 32);
+        string nameHint = NetworkManager.GetEffectiveLocalName();
+        if (string.IsNullOrWhiteSpace(_inputName))
+        {
+            ImGui.InputTextWithHint("Seu Nome", nameHint, ref _inputName, 32);
+        }
+        else
+        {
+            ImGui.InputText("Seu Nome", ref _inputName, 32);
+        }
         NetworkManager.LocalPlayerName = _inputName;
 
         ImGui.Spacing();
 
         if (!NetworkManager.IsConnected)
         {
+            // ⚡ BOTÃO DE AUTO-CONEXÃO / HOSPEDAGEM (1 CLIQUE)
+            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.15f, 0.55f, 0.35f, 1.0f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.20f, 0.70f, 0.45f, 1.0f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.10f, 0.45f, 0.28f, 1.0f));
+            if (ImGui.Button("⚡ AUTO-CONECTAR / HOSPEDAR (1 CLIQUE)", new Vector2(-1, 38)))
+            {
+                _ = LanDiscoveryService.SmartConnectOrHostAsync();
+            }
+            ImGui.PopStyleColor(3);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Detecta automaticamente se existe um Host aberto no Mesmo PC (127.0.0.1) ou na Rede Local.\nSe existir, conecta instantaneamente como Cliente.\nSe não existir, inicia como Host (P1) na porta 7777!");
+            }
+
+            // EXIBIÇÃO DE SERVIDORES DESCOBERTOS NA REDE LOCAL OU MESMO PC
+            var discovered = LanDiscoveryService.Servers;
+            if (discovered.Count > 0)
+            {
+                ImGui.Spacing();
+                ImGui.TextColored(new Vector4(0.2f, 1f, 0.5f, 1f), "🟢 SERVIDORES DETECTADOS (Clique para entrar):");
+                foreach (var s in discovered)
+                {
+                    string locTag = s.IsLocalhost ? "Mesmo PC" : "LAN/Wi-Fi";
+                    string btnLabel = $"Entrar: {s.HostName} ({s.CharacterName}) [{locTag} :{s.Port}]";
+                    if (ImGui.Button(btnLabel, new Vector2(-1, 28)))
+                    {
+                        NetworkManager.TargetIp = s.Address.ToString();
+                        NetworkManager.Port = s.Port;
+                        NetworkManager.ConnectTo(s.Address.ToString(), s.Port);
+                    }
+                }
+                ImGui.Spacing();
+            }
+
             // BLOCO 1: HOSPEDAR SESSÃO (HOST)
             ImGui.BeginChild("host_join_child", new Vector2(-1, 410), ImGuiChildFlags.Borders);
 
@@ -434,14 +477,14 @@ public sealed class MultiplayerPanel : IPanel
         ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), "Radar do Castelo em Tempo Real:");
         ImGui.Separator();
 
-        // Legenda de Cores
+        // Legenda de Cores explicativa
         ImGui.Text("Legenda:");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(0.2f, 0.6f, 1f, 1f), "[x] Você");
+        ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "[#] Verde: Salas exploradas por AMBOS!");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(1f, 0.6f, 0.1f, 1f), "[x] Amigo");
+        ImGui.TextColored(new Vector4(0.2f, 0.6f, 1f, 1f), "[#] Azul: Você");
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(0.2f, 1f, 0.4f, 1f), "[x] Ambos");
+        ImGui.TextColored(new Vector4(1f, 0.6f, 0.1f, 1f), "[#] Laranja: Amigo");
         ImGui.SameLine();
         ImGui.TextColored(new Vector4(1f, 1f, 1f, 1f), "(o) Sua Posição");
         ImGui.SameLine();
@@ -491,6 +534,18 @@ public sealed class MultiplayerPanel : IPanel
         drawList.AddCircleFilled(localPos, 5f, ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 1f, 1f, 1f)));
         drawList.AddCircle(localPos, 6f, ImGui.ColorConvertFloat4ToU32(new Vector4(0.2f, 0.8f, 1f, 1f)), 12, 2f);
 
+        string localChar = UltimateOptions.CharacterMode switch
+        {
+            CharacterSelection.RichterClassic => "Richter",
+            CharacterSelection.RichterSaturnCoat => "Richter (Saturn)",
+            CharacterSelection.RichterBrownCoat => "Richter (Couro)",
+            CharacterSelection.SaturnMaria => "Maria",
+            CharacterSelection.PSPMaria => "Maria (PSP)",
+            _ => "Alucard"
+        };
+        string locLabel = $"[P1] {localChar} (Você)";
+        drawList.AddText(localPos + new Vector2(7, -6), ImGui.ColorConvertFloat4ToU32(new Vector4(0.35f, 0.85f, 1.0f, 1f)), locLabel);
+
         // Desenhar indicador da posição atual do jogador remoto
         if (NetworkManager.IsConnected && RemotePuppet.IsActive)
         {
@@ -503,7 +558,10 @@ public sealed class MultiplayerPanel : IPanel
                 remPos + new Vector2(5, 5),
                 ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 0.2f, 0.2f, 1f))
             );
-            drawList.AddText(remPos + new Vector2(7, -6), ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 0.85f, 0.2f, 1f)), NetworkManager.RemotePlayerName);
+            string remName = string.IsNullOrWhiteSpace(NetworkManager.RemotePlayerName) || NetworkManager.RemotePlayerName == "Alucard" || NetworkManager.RemotePlayerName == "Partner"
+                ? $"P2 ({RemotePuppet.CharacterName})"
+                : $"{NetworkManager.RemotePlayerName} ({RemotePuppet.CharacterName})";
+            drawList.AddText(remPos + new Vector2(7, -6), ImGui.ColorConvertFloat4ToU32(new Vector4(1f, 0.85f, 0.2f, 1f)), remName);
         }
 
         // Desenhar Marcador de Ping Tático Ativo

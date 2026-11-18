@@ -43,7 +43,12 @@ public static class LobbyCardRenderer
         }
 
         // 2. CABEÇALHO DO JOGADOR
-        string headerTitle = isLocal ? $"[VOCÊ] {playerName}" : $"[PARCEIRO] {playerName}";
+        string cleanName = playerName;
+        if (string.IsNullOrWhiteSpace(cleanName) || cleanName == "Alucard" || cleanName == "Partner" || cleanName == "Parceiro")
+        {
+            cleanName = isLocal ? "P1" : "P2";
+        }
+        string headerTitle = isLocal ? $"[VOCÊ] {cleanName}" : $"[PARCEIRO] {cleanName}";
         Vector4 titleCol = isLocal ? new Vector4(0.35f, 0.85f, 1.0f, 1f) : new Vector4(1.0f, 0.78f, 0.28f, 1f);
         dl.AddText(cardMin + new Vector2(12, 8), ImGui.ColorConvertFloat4ToU32(titleCol), headerTitle);
 

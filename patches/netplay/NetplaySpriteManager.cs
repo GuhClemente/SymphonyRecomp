@@ -28,23 +28,12 @@ public static class NetplaySpriteManager
     {
         return character switch
         {
-            // Richter Classic
-            1 => isAttacking ? "richter_blade_dash" : "richter_classic",
-
-            // Richter Saturn Coat
-            2 => isAttacking ? "richter_blade_dash" : "richter_saturn_coat",
-
-            // Richter Brown Coat
-            5 => isAttacking ? "richter_blade_dash" : "richter_brown_coat",
-
-            // Saturn Maria
-            3 => isAttacking ? "maria_suzaku" : isJumping ? "maria_saturn_jump" : "maria_saturn_idle",
-
-            // PSP Maria
-            4 => isAttacking ? "maria_psp_special" : "maria_psp_idle",
-
-            // Alucard
-            _ => isAttacking ? "alucard_attack" : "alucard_idle"
+            1 => "richter_classic",
+            2 => "richter_saturn_coat",
+            5 => "richter_brown_coat",
+            3 => "maria_saturn_idle",
+            4 => "maria_psp_idle",
+            _ => "alucard_idle"
         };
     }
 
@@ -96,9 +85,7 @@ public static class NetplaySpriteManager
         // 1. Try direct disk paths
         string[] candidates = [
             Path.Combine(AppContext.BaseDirectory, "assets", "netplay", $"{name}.png"),
-            Path.Combine(AppContext.BaseDirectory, "website", "assets", $"{name}.png"),
-            Path.Combine("assets", "netplay", $"{name}.png"),
-            Path.Combine("website", "assets", $"{name}.png")
+            Path.Combine("assets", "netplay", $"{name}.png")
         ];
 
         foreach (var path in candidates)

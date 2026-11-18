@@ -404,8 +404,12 @@ public static class RemotePuppetOverlay
         float scaleY)
     {
         Vector2 overhead = new(screenPos.X, screenPos.Y - 38f * scaleY);
-        string name = string.IsNullOrWhiteSpace(NetworkManager.RemotePlayerName) ? "Parceiro" : NetworkManager.RemotePlayerName;
-        string label = $"[P2] {name} ({RemotePuppet.CharacterName})";
+        string rawName = NetworkManager.RemotePlayerName;
+        string name = (string.IsNullOrWhiteSpace(rawName) || rawName == "Alucard" || rawName == "Partner" || rawName == "Parceiro")
+            ? "P2"
+            : rawName;
+        string charName = string.IsNullOrEmpty(RemotePuppet.CharacterName) ? "" : $" ({RemotePuppet.CharacterName})";
+        string label = $"[{name}]{charName}";
 
         Vector2 txtSz = ImGui.CalcTextSize(label);
         Vector2 bMin = new(overhead.X - txtSz.X * 0.5f - 6f, overhead.Y - txtSz.Y - 9f);
@@ -552,8 +556,11 @@ public static class RemotePuppetOverlay
         int dy,
         float time)
     {
-        string name = string.IsNullOrWhiteSpace(NetworkManager.RemotePlayerName) ? "Parceiro" : NetworkManager.RemotePlayerName;
-        string dirStr = (dx > 0) ? "Direita →" : (dx < 0) ? "← Esquerda" : (dy > 0) ? "Abaixo ↓" : "Acima ↑";
+        string rawName = NetworkManager.RemotePlayerName;
+        string name = (string.IsNullOrWhiteSpace(rawName) || rawName == "Alucard" || rawName == "Partner" || rawName == "Parceiro")
+            ? (string.IsNullOrEmpty(RemotePuppet.CharacterName) ? "P2" : $"P2 ({RemotePuppet.CharacterName})")
+            : rawName;
+        string dirStr = (dx > 0) ? "-> Direita" : (dx < 0) ? "<- Esquerda" : (dy > 0) ? "v Abaixo" : "^ Acima";
         int distRooms = Math.Abs(dx) + Math.Abs(dy);
         string label = distRooms == 1 ? $"[{name} na sala ao lado ({dirStr})]" : $"[{name} a {distRooms} salas ({dirStr})]";
 

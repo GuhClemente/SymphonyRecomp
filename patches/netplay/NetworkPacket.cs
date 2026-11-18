@@ -11,6 +11,8 @@ public enum PacketOpCode : byte
     Handshake = 0x03,
     HandshakeAck = 0x04,
     Disconnect = 0x05,
+    DiscoveryPing = 0x06,
+    DiscoveryPong = 0x07,
     PlayerTransform = 0x10,
     WorldState = 0x20,
     BuddyWarp = 0x30,
@@ -415,6 +417,41 @@ public sealed class NetworkPacket
         roomX = r.ReadByte();
         roomY = r.ReadByte();
         sender = r.ReadString();
+        return true;
+    }
+
+    // Discovery Pong Packet (OpCode 0x07)
+    public static byte[] CreateDiscoveryPong(ushort port, string hostName, byte character, string stageName, byte players, bool isInGame)
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(port);
+        w.Write(hostName ?? "Host");
+        w.Write(character);
+        w.Write(stageName ?? "Entrada");
+        w.Write(players);
+        w.Write(isInGame);
+        return ms.ToArray();
+    }
+
+    public static bool ReadDiscoveryPong(byte[] payload, out ushort port, out string hostName, out byte character, out string stageName, out byte players, out bool isInGame)
+    {
+        port = 0;
+        hostName = "";
+        character = 0;
+        stageName = "";
+        players = 0;
+        isInGame = false;
+        if (payload == null || payload.Length < 6) return false;
+
+        using var ms = new MemoryStream(payload);
+        using var r = new BinaryReader(ms);
+        port = r.ReadUInt16();
+        hostName = r.ReadString();
+        character = r.ReadByte();
+        stageName = r.ReadString();
+        players = r.ReadByte();
+        isInGame = r.ReadBoolean();
         return true;
     }
 }

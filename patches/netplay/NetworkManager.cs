@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Recompiled.Ultimate;
 using RecompOne.Runtime.Context;
 using RecompOne.Runtime.Host.Window;
 using RecompOne.Runtime.Memory;
@@ -33,9 +34,27 @@ public static class NetworkManager
     public static NetConnectionState State { get; private set; } = NetConnectionState.Disconnected;
     public static string TargetIp = "127.0.0.1";
     public static int Port = 7777;
-    public static string LocalPlayerName = "Alucard";
-    public static string RemotePlayerName = "Partner";
+    public static string LocalPlayerName = "";
+    public static string RemotePlayerName = "Parceiro";
     public static int PingMs { get; private set; } = 0;
+
+    public static string GetEffectiveLocalName()
+    {
+        if (!string.IsNullOrWhiteSpace(LocalPlayerName) && LocalPlayerName != "Alucard")
+            return LocalPlayerName;
+
+        string charName = UltimateOptions.CharacterMode switch
+        {
+            CharacterSelection.RichterClassic => "Richter",
+            CharacterSelection.RichterSaturnCoat => "Richter (Saturn)",
+            CharacterSelection.RichterBrownCoat => "Richter (Couro)",
+            CharacterSelection.SaturnMaria => "Maria (Saturn)",
+            CharacterSelection.PSPMaria => "Maria (PSP)",
+            _ => "Alucard"
+        };
+
+        return Role == NetworkRole.Host ? $"P1 ({charName})" : $"P2 ({charName})";
+    }
 
     // Chat Message Log
     public static readonly List<(string Sender, string Message, string Time)> ChatHistory = [];
@@ -58,9 +77,10 @@ public static class NetworkManager
         var v = RecompOne.Runtime.Runtime.View;
         TargetIp = v.GetString("NetplayTargetIp", "127.0.0.1");
         Port = v.GetInt("NetplayPort", 7777);
-        LocalPlayerName = v.GetString("NetplayPlayerName", "Alucard");
+        LocalPlayerName = v.GetString("NetplayPlayerName", "");
         NatHelper.RefreshNetworkInterfaces();
         NatHelper.FetchPublicIpAsync();
+        LanDiscoveryService.Start();
     }
 
     public static void Save()
@@ -132,11 +152,11 @@ public static class NetworkManager
             State = NetConnectionState.Connecting;
             _lastPacketReceivedTimer = 0f;
 
-            Console.WriteLine($"[Netplay] Conectando como Cliente a {ip}:{port} (Jogador Local: '{LocalPlayerName}')...");
+            Console.WriteLine($"[Netplay] Conectando como Cliente a {ip}:{port} (Jogador Local: '{GetEffectiveLocalName()}')...");
             Task.Run(() => ReceiveLoop(_cts.Token));
 
             // Send Handshake
-            byte[] handshakePayload = System.Text.Encoding.UTF8.GetBytes(LocalPlayerName);
+            byte[] handshakePayload = System.Text.Encoding.UTF8.GetBytes(GetEffectiveLocalName());
             SendPacket(new NetworkPacket(PacketOpCode.Handshake, handshakePayload));
 
             ToastNotifications.ShowText("Conectando...", $"Tentando conexão com {ip}:{port}...", null, 3.0f);
@@ -230,6 +250,12 @@ public static class NetworkManager
                 byte[] raw = result.Buffer;
                 if (raw.Length > 0)
                 {
+                    if (raw[0] == (byte)PacketOpCode.DiscoveryPing)
+                    {
+                        RespondToDiscovery(result.RemoteEndPoint);
+                        continue;
+                    }
+
                     if (Role == NetworkRole.Host && _remoteEndPoint == null)
                     {
                         _remoteEndPoint = result.RemoteEndPoint;
@@ -245,6 +271,30 @@ public static class NetworkManager
             catch (OperationCanceledException) { break; }
             catch { }
         }
+    }
+
+    private static void RespondToDiscovery(IPEndPoint target)
+    {
+        try
+        {
+            string hostName = GetEffectiveLocalName();
+            byte character = (byte)UltimateOptions.CharacterMode;
+            string stageName = Stages.Current.ToString();
+            byte players = (byte)(IsConnected ? 2 : 1);
+            bool isInGame = Game.Available && Game.InGame;
+
+            byte[] payload = NetworkPacket.CreateDiscoveryPong(
+                (ushort)Port,
+                hostName,
+                character,
+                stageName,
+                players,
+                isInGame);
+
+            byte[] packetData = new NetworkPacket(PacketOpCode.DiscoveryPong, payload).Serialize();
+            _udp?.Send(packetData, packetData.Length, target);
+        }
+        catch { }
     }
 
     public static void Update(CpuContext c, IMemory m)
@@ -339,7 +389,7 @@ public static class NetworkManager
             case PacketOpCode.Handshake:
                 RemotePlayerName = System.Text.Encoding.UTF8.GetString(packet.Payload);
                 State = NetConnectionState.Connected;
-                SendPacket(new NetworkPacket(PacketOpCode.HandshakeAck, System.Text.Encoding.UTF8.GetBytes(LocalPlayerName)));
+                SendPacket(new NetworkPacket(PacketOpCode.HandshakeAck, System.Text.Encoding.UTF8.GetBytes(GetEffectiveLocalName())));
                 Console.WriteLine($"[Netplay] Handshake recebido! Conectado com '{RemotePlayerName}'!");
                 ToastNotifications.ShowText("Multiplayer Conectado!", $"{RemotePlayerName} entrou na sessão!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
