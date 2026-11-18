@@ -350,8 +350,8 @@ public static class NetworkManager
             short velX = (short)Player.VelocityX;
             short velY = (short)Player.VelocityY;
             bool facingLeft = Player.FacingLeft;
-            byte animId = (byte)m.ReadU8(0x80073404); // Animation frame
-            byte frameId = (byte)m.ReadU8(0x80073406);
+            byte animId = (byte)m.ReadU8(0x80073404); // Player.Step
+            byte frameId = (byte)m.ReadU8(0x80073406); // StepSub
             ushort curHp = (ushort)Player.Hp;
             ushort maxHp = (ushort)Player.HpMax;
             byte character = (byte)LobbyManager.LocalCharacter;
@@ -361,7 +361,23 @@ public static class NetworkManager
                 else if (Player.IsRichter) character = 1;
             }
             byte paletteId = (byte)(Role == NetworkRole.Host ? 0 : 1); // Alternate skin for Client
-            byte attackTrigger = (byte)(Game.Tapped != 0 ? 1 : 0);
+
+            // Precise Multi-Action Attack & Dash Trigger Detection
+            byte attackTrigger = 0;
+            if (Game.IsTapped(Button.Square) || Game.IsTapped(Button.Circle))
+            {
+                if (Game.IsPressed(Button.Up)) attackTrigger = 2; // Subweapon
+                else attackTrigger = 1;                           // Main weapon
+            }
+            else if (Game.IsTapped(Button.Triangle))
+            {
+                attackTrigger = 3; // Backdash / Sprint
+            }
+            else if (Game.Tapped != 0)
+            {
+                attackTrigger = 1;
+            }
+
             byte subWeapon = (byte)Inventory.SubWeapon;
 
             byte[] transformPayload = NetworkPacket.CreatePlayerTransform(

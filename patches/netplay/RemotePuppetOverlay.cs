@@ -31,7 +31,7 @@ public static class RemotePuppetOverlay
         var dl = ImGui.GetWindowDrawList();
         float time = (float)ImGui.GetTime();
 
-        // 1. Normal In-Game Pause Map (Select map): render partner position directly on the normal PS1 map!
+        // 1. In-Game Pause Map: render partner position on the PS1 map
         if (Game.MapOpen)
         {
             DrawPartnerOnPauseMap(dl, imageMin, imageSize, scaleX, scaleY);
@@ -41,7 +41,7 @@ public static class RemotePuppetOverlay
         bool sameStage = RemotePuppet.StageId == (byte)Stages.Current;
         bool sameRoom = RemotePuppet.RoomX == (byte)Stages.RoomX && RemotePuppet.RoomY == (byte)Stages.RoomY;
 
-        // 2. Different room: render directional edge indicator to partner's room!
+        // 2. Different room: render directional edge indicator to partner's room
         if (!sameRoom)
         {
             if (sameStage)
@@ -60,21 +60,11 @@ public static class RemotePuppetOverlay
         float posX = RemotePuppet.InterpX;
         float posY = RemotePuppet.InterpY;
 
-        float gameX;
-        if (posX >= localScrollX && posX <= localScrollX + 450)
-            gameX = posX - localScrollX;
-        else
-            gameX = posX;
-
-        float gameY;
-        if (posY >= localScrollY && posY <= localScrollY + 350)
-            gameY = posY - localScrollY;
-        else
-            gameY = posY;
+        float gameX = (posX >= localScrollX && posX <= localScrollX + 450) ? (posX - localScrollX) : posX;
+        float gameY = (posY >= localScrollY && posY <= localScrollY + 350) ? (posY - localScrollY) : posY;
 
         Vector2 screenPos = imageMin + new Vector2(gameX * scaleX, gameY * scaleY);
-
-        bool isOffScreen = gameX < -15 || gameX > 271 || gameY < -15 || gameY > 239;
+        bool isOffScreen = gameX < -20 || gameX > 276 || gameY < -20 || gameY > 244;
 
         if (isOffScreen)
         {
@@ -82,7 +72,7 @@ public static class RemotePuppetOverlay
         }
         else
         {
-            DrawInGamePuppet(dl, screenPos, scaleX, scaleY, time);
+            DrawInGamePuppet(dl, screenPos, scaleX, scaleY, time, localScrollX, localScrollY, imageMin);
         }
 
         // Render any active tactical ping in this room
@@ -108,7 +98,6 @@ public static class RemotePuppetOverlay
         float edgeY = Math.Clamp(screenPos.Y, imageMin.Y + borderPadding, imageMin.Y + imageSize.Y - borderPadding);
         Vector2 edgePos = new(edgeX, edgeY);
 
-        // Pulsing neon chevron
         float pulse = (MathF.Sin(time * 6f) + 1f) * 0.5f;
         uint arrowCol = CoopRevivalManager.IsRemoteDowned ? 0xFF2020FF : 0xFF40D0F5;
 
@@ -119,7 +108,6 @@ public static class RemotePuppetOverlay
         dl.AddTriangleFilled(p1, p2, p3, arrowCol);
         dl.AddTriangle(p1, p2, p3, 0xFFFFFFFF, 1.5f);
 
-        // Badge with distance
         float distPx = diff.Length() / Math.Max(scaleX, scaleY);
         string name = string.IsNullOrWhiteSpace(NetworkManager.RemotePlayerName) ? "Parceiro" : NetworkManager.RemotePlayerName;
         string badgeText = $"{name} ({(int)distPx}px)";
@@ -137,7 +125,10 @@ public static class RemotePuppetOverlay
         Vector2 screenPos,
         float scaleX,
         float scaleY,
-        float time)
+        float time,
+        short localScrollX,
+        short localScrollY,
+        Vector2 imageMin)
     {
         // 1. Co-op Downed State
         if (CoopRevivalManager.IsRemoteDowned)
@@ -146,67 +137,68 @@ public static class RemotePuppetOverlay
             return;
         }
 
-        // 2. Ground Shadow under feet (rounded pill)
-        Vector2 shadowMin = new(screenPos.X - 13f * scaleX, screenPos.Y - 2.5f * scaleY);
-        Vector2 shadowMax = new(screenPos.X + 13f * scaleX, screenPos.Y + 2.5f * scaleY);
-        dl.AddRectFilled(shadowMin, shadowMax, 0x65000000, 3f);
+        // 2. Render Particles (Running dust & hit sparks)
+        foreach (var p in RemotePuppet.Particles)
+        {
+            Vector2 pScr = imageMin + new Vector2((p.Pos.X - localScrollX) * scaleX, (p.Pos.Y - localScrollY) * scaleY);
+            float alpha = Math.Clamp(p.Life / p.MaxLife, 0f, 1f);
+            uint col = (p.Color & 0x00FFFFFF) | ((uint)(alpha * 220) << 24);
+            dl.AddCircleFilled(pScr, p.Size * scaleX, col);
+        }
 
-        // 3. Body animation parameters
+        // 3. Render Active Subweapon Projectiles
+        foreach (var pr in RemotePuppet.Projectiles)
+        {
+            Vector2 prScr = imageMin + new Vector2((pr.Pos.X - localScrollX) * scaleX, (pr.Pos.Y - localScrollY) * scaleY);
+            DrawProjectile(dl, prScr, scaleX, scaleY, pr);
+        }
+
+        // 4. Dynamic Ground Shadow (scales with jump height)
+        float jumpDist = Math.Max(0f, Math.Abs(RemotePuppet.VelY) * 0.6f);
+        float shadowAlpha = Math.Clamp(0.55f - jumpDist * 0.02f, 0.12f, 0.55f);
+        float shadowW = Math.Clamp((14f - jumpDist * 0.25f) * scaleX, 5f * scaleX, 16f * scaleX);
+        uint shadowCol = ((uint)(shadowAlpha * 255) << 24);
+        dl.AddEllipseFilled(new Vector2(screenPos.X, screenPos.Y), new Vector2(shadowW, 3f * scaleY), shadowCol);
+
+        // 5. Ghost Trails (Afterimages) for Sprint / Dash
+        foreach (var ghost in RemotePuppet.GhostTrails)
+        {
+            Vector2 gScr = imageMin + new Vector2((ghost.Pos.X - localScrollX) * scaleX, (ghost.Pos.Y - localScrollY) * scaleY);
+            DrawGhostSilhouette(dl, gScr, scaleX, scaleY, ghost.FacingLeft ? -1f : 1f, ghost.Alpha, ghost.Tint, RemotePuppet.Character, ghost.Action, ghost.WalkPhase);
+        }
+
+        // 6. Character Motion Parameters
         float dir = RemotePuppet.FacingLeft ? -1f : 1f;
-        float walkCycle = Math.Abs(RemotePuppet.VelX) > 10 ? MathF.Sin(time * 14f) : 0f;
-        float breath = MathF.Sin(time * 3.5f) * 1.2f * scaleY;
+        PuppetAction action = RemotePuppet.CurrentAction;
+        float walkPhase = RemotePuppet.WalkPhase;
+        bool hurtFlash = RemotePuppet.HurtTimer > 0f && ((int)(time * 28f) % 2 == 0);
 
-        // Character center of mass (feet anchor to body center)
-        Vector2 cPos = new(screenPos.X, screenPos.Y - 18f * scaleY + breath);
+        // Center of mass (cPos)
+        float crouchOffset = (action == PuppetAction.Crouch) ? 7f * scaleY : 0f;
+        float breath = (action == PuppetAction.Idle) ? MathF.Sin(time * 3.5f) * 1.2f * scaleY : 0f;
+        Vector2 cPos = new(screenPos.X, screenPos.Y - 18f * scaleY + crouchOffset + breath);
 
-        // 4. Character Sprite Rendering: Authentic Pixel-Art Sprite with Procedural Fallback
-        uint texId = NetplaySpriteManager.GetHunterSprite(
-            RemotePuppet.Character,
-            RemotePuppet.AttackTrigger != 0,
-            Math.Abs(RemotePuppet.VelY) > 8,
-            out Vector2 baseSize);
-
-        if (texId != 0)
+        // 7. Render State-of-the-Art Character Poses
+        switch (RemotePuppet.Character)
         {
-            float drawW = baseSize.X * scaleX;
-            float drawH = baseSize.Y * scaleY;
-            Vector2 pMin = new(cPos.X - drawW * 0.5f, cPos.Y - drawH * 0.5f);
-            Vector2 pMax = new(cPos.X + drawW * 0.5f, cPos.Y + drawH * 0.5f);
+            case 1: // Richter Classic
+            case 2: // Richter Saturn Coat
+            case 5: // Richter Brown Coat
+                DrawRichterState(dl, cPos, scaleX, scaleY, dir, time, walkPhase, action, hurtFlash, RemotePuppet.Character);
+                break;
 
-            Vector2 uv0 = RemotePuppet.FacingLeft ? new Vector2(1, 0) : Vector2.Zero;
-            Vector2 uv1 = RemotePuppet.FacingLeft ? new Vector2(0, 1) : Vector2.One;
+            case 3: // Maria Saturn
+            case 4: // Maria PSP
+                DrawMariaState(dl, cPos, scaleX, scaleY, dir, time, walkPhase, action, hurtFlash, RemotePuppet.Character);
+                break;
 
-            dl.AddImage((nint)texId, pMin, pMax, uv0, uv1);
-        }
-        else
-        {
-            switch (RemotePuppet.Character)
-            {
-                case 1: // Richter Classic
-                case 2: // Richter Saturn Coat
-                case 5: // Richter Brown Coat
-                    DrawRichterSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle, RemotePuppet.Character);
-                    break;
-
-                case 3: // Saturn Maria
-                case 4: // PSP Maria
-                    DrawMariaSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle, RemotePuppet.Character);
-                    break;
-
-                case 0: // Alucard
-                default:
-                    DrawAlucardSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle);
-                    break;
-            }
+            case 0: // Alucard
+            default:
+                DrawAlucardState(dl, cPos, scaleX, scaleY, dir, time, walkPhase, action, hurtFlash);
+                break;
         }
 
-        // 5. Weapon Slash effect
-        if (RemotePuppet.AttackTrigger != 0)
-        {
-            DrawAttackEffect(dl, cPos, scaleX, scaleY, dir);
-        }
-
-        // 6. Overhead Tactical Nameplate & Health Bar
+        // 8. Overhead Tactical Nameplate & Smooth Animated HP Bar
         DrawOverheadHUD(dl, screenPos, scaleX, scaleY);
     }
 
@@ -217,21 +209,17 @@ public static class RemotePuppetOverlay
         float scaleY,
         float time)
     {
-        // Pulsing bleedout aura
         float auraPulse = (MathF.Sin(time * 7f) + 1f) * 0.5f;
         dl.AddCircleFilled(screenPos, (18f + auraPulse * 8f) * scaleX, 0x40201080);
         dl.AddCircle(screenPos, (18f + auraPulse * 8f) * scaleX, 0xAA2020FF, 24, 2f);
 
-        // Body lying on the floor
         Vector2 bodyMin = new(screenPos.X - 16f * scaleX, screenPos.Y - 8f * scaleY);
         Vector2 bodyMax = new(screenPos.X + 16f * scaleX, screenPos.Y);
         dl.AddRectFilled(bodyMin, bodyMax, 0xDD20202E, 3f);
         dl.AddRect(bodyMin, bodyMax, 0xAA802020, 3f, ImDrawFlags.None, 1f);
 
-        // Head
         dl.AddCircleFilled(new Vector2(screenPos.X - 14f * scaleX, screenPos.Y - 4f * scaleY), 5f * scaleY, 0xFFD0D5E0);
 
-        // Downed SOS Tag
         Vector2 sosPos = new(screenPos.X, screenPos.Y - 32f * scaleY);
         string sosText = $"[CAÍDO! {CoopRevivalManager.RemoteBleedoutTimer:0}s]";
         Vector2 sz = ImGui.CalcTextSize(sosText);
@@ -243,158 +231,287 @@ public static class RemotePuppetOverlay
         dl.AddText(bMin + new Vector2(6, 2), 0xFF3540FF, sosText);
     }
 
-    private static void DrawAlucardSprite(
+    private static void DrawGhostSilhouette(
         ImDrawListPtr dl,
-        Vector2 cPos,
+        Vector2 screenPos,
         float scaleX,
         float scaleY,
         float dir,
-        float time,
-        float walkCycle)
+        float alpha,
+        uint tint,
+        byte charId,
+        PuppetAction action,
+        float walkPhase)
     {
-        // Capa esvoaçante (exterior escuro, interior carmesim)
-        float capeWave = MathF.Sin(time * 3.5f) * 3f;
-        Vector2 capeBackP1 = cPos + new Vector2((-14 * dir - capeWave * dir) * scaleX, 18 * scaleY);
-        Vector2 capeBackP2 = cPos + new Vector2(0, -9 * scaleY);
-        Vector2 capeBackP3 = cPos + new Vector2(-6 * dir * scaleX, 20 * scaleY);
-        dl.AddTriangleFilled(capeBackP1, capeBackP2, capeBackP3, 0xFF14141E);
+        uint col = (tint & 0x00FFFFFF) | ((uint)(alpha * 200f) << 24);
+        Vector2 cPos = new(screenPos.X, screenPos.Y - 18f * scaleY);
 
-        // Forro carmesim
-        Vector2 capeFrontP1 = cPos + new Vector2((-9 * dir) * scaleX, 17 * scaleY);
-        Vector2 capeFrontP2 = cPos + new Vector2(0, -7 * scaleY);
-        Vector2 capeFrontP3 = cPos + new Vector2(-2 * dir * scaleX, 19 * scaleY);
-        dl.AddTriangleFilled(capeFrontP1, capeFrontP2, capeFrontP3, 0xFF181085);
+        // Ghost body silhouette
+        dl.AddRectFilled(cPos + new Vector2(-5f * scaleX, -8f * scaleY), cPos + new Vector2(5f * scaleX, 10f * scaleY), col, 3f);
+        dl.AddCircleFilled(cPos + new Vector2(0, -14f * scaleY), 5.5f * scaleY, col);
 
-        // Tronco gótico com detalhes dourados
-        Vector2 torsoMin = cPos + new Vector2(-4.5f * scaleX, -8 * scaleY);
-        Vector2 torsoMax = cPos + new Vector2(4.5f * scaleX, 9 * scaleY);
-        dl.AddRectFilled(torsoMin, torsoMax, 0xFF222228, 2f);
-        dl.AddLine(cPos + new Vector2(0, -6 * scaleY), cPos + new Vector2(0, 7 * scaleY), 0xFF35B0D4, 1.5f);
+        // Cape / Coat ghost trail
+        Vector2 p1 = cPos + new Vector2(-12f * dir * scaleX, 18f * scaleY);
+        Vector2 p2 = cPos + new Vector2(0, -7f * scaleY);
+        Vector2 p3 = cPos + new Vector2(-4f * dir * scaleX, 19f * scaleY);
+        dl.AddTriangleFilled(p1, p2, p3, col);
+    }
 
-        // Pernas e botas em movimento
-        dl.AddLine(cPos + new Vector2(-2.5f * scaleX, 9 * scaleY), cPos + new Vector2((-2.5f + walkCycle * 3.5f) * scaleX, 18 * scaleY), 0xFF18181E, 2.5f * scaleX);
-        dl.AddLine(cPos + new Vector2(2.5f * scaleX, 9 * scaleY), cPos + new Vector2((2.5f - walkCycle * 3.5f) * scaleX, 18 * scaleY), 0xFF18181E, 2.5f * scaleX);
+    private static void DrawProjectile(
+        ImDrawListPtr dl,
+        Vector2 prScr,
+        float scaleX,
+        float scaleY,
+        PuppetProjectile pr)
+    {
+        float dir = pr.FacingLeft ? -1f : 1f;
 
-        // Rosto pálido e cabelos prateados
-        dl.AddCircleFilled(cPos + new Vector2(0, -14 * scaleY), 5.5f * scaleY, 0xFFE0E5EC);
-        dl.AddLine(cPos + new Vector2(-3 * dir * scaleX, -16 * scaleY), cPos + new Vector2(-6 * dir * scaleX, -1 * scaleY), 0xFFD8EEF5, 2.0f * scaleX);
-        dl.AddLine(cPos + new Vector2(3 * dir * scaleX, -16 * scaleY), cPos + new Vector2(6 * dir * scaleX, -1 * scaleY), 0xFFD8EEF5, 2.0f * scaleX);
-
-        // Espada desembainhada com brilho
-        Vector2 swordHilt = cPos + new Vector2(5 * dir * scaleX, 2 * scaleY);
-        Vector2 swordTip = cPos + new Vector2(17 * dir * scaleX, 13 * scaleY);
-        dl.AddLine(swordHilt, swordTip, 0xFFE0E0E0, 2.0f * scaleX);
-        dl.AddLine(cPos + new Vector2(3 * dir * scaleX, 4 * scaleY), cPos + new Vector2(7 * dir * scaleX, 0), 0xFF20A0D0, 2.0f * scaleX);
-
-        float spark = MathF.Sin(time * 6.0f);
-        if (spark > 0.3f)
+        switch (pr.Kind)
         {
-            dl.AddCircleFilled(swordTip, 2.0f * scaleY, 0xFFFFFFFF);
+            case 1: // Dagger
+                Vector2 tip = prScr + new Vector2(dir * 12f * scaleX, 0);
+                Vector2 hilt = prScr - new Vector2(dir * 10f * scaleX, 0);
+                dl.AddLine(hilt, tip, 0xFFFFFFFF, 2.5f * scaleX);
+                dl.AddLine(hilt, prScr - new Vector2(dir * 18f * scaleX, 0), 0x60A0D0FF, 1.5f * scaleX);
+                break;
+
+            case 2: // Axe (Spinning)
+                float cos = MathF.Cos(pr.Rotation);
+                float sin = MathF.Sin(pr.Rotation);
+                Vector2 a1 = prScr + new Vector2(cos * 10f * scaleX, sin * 10f * scaleY);
+                Vector2 a2 = prScr - new Vector2(cos * 10f * scaleX, sin * 10f * scaleY);
+                dl.AddLine(a1, a2, 0xFF704020, 2.5f * scaleX); // Wooden haft
+                dl.AddCircleFilled(a1, 5f * scaleX, 0xFFD0D5E0); // Blade head
+                dl.AddCircle(a1, 5f * scaleX, 0xFFFFFFFF, 12, 1.2f);
+                break;
+
+            case 3: // Cross (Spinning golden crucifix)
+                float cCos = MathF.Cos(pr.Rotation * 1.5f);
+                float cSin = MathF.Sin(pr.Rotation * 1.5f);
+                Vector2 v1 = prScr + new Vector2(cCos * 12f * scaleX, cSin * 12f * scaleY);
+                Vector2 v2 = prScr - new Vector2(cCos * 12f * scaleX, cSin * 12f * scaleY);
+                Vector2 h1 = prScr + new Vector2(-cSin * 8f * scaleX, cCos * 8f * scaleY);
+                Vector2 h2 = prScr - new Vector2(-cSin * 8f * scaleX, cCos * 8f * scaleY);
+                dl.AddLine(v1, v2, 0xFF30D0FF, 3.5f * scaleX);
+                dl.AddLine(h1, h2, 0xFF30D0FF, 3.5f * scaleX);
+                dl.AddCircle(prScr, 10f * scaleX, 0x8040FFFF, 16, 1.5f);
+                break;
+
+            case 4: // Holy Water (Sacred blue fire)
+                float flameP = MathF.Sin(pr.Life * 16f) * 3f;
+                dl.AddCircleFilled(prScr, (8f + flameP) * scaleX, 0x80FFA030);
+                dl.AddCircleFilled(prScr + new Vector2(0, -6f * scaleY), 5f * scaleX, 0xCCFFD040);
+                break;
+
+            case 5: // Maria Dove
+            default:
+                float wingFlap = MathF.Sin(pr.Life * 22f) * 6f;
+                dl.AddCircleFilled(prScr, 4f * scaleX, 0xFFFFFFFF);
+                dl.AddLine(prScr, prScr + new Vector2(-dir * 8f * scaleX, -wingFlap * scaleY), 0xFFFFFFFF, 2f * scaleX);
+                dl.AddLine(prScr, prScr + new Vector2(-dir * 8f * scaleX, wingFlap * scaleY), 0xFFFFFFFF, 2f * scaleX);
+                break;
         }
     }
 
-    private static void DrawRichterSprite(
+    // =========================================================================
+    // 1. ALUCARD TEPES (STATE-OF-THE-ART DETAILED RENDERING)
+    // =========================================================================
+    private static void DrawAlucardState(
         ImDrawListPtr dl,
         Vector2 cPos,
         float scaleX,
         float scaleY,
         float dir,
         float time,
-        float walkCycle,
-        byte charId)
+        float walkPhase,
+        PuppetAction action,
+        bool hurtFlash)
     {
-        // Fita da bandana branca esvoaçando
-        float ribbon = MathF.Sin(time * 5.5f) * 3f;
-        dl.AddLine(cPos + new Vector2(-4 * dir * scaleX, -16 * scaleY), cPos + new Vector2((-14 * dir - ribbon * dir) * scaleX, -14 * scaleY), 0xFFFFFFFF, 2f * scaleX);
+        uint tintHurt = hurtFlash ? 0xFF3030FF : 0xFFFFFFFF;
+        float stride = (action == PuppetAction.Walk || action == PuppetAction.Run) ? MathF.Sin(walkPhase) : 0f;
+        float capeWind = MathF.Sin(time * 4f) * 3f;
 
-        // Cabeça e bandana
-        dl.AddCircleFilled(cPos + new Vector2(0, -14 * scaleY), 5.5f * scaleY, 0xFFD5DDF0);
+        if (action == PuppetAction.Run) capeWind += 7f;
+        else if (action == PuppetAction.Backdash) capeWind += 12f;
+
+        // Capa Exterior (Obsidian Black)
+        Vector2 capeBackP1 = cPos + new Vector2((-14 * dir - capeWind * dir) * scaleX, 18 * scaleY);
+        Vector2 capeBackP2 = cPos + new Vector2(0, -9 * scaleY);
+        Vector2 capeBackP3 = cPos + new Vector2(-5 * dir * scaleX, 20 * scaleY);
+        dl.AddTriangleFilled(capeBackP1, capeBackP2, capeBackP3, hurtFlash ? 0xFF2020A0 : 0xFF14141E);
+
+        // Capa Forro Interior (Royal Crimson Velvet)
+        Vector2 capeFrontP1 = cPos + new Vector2((-9 * dir - (capeWind * 0.5f) * dir) * scaleX, 17 * scaleY);
+        Vector2 capeFrontP2 = cPos + new Vector2(0, -7 * scaleY);
+        Vector2 capeFrontP3 = cPos + new Vector2(-2 * dir * scaleX, 19 * scaleY);
+        dl.AddTriangleFilled(capeFrontP1, capeFrontP2, capeFrontP3, hurtFlash ? 0xFF4040FF : 0xFF181085);
+
+        // Tronco Nobre & Detalhes Dourados
+        Vector2 torsoMin = cPos + new Vector2(-4.5f * scaleX, -8 * scaleY);
+        Vector2 torsoMax = cPos + new Vector2(4.5f * scaleX, 9 * scaleY);
+        dl.AddRectFilled(torsoMin, torsoMax, hurtFlash ? 0xFF8080C0 : 0xFF222228, 2f);
+        dl.AddLine(cPos + new Vector2(0, -6 * scaleY), cPos + new Vector2(0, 7 * scaleY), hurtFlash ? 0xFFFFFFFF : 0xFF35B0D4, 1.5f);
+
+        // Pernas & Botas em Movimento Articulado
+        float leg1Off = stride * 4f;
+        float leg2Off = -stride * 4f;
+        dl.AddLine(cPos + new Vector2(-2.5f * scaleX, 9 * scaleY), cPos + new Vector2((-2.5f + leg1Off) * scaleX, 18 * scaleY), hurtFlash ? 0xFFFFFFFF : 0xFF18181E, 2.5f * scaleX);
+        dl.AddLine(cPos + new Vector2(2.5f * scaleX, 9 * scaleY), cPos + new Vector2((2.5f + leg2Off) * scaleX, 18 * scaleY), hurtFlash ? 0xFFFFFFFF : 0xFF18181E, 2.5f * scaleX);
+
+        // Rosto Pálido & Cabelos Prateados
+        dl.AddCircleFilled(cPos + new Vector2(0, -14 * scaleY), 5.5f * scaleY, hurtFlash ? 0xFFFF8080 : 0xFFE0E5EC);
+        float hairWave = MathF.Sin(time * 5f) * 2f;
+        dl.AddLine(cPos + new Vector2(-3 * dir * scaleX, -16 * scaleY), cPos + new Vector2((-6 * dir - hairWave * dir) * scaleX, -1 * scaleY), hurtFlash ? 0xFFFFFFFF : 0xFFD8EEF5, 2.0f * scaleX);
+        dl.AddLine(cPos + new Vector2(3 * dir * scaleX, -16 * scaleY), cPos + new Vector2((6 * dir - hairWave * dir) * scaleX, -1 * scaleY), hurtFlash ? 0xFFFFFFFF : 0xFFD8EEF5, 2.0f * scaleX);
+
+        // Espada desembainhada & Corte Arc
+        if (action == PuppetAction.AttackMain)
+        {
+            // Dynamic Crescent Sword Slash Arc
+            float atkProgress = 1f - Math.Clamp(RemotePuppet.AttackTimer / 0.28f, 0f, 1f);
+            float arcAngle = -0.4f + atkProgress * 1.8f;
+            Vector2 slashCenter = cPos + new Vector2(dir * 8f * scaleX, 0);
+            Vector2 tip = slashCenter + new Vector2(MathF.Cos(arcAngle) * dir * 26f * scaleX, MathF.Sin(arcAngle) * 22f * scaleY);
+
+            dl.AddLine(cPos + new Vector2(dir * 4f * scaleX, 0), tip, 0xFFFFFFFF, 2.5f * scaleX);
+            dl.AddCircle(slashCenter, 24f * scaleX, 0x80D0E8FF, 16, 2.2f);
+            dl.AddCircleFilled(tip, 3.5f * scaleX, 0xFFFFFFFF);
+        }
+        else
+        {
+            // Espada em repouso
+            Vector2 swordHilt = cPos + new Vector2(5 * dir * scaleX, 2 * scaleY);
+            Vector2 swordTip = cPos + new Vector2(17 * dir * scaleX, 13 * scaleY);
+            dl.AddLine(swordHilt, swordTip, 0xFFE0E0E0, 2.0f * scaleX);
+            dl.AddLine(cPos + new Vector2(3 * dir * scaleX, 4 * scaleY), cPos + new Vector2(7 * dir * scaleX, 0), 0xFF20A0D0, 2.0f * scaleX);
+        }
+    }
+
+    // =========================================================================
+    // 2. RICHTER BELMONT (STATE-OF-THE-ART DETAILED RENDERING)
+    // =========================================================================
+    private static void DrawRichterState(
+        ImDrawListPtr dl,
+        Vector2 cPos,
+        float scaleX,
+        float scaleY,
+        float dir,
+        float time,
+        float walkPhase,
+        PuppetAction action,
+        bool hurtFlash,
+        byte charVariant)
+    {
+        float stride = (action == PuppetAction.Walk || action == PuppetAction.Run) ? MathF.Sin(walkPhase) : 0f;
+        float ribbon = MathF.Sin(time * 6f) * 4f;
+        if (action == PuppetAction.Run || action == PuppetAction.Backdash) ribbon += 8f;
+
+        // Fita da Bandana Branca Esvoaçante
+        dl.AddLine(cPos + new Vector2(-4 * dir * scaleX, -16 * scaleY), cPos + new Vector2((-15 * dir - ribbon * dir) * scaleX, -14 * scaleY), 0xFFFFFFFF, 2f * scaleX);
+
+        // Cabeça & Bandana
+        dl.AddCircleFilled(cPos + new Vector2(0, -14 * scaleY), 5.5f * scaleY, hurtFlash ? 0xFFFF8080 : 0xFFD5DDF0);
         dl.AddRectFilled(cPos + new Vector2(-5 * scaleX, -19 * scaleY), cPos + new Vector2(5 * scaleX, -14 * scaleY), 0xFF253555, 1.5f);
         dl.AddLine(cPos + new Vector2(-5 * scaleX, -15 * scaleY), cPos + new Vector2(5 * scaleX, -15 * scaleY), 0xFFFFFFFF, 1.6f);
 
         // Túnica ou Sobretudo
-        uint tunicCol = charId switch
+        uint tunicCol = charVariant switch
         {
-            2 => 0xFF653010, // Saturn Coat (Azul Escuro)
-            5 => 0xFF204565, // Brown Leather
+            2 => 0xFF653010, // Saturn Coat (Azul Escuro Real)
+            5 => 0xFF204565, // Brown Leather Duster
             _ => 0xFFB05020  // Classic Royal Belmont Blue
         };
+        if (hurtFlash) tunicCol = 0xFFFFFFFF;
 
         dl.AddRectFilled(cPos + new Vector2(-6 * scaleX, -8 * scaleY), cPos + new Vector2(6 * scaleX, 10 * scaleY), tunicCol, 2f);
         dl.AddLine(cPos + new Vector2(-6 * scaleX, 3 * scaleY), cPos + new Vector2(6 * scaleX, 3 * scaleY), 0xFF20A0D0, 1.8f);
 
-        // Pernas / Botas
-        dl.AddLine(cPos + new Vector2(-2.5f * scaleX, 10 * scaleY), cPos + new Vector2((-2.5f + walkCycle * 3.5f) * scaleX, 18 * scaleY), 0xFF182030, 2.5f * scaleX);
-        dl.AddLine(cPos + new Vector2(2.5f * scaleX, 10 * scaleY), cPos + new Vector2((2.5f - walkCycle * 3.5f) * scaleX, 18 * scaleY), 0xFF182030, 2.5f * scaleX);
+        // Cruz Sagrada no Peito
+        Vector2 crossPos = cPos + new Vector2(-8 * dir * scaleX, -7 * scaleY);
+        dl.AddLine(crossPos + new Vector2(0, -3.5f * scaleY), crossPos + new Vector2(0, 3.5f * scaleY), 0xFF40D0F0, 1.5f);
+        dl.AddLine(crossPos + new Vector2(-2f * scaleX, -1 * scaleY), crossPos + new Vector2(2f * scaleX, -1 * scaleY), 0xFF40D0F0, 1.5f);
 
-        // Vampire Killer em arco
-        dl.AddBezierCubic(
-            cPos + new Vector2(6 * dir * scaleX, 3 * scaleY),
-            cPos + new Vector2(13 * dir * scaleX, 8 * scaleY),
-            cPos + new Vector2(15 * dir * scaleX, 15 * scaleY),
-            cPos + new Vector2(20 * dir * scaleX, 13 * scaleY),
-            0xFF80C0D0,
-            2f * scaleX
-        );
+        // Pernas & Botas
+        float leg1Off = stride * 4.5f;
+        float leg2Off = -stride * 4.5f;
+        dl.AddLine(cPos + new Vector2(-2.5f * scaleX, 10 * scaleY), cPos + new Vector2((-2.5f + leg1Off) * scaleX, 18 * scaleY), hurtFlash ? 0xFFFFFFFF : 0xFF182030, 2.5f * scaleX);
+        dl.AddLine(cPos + new Vector2(2.5f * scaleX, 10 * scaleY), cPos + new Vector2((2.5f + leg2Off) * scaleX, 18 * scaleY), hurtFlash ? 0xFFFFFFFF : 0xFF182030, 2.5f * scaleX);
 
-        // Cruz sagrada brilhante no peito
-        Vector2 crossPos = cPos + new Vector2(-10 * dir * scaleX, -8 * scaleY);
-        dl.AddLine(crossPos + new Vector2(0, -4 * scaleY), crossPos + new Vector2(0, 4 * scaleY), 0xFF40D0F0, 1.5f);
-        dl.AddLine(crossPos + new Vector2(-2.5f * scaleX, -1 * scaleY), crossPos + new Vector2(2.5f * scaleX, -1 * scaleY), 0xFF40D0F0, 1.5f);
+        // Vampire Killer Attack (Multi-Segment Articulated Chain Whip)
+        if (action == PuppetAction.AttackMain)
+        {
+            float whipProgress = 1f - Math.Clamp(RemotePuppet.AttackTimer / 0.28f, 0f, 1f);
+            float reach = 10f + whipProgress * 36f;
+            Vector2 pStart = cPos + new Vector2(6 * dir * scaleX, 2 * scaleY);
+            Vector2 pWave = cPos + new Vector2((reach * 0.5f) * dir * scaleX, -4 * scaleY);
+            Vector2 pTip = cPos + new Vector2(reach * dir * scaleX, 2 * scaleY);
+
+            dl.AddBezierCubic(pStart, pWave, pWave + new Vector2(dir * 8f * scaleX, 6 * scaleY), pTip, 0xFFFFFFFF, 2.2f * scaleX);
+            dl.AddCircleFilled(pTip, 3.5f * scaleX, 0xFF40FFFF); // Spiked morningstar tip spark
+        }
+        else
+        {
+            // Vampire Killer recolhido no quadril
+            dl.AddBezierCubic(
+                cPos + new Vector2(6 * dir * scaleX, 3 * scaleY),
+                cPos + new Vector2(12 * dir * scaleX, 7 * scaleY),
+                cPos + new Vector2(14 * dir * scaleX, 13 * scaleY),
+                cPos + new Vector2(18 * dir * scaleX, 11 * scaleY),
+                0xFF80C0D0,
+                2f * scaleX
+            );
+        }
     }
 
-    private static void DrawMariaSprite(
+    // =========================================================================
+    // 3. MARIA RENARD (STATE-OF-THE-ART DETAILED RENDERING)
+    // =========================================================================
+    private static void DrawMariaState(
         ImDrawListPtr dl,
         Vector2 cPos,
         float scaleX,
         float scaleY,
         float dir,
         float time,
-        float walkCycle,
-        byte charId)
+        float walkPhase,
+        PuppetAction action,
+        bool hurtFlash,
+        byte charVariant)
     {
-        // Cabeça e cachos dourados
-        dl.AddCircleFilled(cPos + new Vector2(0, -14 * scaleY), 5.5f * scaleY, 0xFFD8E5F0);
+        float stride = (action == PuppetAction.Walk || action == PuppetAction.Run) ? MathF.Sin(walkPhase) : 0f;
+        float ribbon = MathF.Sin(time * 5.5f) * 3f;
+
+        // Cabeça & Cachos Dourados
+        dl.AddCircleFilled(cPos + new Vector2(0, -14 * scaleY), 5.5f * scaleY, hurtFlash ? 0xFFFF8080 : 0xFFD8E5F0);
         dl.AddCircleFilled(cPos + new Vector2(-4 * dir * scaleX, -11 * scaleY), 3.0f * scaleY, 0xFF40D0F5);
         dl.AddCircleFilled(cPos + new Vector2(4 * dir * scaleX, -11 * scaleY), 3.0f * scaleY, 0xFF40D0F5);
 
-        // Laço de fita no topo da cabeça
-        dl.AddTriangleFilled(cPos + new Vector2(-4 * dir * scaleX, -19 * scaleY), cPos + new Vector2(0, -16 * scaleY), cPos + new Vector2(-1 * scaleX, -18 * scaleY), 0xFF8020E0);
-        dl.AddTriangleFilled(cPos + new Vector2(4 * dir * scaleX, -19 * scaleY), cPos + new Vector2(0, -16 * scaleY), cPos + new Vector2(1 * scaleX, -18 * scaleY), 0xFF8020E0);
+        // Tiara / Laço
+        uint headAcc = (charVariant == 4) ? 0xFF4020D0 : 0xFF20D0F5; // Red bow (PSP) or Gold tiara (Saturn)
+        dl.AddLine(cPos + new Vector2(-4 * scaleX, -18 * scaleY), cPos + new Vector2(4 * scaleX, -18 * scaleY), headAcc, 1.8f);
 
-        // Vestido (Esmeralda para Saturn, Carmesim para PSP)
-        uint dressCol = charId == 4 ? 0xFF401080 : 0xFF358525;
-        dl.AddTriangleFilled(cPos + new Vector2(-8 * scaleX, 12 * scaleY), cPos + new Vector2(0, -7 * scaleY), cPos + new Vector2(8 * scaleX, 12 * scaleY), dressCol);
-        dl.AddRectFilled(cPos + new Vector2(-2.5f * scaleX, -6 * scaleY), cPos + new Vector2(2.5f * scaleX, 1 * scaleY), 0xFFF0F5FA, 1f);
+        // Vestido / Túnica (Emerald Green no Saturn, Crimson/Pink no PSP)
+        uint dressCol = (charVariant == 4) ? 0xFF352085 : 0xFF257520;
+        if (hurtFlash) dressCol = 0xFFFFFFFF;
 
-        // Pernas / Meias
-        dl.AddLine(cPos + new Vector2(-2f * scaleX, 12 * scaleY), cPos + new Vector2((-2f + walkCycle * 3.0f) * scaleX, 18 * scaleY), 0xFFD0D5E0, 2.0f * scaleX);
-        dl.AddLine(cPos + new Vector2(2f * scaleX, 12 * scaleY), cPos + new Vector2((2f - walkCycle * 3.0f) * scaleX, 18 * scaleY), 0xFFD0D5E0, 2.0f * scaleX);
+        Vector2 dP1 = cPos + new Vector2(-6 * scaleX, 9 * scaleY);
+        Vector2 dP2 = cPos + new Vector2(6 * scaleX, 9 * scaleY);
+        Vector2 dP3 = cPos + new Vector2(0, -8 * scaleY);
+        dl.AddTriangleFilled(dP1, dP2, dP3, dressCol);
 
-        // Pássaro Celestial Suzaku batendo asas
-        float birdFlap = MathF.Sin(time * 12.0f) * 4.0f * scaleY;
-        Vector2 bPos = cPos + new Vector2(16 * dir * scaleX, -14 * scaleY + MathF.Sin(time * 3.5f) * 2f * scaleY);
+        // Pernas & Sapatilhas
+        float leg1Off = stride * 3.5f;
+        float leg2Off = -stride * 3.5f;
+        dl.AddLine(cPos + new Vector2(-2 * scaleX, 9 * scaleY), cPos + new Vector2((-2 + leg1Off) * scaleX, 17 * scaleY), 0xFFD8E5F0, 2f * scaleX);
+        dl.AddLine(cPos + new Vector2(2 * scaleX, 9 * scaleY), cPos + new Vector2((2 + leg2Off) * scaleX, 17 * scaleY), 0xFFD8E5F0, 2f * scaleX);
 
-        dl.AddCircleFilled(bPos, 3.0f * scaleY, 0xFFFFFFFF);
-        dl.AddTriangleFilled(bPos + new Vector2(-2.5f * dir * scaleX, 0), bPos + new Vector2(0, -3.5f * scaleY - birdFlap), bPos + new Vector2(2f * dir * scaleX, 0), 0xFFF0F5FA);
-        dl.AddLine(bPos + new Vector2(1.5f * dir * scaleX, 0), bPos + new Vector2(4f * dir * scaleX, 1 * scaleY), 0xFF20A0F0, 1.5f * scaleX);
-    }
-
-    private static void DrawAttackEffect(
-        ImDrawListPtr dl,
-        Vector2 cPos,
-        float scaleX,
-        float scaleY,
-        float dir)
-    {
-        // Glowing slashing arc in front of the puppet (cubic bezier curve)
-        Vector2 arcStart = cPos + new Vector2(4 * dir * scaleX, -16 * scaleY);
-        Vector2 c1 = cPos + new Vector2(24 * dir * scaleX, -8 * scaleY);
-        Vector2 c2 = cPos + new Vector2(24 * dir * scaleX, 8 * scaleY);
-        Vector2 arcEnd = cPos + new Vector2(4 * dir * scaleX, 16 * scaleY);
-
-        dl.AddBezierCubic(arcStart, c1, c2, arcEnd, 0xEE40FFFF, 3.0f * scaleX);
-        dl.AddBezierCubic(arcStart, c1, c2, arcEnd, 0xAAFFFFFF, 1.5f * scaleX);
+        // Magic Dove Cast Attack
+        if (action == PuppetAction.AttackMain)
+        {
+            Vector2 handPos = cPos + new Vector2(dir * 12f * scaleX, -4 * scaleY);
+            dl.AddCircleFilled(handPos, 4f * scaleX, 0xFFFFFFFF);
+            dl.AddCircle(handPos, 8f * scaleX, 0x8040FFFF, 12, 1.5f);
+        }
     }
 
     private static void DrawOverheadHUD(
@@ -458,7 +575,6 @@ public static class RemotePuppetOverlay
             CoopPingManager.PingRoomY != currentRoomY)
             return;
 
-        // Use puppet pos if ping was sent in this room
         float pGameX = RemotePuppet.InterpX - localScrollX;
         float pGameY = RemotePuppet.InterpY - localScrollY;
 
@@ -466,7 +582,6 @@ public static class RemotePuppetOverlay
 
         Vector2 pingScreen = imageMin + new Vector2(pGameX * scaleX, pGameY * scaleY);
 
-        // Sonar ripple rings
         float ripple = (time * 2.5f) % 1.0f;
         float rRadius = (10f + ripple * 30f) * scaleX;
         uint rAlpha = (uint)((1f - ripple) * 180f);
@@ -475,7 +590,6 @@ public static class RemotePuppetOverlay
         dl.AddCircle(pingScreen, rRadius, rCol, 24, 2f);
         dl.AddCircleFilled(pingScreen, 5f * scaleX, 0xFF40FFFF);
 
-        // Ping text tag
         int pType = Math.Clamp((int)CoopPingManager.ActivePingType, 0, CoopPingManager.PingPresets.Length - 1);
         string tag = $"{CoopPingManager.PingPresets[pType].Icon} {CoopPingManager.PingPresets[pType].Label}";
         Vector2 tSz = ImGui.CalcTextSize(tag);
@@ -500,7 +614,6 @@ public static class RemotePuppetOverlay
         bool localSecondCastle = Game.SecondCastle;
         bool remoteSecondCastle = (RemotePuppet.StageId & 0x20) != 0;
 
-        // If partner is in the opposite castle, display status banner at top
         if (localSecondCastle != remoteSecondCastle)
         {
             string otherCastleText = $"[Parceiro no {(remoteSecondCastle ? "2º Castelo (Invertido)" : "1º Castelo")}: Sala {RemotePuppet.RoomX}, {RemotePuppet.RoomY}]";
@@ -527,14 +640,12 @@ public static class RemotePuppetOverlay
 
         float pulse = (MathF.Sin((float)ImGui.GetTime() * 8f) + 1f) * 0.5f;
 
-        // Pulsing neon reticle over the partner's room on the map
         Vector2 rMin = cellPos - new Vector2(2f + pulse * 2f, 2f + pulse * 2f);
         Vector2 rMax = cellPos + new Vector2(roomTileW + 2f + pulse * 2f, roomTileH + 2f + pulse * 2f);
 
         dl.AddRectFilled(cellPos, cellPos + new Vector2(roomTileW, roomTileH), 0xAA20D040);
         dl.AddRect(rMin, rMax, 0xFF40FFFF, 2f, ImDrawFlags.None, 1.8f);
 
-        // Overhead Name badge
         string name = string.IsNullOrWhiteSpace(NetworkManager.RemotePlayerName) ? "Parceiro" : NetworkManager.RemotePlayerName;
         string label = $"[P2] {name} ({RemotePuppet.CharacterName})";
         Vector2 txtSz = ImGui.CalcTextSize(label);
