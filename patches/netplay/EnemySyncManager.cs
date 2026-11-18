@@ -42,15 +42,34 @@ public static class EnemySyncManager
         _isApplyingRemoteDamage = true;
         try
         {
+            Entity target = new(0);
             var entity = Entities.At(entitySlot);
-            if (entity.IsValid && entity.HitPoints > 0)
+            if (entity.IsValid && entity.IsEnemy && entity.HitPoints > 0)
             {
-                entity.HitPoints = remainingHp;
-                entity.NFramesInvincibility = 12; // Visual flash frame
-
-                if (isDead)
+                target = entity;
+            }
+            else
+            {
+                // Slot mismatch fallback: find the first active enemy in the room
+                foreach (var e in Entities.Enemies())
                 {
-                    entity.Kill();
+                    if (e.IsValid && e.HitPoints > 0)
+                    {
+                        target = e;
+                        break;
+                    }
+                }
+            }
+
+            if (target.IsValid)
+            {
+                target.HitPoints = remainingHp;
+                target.NFramesInvincibility = 12; // Visual damage flash frame
+
+                if (isDead || remainingHp <= 0)
+                {
+                    target.HitPoints = 0;
+                    target.Kill();
                 }
             }
         }

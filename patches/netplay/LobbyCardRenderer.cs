@@ -85,24 +85,36 @@ public static class LobbyCardRenderer
 
         dl.AddCircleFilled(center, auraRadius, ImGui.ColorConvertFloat4ToU32(auraCol));
 
-        // 5. ANIMAÇÃO DE RESPIRAÇÃO (IDLE BOBBING) DO SPRITE RETRÔ
+        // 5. ANIMAÇÃO DE RESPIRAÇÃO (IDLE BOBBING) DO SPRITE REAL
         float bob = MathF.Sin(time * 3.5f + (isLocal ? 0f : 1.7f)) * 3.2f;
         Vector2 cPos = center + new Vector2(0f, bob + 4f);
 
-        switch (character)
+        uint texId = NetplaySpriteManager.GetHunterSprite((byte)character, isAttacking: false, isJumping: false, out Vector2 sz);
+        if (texId != 0)
         {
-            case CharacterSelection.SaturnMaria:
-            case CharacterSelection.PSPMaria:
-                DrawMariaSprite(dl, cPos, character, time);
-                break;
-            case CharacterSelection.RichterClassic:
-            case CharacterSelection.RichterSaturnCoat:
-            case CharacterSelection.RichterBrownCoat:
-                DrawRichterSprite(dl, cPos, character, time);
-                break;
-            default:
-                DrawAlucardSprite(dl, cPos, time);
-                break;
+            float drawH = 64f;
+            float drawW = (sz.Y > 0) ? sz.X * (drawH / sz.Y) : 48f;
+            Vector2 pMin = new(center.X - drawW * 0.5f, center.Y - drawH * 0.5f + bob);
+            Vector2 pMax = new(center.X + drawW * 0.5f, center.Y + drawH * 0.5f + bob);
+            dl.AddImage((nint)texId, pMin, pMax);
+        }
+        else
+        {
+            switch (character)
+            {
+                case CharacterSelection.SaturnMaria:
+                case CharacterSelection.PSPMaria:
+                    DrawMariaSprite(dl, cPos, character, time);
+                    break;
+                case CharacterSelection.RichterClassic:
+                case CharacterSelection.RichterSaturnCoat:
+                case CharacterSelection.RichterBrownCoat:
+                    DrawRichterSprite(dl, cPos, character, time);
+                    break;
+                default:
+                    DrawAlucardSprite(dl, cPos, time);
+                    break;
+            }
         }
 
         // 6. NOME E ARQUÉTIPO DO CAÇADOR

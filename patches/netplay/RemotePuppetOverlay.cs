@@ -22,13 +22,36 @@ public static class RemotePuppetOverlay
         if (!NetworkManager.IsConnected || !RemotePuppet.IsActive) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading) return;
 
+        var m = RecompOne.Runtime.Runtime.Mem;
+        if (m == null) return;
+
+        // Native PSX resolution is 256x224
+        float scaleX = imageSize.X / 256.0f;
+        float scaleY = imageSize.Y / 224.0f;
+        var dl = ImGui.GetWindowDrawList();
+        float time = (float)ImGui.GetTime();
+
+        // 1. Normal In-Game Pause Map (Select map): render partner position directly on the normal PS1 map!
+        if (Game.MapOpen)
+        {
+            DrawPartnerOnPauseMap(dl, imageMin, imageSize, scaleX, scaleY);
+            return;
+        }
+
         bool sameStage = RemotePuppet.StageId == (byte)Stages.Current;
         bool sameRoom = RemotePuppet.RoomX == (byte)Stages.RoomX && RemotePuppet.RoomY == (byte)Stages.RoomY;
 
-        if (!sameStage || !sameRoom) return;
-
-        var m = RecompOne.Runtime.Runtime.Mem;
-        if (m == null) return;
+        // 2. Different room: render directional edge indicator to partner's room!
+        if (!sameRoom)
+        {
+            if (sameStage)
+            {
+                int dx = RemotePuppet.RoomX - Stages.RoomX;
+                int dy = RemotePuppet.RoomY - Stages.RoomY;
+                DrawAdjacentRoomIndicator(dl, imageMin, imageSize, scaleX, scaleY, dx, dy, time);
+            }
+            return;
+        }
 
         // Camera scroll offsets in pixels
         short localScrollX = (short)m.ReadU16(0x8007308E);
@@ -49,13 +72,7 @@ public static class RemotePuppetOverlay
         else
             gameY = posY;
 
-        // Native PSX resolution is 256x224
-        float scaleX = imageSize.X / 256.0f;
-        float scaleY = imageSize.Y / 224.0f;
-
         Vector2 screenPos = imageMin + new Vector2(gameX * scaleX, gameY * scaleY);
-        var dl = ImGui.GetWindowDrawList();
-        float time = (float)ImGui.GetTime();
 
         bool isOffScreen = gameX < -15 || gameX > 271 || gameY < -15 || gameY > 239;
 
@@ -142,24 +159,45 @@ public static class RemotePuppetOverlay
         // Character center of mass (feet anchor to body center)
         Vector2 cPos = new(screenPos.X, screenPos.Y - 18f * scaleY + breath);
 
-        // 4. Character Sprite Rendering
-        switch (RemotePuppet.Character)
+        // 4. Character Sprite Rendering: Authentic Pixel-Art Sprite with Procedural Fallback
+        uint texId = NetplaySpriteManager.GetHunterSprite(
+            RemotePuppet.Character,
+            RemotePuppet.AttackTrigger != 0,
+            Math.Abs(RemotePuppet.VelY) > 8,
+            out Vector2 baseSize);
+
+        if (texId != 0)
         {
-            case 1: // Richter Classic
-            case 2: // Richter Saturn Coat
-            case 5: // Richter Brown Coat
-                DrawRichterSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle, RemotePuppet.Character);
-                break;
+            float drawW = baseSize.X * scaleX;
+            float drawH = baseSize.Y * scaleY;
+            Vector2 pMin = new(cPos.X - drawW * 0.5f, cPos.Y - drawH * 0.5f);
+            Vector2 pMax = new(cPos.X + drawW * 0.5f, cPos.Y + drawH * 0.5f);
 
-            case 3: // Saturn Maria
-            case 4: // PSP Maria
-                DrawMariaSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle, RemotePuppet.Character);
-                break;
+            Vector2 uv0 = RemotePuppet.FacingLeft ? new Vector2(1, 0) : Vector2.Zero;
+            Vector2 uv1 = RemotePuppet.FacingLeft ? new Vector2(0, 1) : Vector2.One;
 
-            case 0: // Alucard
-            default:
-                DrawAlucardSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle);
-                break;
+            dl.AddImage((nint)texId, pMin, pMax, uv0, uv1);
+        }
+        else
+        {
+            switch (RemotePuppet.Character)
+            {
+                case 1: // Richter Classic
+                case 2: // Richter Saturn Coat
+                case 5: // Richter Brown Coat
+                    DrawRichterSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle, RemotePuppet.Character);
+                    break;
+
+                case 3: // Saturn Maria
+                case 4: // PSP Maria
+                    DrawMariaSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle, RemotePuppet.Character);
+                    break;
+
+                case 0: // Alucard
+                default:
+                    DrawAlucardSprite(dl, cPos, scaleX, scaleY, dir, time, walkCycle);
+                    break;
+            }
         }
 
         // 5. Weapon Slash effect
@@ -443,5 +481,103 @@ public static class RemotePuppetOverlay
         dl.AddRectFilled(tMin, tMax, 0xDD101018, 3f);
         dl.AddRect(tMin, tMax, 0xFF40FFFF, 3f, ImDrawFlags.None, 1f);
         dl.AddText(tMin + new Vector2(4, 2), 0xFFFFFFFF, tag);
+    }
+
+    private static void DrawPartnerOnPauseMap(
+        ImDrawListPtr dl,
+        Vector2 imageMin,
+        Vector2 imageSize,
+        float scaleX,
+        float scaleY)
+    {
+        var m = RecompOne.Runtime.Runtime.Mem;
+        if (m == null) return;
+
+        bool localSecondCastle = Game.SecondCastle;
+        bool remoteSecondCastle = (RemotePuppet.StageId & 0x20) != 0;
+
+        // If partner is in the opposite castle, display status banner at top
+        if (localSecondCastle != remoteSecondCastle)
+        {
+            string otherCastleText = $"[Parceiro no {(remoteSecondCastle ? "2º Castelo (Invertido)" : "1º Castelo")}: Sala {RemotePuppet.RoomX}, {RemotePuppet.RoomY}]";
+            Vector2 sz = ImGui.CalcTextSize(otherCastleText);
+            Vector2 bMin = imageMin + new Vector2((imageSize.X - sz.X) * 0.5f - 8, 12);
+            Vector2 bMax = bMin + sz + new Vector2(16, 8);
+            dl.AddRectFilled(bMin, bMax, 0xEE14121A, 4f);
+            dl.AddRect(bMin, bMax, 0xFF40D0F5, 4f, ImDrawFlags.None, 1.5f);
+            dl.AddText(bMin + new Vector2(8, 4), 0xFFFFFFFF, otherCastleText);
+            return;
+        }
+
+        int castleX = (int)m.ReadU8(0x800730B0);
+        int castleY = (int)m.ReadU8(0x800730B4);
+        int cellX = castleX + RemotePuppet.RoomX;
+        int cellY = castleY + RemotePuppet.RoomY;
+
+        float mapPixelX = cellX * 4f - (localSecondCastle ? 15f : 14f);
+        float mapPixelY = cellY * 4f - (localSecondCastle ? 30f : 13f);
+
+        Vector2 cellPos = imageMin + new Vector2(mapPixelX * scaleX, mapPixelY * scaleY);
+        float roomTileW = 4f * scaleX;
+        float roomTileH = 4f * scaleY;
+
+        float pulse = (MathF.Sin((float)ImGui.GetTime() * 8f) + 1f) * 0.5f;
+
+        // Pulsing neon reticle over the partner's room on the map
+        Vector2 rMin = cellPos - new Vector2(2f + pulse * 2f, 2f + pulse * 2f);
+        Vector2 rMax = cellPos + new Vector2(roomTileW + 2f + pulse * 2f, roomTileH + 2f + pulse * 2f);
+
+        dl.AddRectFilled(cellPos, cellPos + new Vector2(roomTileW, roomTileH), 0xAA20D040);
+        dl.AddRect(rMin, rMax, 0xFF40FFFF, 2f, ImDrawFlags.None, 1.8f);
+
+        // Overhead Name badge
+        string name = string.IsNullOrWhiteSpace(NetworkManager.RemotePlayerName) ? "Parceiro" : NetworkManager.RemotePlayerName;
+        string label = $"[P2] {name} ({RemotePuppet.CharacterName})";
+        Vector2 txtSz = ImGui.CalcTextSize(label);
+        Vector2 tagMin = new(cellPos.X - txtSz.X * 0.5f - 4, rMin.Y - txtSz.Y - 6);
+        Vector2 tagMax = new(cellPos.X + txtSz.X * 0.5f + 4, rMin.Y - 1);
+
+        dl.AddRectFilled(tagMin, tagMax, 0xEE10141C, 3f);
+        dl.AddRect(tagMin, tagMax, 0xFF20E050, 3f, ImDrawFlags.None, 1f);
+        dl.AddText(tagMin + new Vector2(4, 1), 0xFFFFFFFF, label);
+    }
+
+    private static void DrawAdjacentRoomIndicator(
+        ImDrawListPtr dl,
+        Vector2 imageMin,
+        Vector2 imageSize,
+        float scaleX,
+        float scaleY,
+        int dx,
+        int dy,
+        float time)
+    {
+        string name = string.IsNullOrWhiteSpace(NetworkManager.RemotePlayerName) ? "Parceiro" : NetworkManager.RemotePlayerName;
+        string dirStr = (dx > 0) ? "Direita →" : (dx < 0) ? "← Esquerda" : (dy > 0) ? "Abaixo ↓" : "Acima ↑";
+        int distRooms = Math.Abs(dx) + Math.Abs(dy);
+        string label = distRooms == 1 ? $"[{name} na sala ao lado ({dirStr})]" : $"[{name} a {distRooms} salas ({dirStr})]";
+
+        Vector2 txtSz = ImGui.CalcTextSize(label);
+        Vector2 center = imageMin + imageSize * 0.5f;
+
+        Vector2 edgePos;
+        if (Math.Abs(dx) >= Math.Abs(dy))
+        {
+            float x = (dx > 0) ? (imageMin.X + imageSize.X - txtSz.X * 0.5f - 24f) : (imageMin.X + txtSz.X * 0.5f + 24f);
+            edgePos = new(x, center.Y);
+        }
+        else
+        {
+            float y = (dy > 0) ? (imageMin.Y + imageSize.Y - 32f) : (imageMin.Y + 36f);
+            edgePos = new(center.X, y);
+        }
+
+        float pulse = (MathF.Sin(time * 5f) + 1f) * 0.5f;
+        Vector2 bMin = edgePos - txtSz * 0.5f - new Vector2(8, 4);
+        Vector2 bMax = edgePos + txtSz * 0.5f + new Vector2(8, 4);
+
+        dl.AddRectFilled(bMin, bMax, 0xEE12141C, 4f);
+        dl.AddRect(bMin, bMax, 0xFF35B0D4, 4f, ImDrawFlags.None, 1.2f + pulse * 0.8f);
+        dl.AddText(bMin + new Vector2(8, 4), 0xFF40FFFF, label);
     }
 }

@@ -35,9 +35,11 @@
     <EmbeddedResource Include="assets/extension/room_fills.json" />
     <EmbeddedResource Include="assets/icon/*.ico" />
     <EmbeddedResource Include="assets/languages.json" />
+    <EmbeddedResource Include="assets/netplay/*.png" />
   </ItemGroup>
   <ItemGroup>
     <!-- SOTN Ultimate character overlays / sound banks, loaded at runtime by patches/ultimate -->
     <Content Include="assets/characters/*.BIN" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets/netplay/*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
