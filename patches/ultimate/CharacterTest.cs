@@ -164,7 +164,11 @@ public static class CharacterTest
             Wait(40);
             Do((_, m) => { DumpPalettes(m, "volta"); DumpPlayer(m, "volta"); });
             Shot("parado");
-            Press(Button.Square); Wait(10); Shot("ataque"); Release(Button.Square); Wait(30);
+            Press(Button.Circle);
+            Wait(14);
+            Shot("ataque_espada");
+            Release(Button.Circle);
+            Wait(30);
             Do((_, _) => Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA"));
             Wait(30);
             Do((_, _) => Environment.Exit(0));
