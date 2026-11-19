@@ -20,9 +20,18 @@ public static class Program
 
         var cuePath = Path.Combine(repoRoot, "disc", "Castlevania - Symphony of the Night (USA).cue");
         var outDir = Path.Combine(repoRoot, "ghidra_files");
+        if (args.Length > 0 && File.Exists(args[0])) cuePath = args[0];
 
         Console.WriteLine($"[Extractor] Opening disc: {cuePath}");
         using var fs = DiscFs.Open(cuePath);
+
+        string[] testFiles = ["SLUS_000.67", "MARIA.BIN", "MARIA2.BIN", "RIC2.BIN", "TITLE.BIN", "SELECT.BIN", "F_GAME.BIN", "F_GAME2.BIN", "ST0.BIN", "DRA.BIN"];
+        foreach (var tf in testFiles)
+        {
+            var match = fs.FindFile(tf);
+            Console.WriteLine($"  FindFile({tf}) -> {(match != null ? match : "NOT FOUND")}");
+        }
+        return;
 
         Directory.CreateDirectory(outDir);
 
