@@ -25,14 +25,6 @@ public static class Program
         Console.WriteLine($"[Extractor] Opening disc: {cuePath}");
         using var fs = DiscFs.Open(cuePath);
 
-        string[] testFiles = ["SLUS_000.67", "MARIA.BIN", "MARIA2.BIN", "RIC2.BIN", "TITLE.BIN", "SELECT.BIN", "F_GAME.BIN", "F_GAME2.BIN", "ST0.BIN", "DRA.BIN"];
-        foreach (var tf in testFiles)
-        {
-            var match = fs.FindFile(tf);
-            Console.WriteLine($"  FindFile({tf}) -> {(match != null ? match : "NOT FOUND")}");
-        }
-        return;
-
         Directory.CreateDirectory(outDir);
 
         var configText = File.ReadAllText(Path.Combine(repoRoot, "config", "sotn.json"));
