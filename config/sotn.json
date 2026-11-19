@@ -1805,6 +1805,12 @@
     },
     {
       "overlay": "no3",
+      "function": "EntityPushAlucard",
+      "mode": "pre",
+      "target": "Recompiled.Ultimate.MariaHorseRide.PushAlucardHook"
+    },
+    {
+      "overlay": "no3",
       "function": "EntityTransparentWater",
       "mode": "pre",
       "target": "Recompiled.WidescreenPatch.TransparentWaterWide_no3Hook"
