@@ -60,7 +60,10 @@ public static class MariaCharacter
                     else
                     {
                         // active low; the script's buttons, see CharacterTest
-                        e.Buttons = (ushort)(e.Buttons & ~CharacterTest.Held);
+                        if (!PlayerSelectScreen.IsOpen)
+                            e.Buttons = (ushort)(e.Buttons & ~CharacterTest.Held);
+                        else
+                            e.Buttons = 0xFFFF;
                     }
                 }
             });

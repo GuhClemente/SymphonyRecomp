@@ -250,6 +250,13 @@ public static partial class CharacterTest
             Do((_, m) =>
             {
                 if (at == 0) { _hwFrames = _gameFrames = _walkFrames = 0; _xHoldStart = _xHoldEnd = int.MinValue; }
+                // Simulate holding Left key on controller if not physically pressed by external tool
+                if ((RecompOne.Runtime.Hardware.Controller.State & RecompOne.Runtime.Hardware.Controller.Left) != 0)
+                {
+                    RecompOne.Runtime.Hardware.Controller.State &= unchecked((ushort)~RecompOne.Runtime.Hardware.Controller.Left);
+                    RecompOne.Runtime.Hardware.Controller.LeftX = 0;
+                }
+                Held |= (ushort)Button.Left;
                 bool hw = (RecompOne.Runtime.Hardware.Controller.State & RecompOne.Runtime.Hardware.Controller.Left) == 0;
                 bool game = (m.ReadU16(Game.PadsAddr) & (ushort)Button.Left) != 0;
                 if (hw)
@@ -266,6 +273,12 @@ public static partial class CharacterTest
             });
             Wait(10);
         }
+        Do((_, _) =>
+        {
+            Held &= (ushort)~Button.Left;
+            RecompOne.Runtime.Hardware.Controller.State |= RecompOne.Runtime.Hardware.Controller.Left;
+            RecompOne.Runtime.Hardware.Controller.LeftX = 0x80;
+        });
     }
     private static byte[]? _mapBefore;
 }
