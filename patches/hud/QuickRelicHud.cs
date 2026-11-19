@@ -35,7 +35,7 @@ public static class QuickRelicHud
 
         Event.AddListener<KeyboardEvent>(e =>
         {
-            if (e.Pressed && !e.Repeat && e.Key == (int)Silk.NET.Input.Key.H)
+            if (e.Pressed && !e.Repeat && e.Key == (int)Silk.NET.Input.Key.H && !HotkeyGuard.IsTyping())
             {
                 _toggleRequested = true;
             }
@@ -78,13 +78,6 @@ public static class QuickRelicHud
         float scaleX = imageSize.X / 256.0f;
         float scaleY = imageSize.Y / 224.0f;
         var dl = ImGui.GetWindowDrawList();
-
-        // Calculate total collected relics
-        int totalRelics = 0;
-        for (int i = 0; i < Inventory.RelicCount; i++)
-        {
-            if (Inventory.HasRelic(i)) totalRelics++;
-        }
 
         // Layout: Sleek bottom-center dock
         float itemW = 28f * scaleX;

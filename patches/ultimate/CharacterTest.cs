@@ -20,7 +20,7 @@ namespace Recompiled.Ultimate;
 /// screenshot (player step, HP / MP / hearts, and whether the SPU played voice-bank samples since the
 /// previous one). The game exits when the script ends.
 /// </summary>
-public static class CharacterTest
+public static partial class CharacterTest
 {
     /// <summary>Buttons the pad listener holds down this frame.</summary>
     public static ushort Held;
@@ -144,6 +144,30 @@ public static class CharacterTest
         _script = [];
         _t = 10;
         Directory.CreateDirectory(Dir);
+
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_NET") is "host" or "client")
+        {
+            BuildNetScript(Environment.GetEnvironmentVariable("SOTN_TEST_NET") == "host");
+            return;
+        }
+
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_HUDSWAP") == "1")
+        {
+            BuildHudSwapScript();
+            return;
+        }
+
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_SPRITE") == "1")
+        {
+            BuildSpriteScript();
+            return;
+        }
+
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_HUD") == "1")
+        {
+            BuildHudScript();
+            return;
+        }
 
         if (Environment.GetEnvironmentVariable("SOTN_TEST_TELEPORT") == "1")
         {

@@ -28,7 +28,7 @@ public static class MariaCharacter
     {
         Event.AddListener<KeyboardEvent>(e =>
         {
-            if (e.Pressed && !e.Repeat && e.Key == (int)Silk.NET.Input.Key.C)
+            if (e.Pressed && !e.Repeat && e.Key == (int)Silk.NET.Input.Key.C && !HotkeyGuard.IsTyping())
             {
                 if (Game.Available && Game.InGame && Player.HasControl)
                     CycleNextCharacter();
@@ -169,8 +169,10 @@ public static class MariaCharacter
 
             // a Maria swaps the two voice banks: the next Richter / Alucard gets the disc's own back
             bool hadMariaVoice = MariaLoader.SoundsLoaded;
+            bool leavingPsp = _pspMariaLoaded; // refreshed every frame in Update; ReleasePspHud clears it
             MariaLoader.OnMariaLeft(m);
             ReleasePspHud(m);
+            if (selection == CharacterSelection.PSPMaria && !leavingPsp) SaveItemIconArea();
 
             bool ok = true;
             switch (selection)
@@ -277,6 +279,7 @@ public static class MariaCharacter
                 MariaLoader.RestoreRetailSounds(c, m, alucard: selection == CharacterSelection.Alucard);
 
             UnloadOtherPlayerOverlays(selection);
+            if (leavingPsp && selection != CharacterSelection.PSPMaria) RestoreItemIconArea();
 
             m.WriteU32(player, posX);
             m.WriteU32(player + 4, posY);
@@ -294,6 +297,39 @@ public static class MariaCharacter
         {
             Console.WriteLine($"[CharacterSwitcher] Erro na troca de personagem: {ex}");
         }
+    }
+
+    // PSP Maria's overlay writes her HUD icons over the item icon page (tpage 0x1E, VRAM 896,256 to
+    // 959,511), where the Richter-style HUD also takes some subweapon icons from (Bible, Stopwatch, ...),
+    // and no other character's load puts those back: Richter kept showing her icon. The page is kept
+    // when she comes in and put back when she leaves. (Seen in game: the page's hash changes on her
+    // load and stays changed through Richter and Alucard; F_GAME2 does not hold it.)
+    private const int ItemIconX = 896, ItemIconY = 256, ItemIconW = 64, ItemIconH = 256;
+    private static ushort[]? _savedItemIcons;
+
+    private static void SaveItemIconArea()
+    {
+        var gpu = RecompOne.Runtime.Runtime.Gpu;
+        if (gpu == null) return;
+        var px = new ushort[ItemIconW * ItemIconH];
+        for (int y = 0; y < ItemIconH; y++)
+            for (int x = 0; x < ItemIconW; x++)
+                px[y * ItemIconW + x] = gpu.Shadow[ItemIconX + x, ItemIconY + y];
+        _savedItemIcons = px;
+    }
+
+    private static void RestoreItemIconArea()
+    {
+        var px = _savedItemIcons;
+        var gpu = RecompOne.Runtime.Runtime.Gpu;
+        if (px == null || gpu == null) return;
+        for (int y = 0; y < ItemIconH; y++)
+            for (int x = 0; x < ItemIconW; x++)
+                gpu.Shadow[ItemIconX + x, ItemIconY + y] = px[y * ItemIconW + x];
+        var backend = RecompOne.Runtime.Hle.GpuHle.Backend;
+        if (RecompOne.Runtime.Hle.GpuHle.Active && backend is { Ready: true })
+            backend.WriteVram(ItemIconX, ItemIconY, ItemIconW, ItemIconH, px);
+        _savedItemIcons = null;
     }
 
     // A save room (layout flag 0x20) and a CD corridor (0x40) draw their tiles from graphics the engine

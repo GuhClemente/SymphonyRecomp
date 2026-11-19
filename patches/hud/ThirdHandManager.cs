@@ -21,6 +21,12 @@ public static class ThirdHandManager
     private static int _lastHealAmount = 0;
     private static ushort _prevPad = 0;
 
+    private static readonly HandItem[] FoodItems =
+    [
+        HandItem.Apple, HandItem.Banana, HandItem.Grapes, HandItem.Strawberry,
+        HandItem.Pineapple, HandItem.Cheesecake, HandItem.Shortcake
+    ];
+
     public static void Initialize()
     {
         if (_initialized) return;
@@ -29,9 +35,10 @@ public static class ThirdHandManager
 
         OutputPanel.OnRenderGameOverlay += RenderHud;
 
+        // T: F is bound to L3 in the default keys, and L3 / R3 (and C) cycle the character (MariaCharacter).
         Event.AddListener<KeyboardEvent>(e =>
         {
-            if (e.Pressed && !e.Repeat && (e.Key == (int)Silk.NET.Input.Key.F || e.Key == (int)Silk.NET.Input.Key.C))
+            if (e.Pressed && !e.Repeat && e.Key == (int)Silk.NET.Input.Key.T && !HotkeyGuard.IsTyping())
             {
                 _useRequested = true;
             }
@@ -57,121 +64,112 @@ public static class ThirdHandManager
 
     public static void Update(CpuContext c, IMemory m)
     {
-        if (!Enabled || !Game.Available || !Game.InGame || Game.IsLoading) return;
+        // HasControl stays true in the pause menu, so the menu and map flags are checked as well.
+        if (!Enabled || !Game.Available || !Game.InGame || Game.IsLoading || !Player.HasControl ||
+            Game.MenuOpen || Game.MapOpen)
+        {
+            // Drop presses made outside of play (menus, pause, loading) so they don't fire later.
+            _useRequested = false;
+            if (Game.Available) _prevPad = m.ReadU16(Game.PadsAddr);
+            return;
+        }
 
         float dt = 1f / 60f;
         if (_cooldownTimer > 0f) _cooldownTimer = Math.Max(0f, _cooldownTimer - dt);
         if (_healEffectTimer > 0f) _healEffectTimer = Math.Max(0f, _healEffectTimer - dt);
 
-        // Check Controller Trigger: L2 / LT / L3 button
         ushort pad = m.ReadU16(Game.PadsAddr);
         ushort tapped = (ushort)(pad & ~_prevPad);
         _prevPad = pad;
 
-        // Button.L2 is mapped as 0x0001 or 0x0100 depending on mapping; L3 is also checked
-        bool padTriggered = (tapped & (ushort)Button.L2) != 0 || (tapped & (ushort)Button.L3) != 0;
+        // L2 only: L3 is the character-cycle button
+        bool padTriggered = (tapped & (ushort)Button.L2) != 0;
 
         if (_useRequested || padTriggered)
         {
             _useRequested = false;
             if (_cooldownTimer <= 0f)
             {
-                ExecuteThirdHand(c, m);
+                ExecuteThirdHand();
             }
         }
     }
 
-    private static void ExecuteThirdHand(CpuContext c, IMemory m)
+    private static int FoodCount()
+    {
+        int total = 0;
+        foreach (var f in FoodItems) total += Inventory.GetHandCount(f);
+        return total;
+    }
+
+    private static ThirdHandState ReadState() => new(
+        Player.Hp, Player.HpMax, Player.Mp, Player.MpMax,
+        Player.HasStatus(PlayerStatus.Curse), Player.HasStatus(PlayerStatus.Poison),
+        Inventory.GetHandCount(HandItem.Uncurse), Inventory.GetHandCount(HandItem.Antivenom),
+        Inventory.GetHandCount(HandItem.Elixir), Inventory.GetHandCount(HandItem.HighPotion),
+        Inventory.GetHandCount(HandItem.Potion), FoodCount(), Inventory.GetHandCount(HandItem.MannaPrism));
+
+    private static void ExecuteThirdHand()
     {
         if (!Player.IsAlucard && !Player.IsRichter && !Player.IsMaria) return;
 
-        int curHp = Player.Hp;
-        int maxHp = Player.HpMax;
-        int curMp = Player.Mp;
-        int maxMp = Player.MpMax;
+        var s = ReadState();
+        var choice = HudLogic.ChooseThirdHand(s);
+        int missingHp = s.MaxHp - s.Hp;
+        int heal = HudLogic.HealAmount(choice, missingHp);
 
-        // 1. Status Recovery Priority: Curse
-        if (Player.HasStatus(PlayerStatus.Curse) && Inventory.GetHandCount(HandItem.Uncurse) > 0)
+        switch (choice)
         {
-            Inventory.RemoveHandItem(HandItem.Uncurse, 1);
-            Player.Status &= ~PlayerStatus.Curse;
-            TriggerFeedback("Uncurse", "Maldição Removida!", 0, Inventory.GetHandCount(HandItem.Uncurse));
-            return;
-        }
+            case ThirdHandChoice.Uncurse:
+                Inventory.RemoveHandItem(HandItem.Uncurse, 1);
+                Player.Status &= ~PlayerStatus.Curse;
+                TriggerFeedback("Uncurse", "Maldição Removida!", 0, s.Uncurse - 1);
+                return;
 
-        // 2. Status Recovery Priority: Poison
-        if (Player.HasStatus(PlayerStatus.Poison) && Inventory.GetHandCount(HandItem.Antivenom) > 0)
-        {
-            Inventory.RemoveHandItem(HandItem.Antivenom, 1);
-            Player.Status &= ~PlayerStatus.Poison;
-            TriggerFeedback("Antivenom", "Veneno Neutralizado!", 0, Inventory.GetHandCount(HandItem.Antivenom));
-            return;
-        }
+            case ThirdHandChoice.Antivenom:
+                Inventory.RemoveHandItem(HandItem.Antivenom, 1);
+                Player.Status &= ~PlayerStatus.Poison;
+                TriggerFeedback("Antivenom", "Veneno Neutralizado!", 0, s.Antivenom - 1);
+                return;
 
-        // 3. Health Recovery Priority
-        int missingHp = maxHp - curHp;
-        if (missingHp > 0)
-        {
-            // Elixir (Full HP & MP) if critical HP <= 35%
-            if (curHp <= maxHp * 0.35f && Inventory.GetHandCount(HandItem.Elixir) > 0)
-            {
+            case ThirdHandChoice.Elixir:
                 Inventory.RemoveHandItem(HandItem.Elixir, 1);
-                Player.Hp = maxHp;
-                Player.Mp = maxMp;
-                TriggerFeedback("Elixir", $"+{missingHp} HP & MP Máximo!", missingHp, Inventory.GetHandCount(HandItem.Elixir));
+                Player.Hp = s.MaxHp;
+                Player.Mp = s.MaxMp;
+                TriggerFeedback("Elixir", $"+{heal} HP & MP Máximo!", heal, s.Elixir - 1);
                 return;
-            }
 
-            // High Potion (+100 HP) if missing >= 60 HP
-            if (missingHp >= 60 && Inventory.GetHandCount(HandItem.HighPotion) > 0)
-            {
+            case ThirdHandChoice.HighPotion:
                 Inventory.RemoveHandItem(HandItem.HighPotion, 1);
-                int heal = Math.Min(100, missingHp);
                 Player.Hp += heal;
-                TriggerFeedback("High Potion", $"+{heal} HP", heal, Inventory.GetHandCount(HandItem.HighPotion));
+                TriggerFeedback("High Potion", $"+{heal} HP", heal, s.HighPotion - 1);
                 return;
-            }
 
-            // Regular Potion (+50 HP)
-            if (Inventory.GetHandCount(HandItem.Potion) > 0)
-            {
+            case ThirdHandChoice.Potion:
                 Inventory.RemoveHandItem(HandItem.Potion, 1);
-                int heal = Math.Min(50, missingHp);
                 Player.Hp += heal;
-                TriggerFeedback("Potion", $"+{heal} HP", heal, Inventory.GetHandCount(HandItem.Potion));
+                TriggerFeedback("Potion", $"+{heal} HP", heal, s.Potion - 1);
                 return;
-            }
 
-            // Food Items Search
-            HandItem[] foodItems = [
-                HandItem.Apple, HandItem.Banana, HandItem.Grapes, HandItem.Strawberry,
-                HandItem.Pineapple, HandItem.Cheesecake, HandItem.Shortcake
-            ];
-
-            foreach (var food in foodItems)
-            {
-                int count = Inventory.GetHandCount(food);
-                if (count > 0)
+            case ThirdHandChoice.Food:
+                foreach (var food in FoodItems)
                 {
+                    int count = Inventory.GetHandCount(food);
+                    if (count <= 0) continue;
                     Inventory.RemoveHandItem(food, 1);
-                    int heal = Math.Min(35, missingHp);
                     Player.Hp += heal;
                     TriggerFeedback(food.ToString(), $"+{heal} HP", heal, count - 1);
                     return;
                 }
-            }
+                return;
+
+            case ThirdHandChoice.MannaPrism:
+                Inventory.RemoveHandItem(HandItem.MannaPrism, 1);
+                Player.Mp = s.MaxMp;
+                TriggerFeedback("Manna Prism", "MP Restaurado ao Máximo!", 0, s.MannaPrism - 1);
+                return;
         }
 
-        // 4. Mana Recovery: Manna Prism
-        if (curMp <= maxMp * 0.25f && Inventory.GetHandCount(HandItem.MannaPrism) > 0)
-        {
-            Inventory.RemoveHandItem(HandItem.MannaPrism, 1);
-            Player.Mp = maxMp;
-            TriggerFeedback("Manna Prism", "MP Restaurado ao Máximo!", 0, Inventory.GetHandCount(HandItem.MannaPrism));
-            return;
-        }
-
-        // Nothing to heal or no items in bag
         ToastNotifications.ShowText("Terceira Mão", "Sem consumíveis disponíveis na mochila ou vida cheia!", null, 2.0f);
     }
 
@@ -195,24 +193,23 @@ public static class ThirdHandManager
             2.5f);
     }
 
+    /// <summary>The item the HUD slot shows: the one T / L2 would use now, else the first in stock.</summary>
     public static (string Name, int Count) GetBestAvailableConsumable()
     {
         if (!Game.Available) return ("Nenhum", 0);
 
-        if (Inventory.GetHandCount(HandItem.Elixir) > 0) return ("Elixir", Inventory.GetHandCount(HandItem.Elixir));
-        if (Inventory.GetHandCount(HandItem.HighPotion) > 0) return ("High Potion", Inventory.GetHandCount(HandItem.HighPotion));
-        if (Inventory.GetHandCount(HandItem.Potion) > 0) return ("Potion", Inventory.GetHandCount(HandItem.Potion));
-
-        HandItem[] foodItems = [HandItem.Apple, HandItem.Banana, HandItem.Shortcake];
-        foreach (var food in foodItems)
+        var s = ReadState();
+        var choice = HudLogic.PreviewThirdHand(s);
+        string name = choice switch
         {
-            int c = Inventory.GetHandCount(food);
-            if (c > 0) return (food.ToString(), c);
-        }
-
-        return ("Vazio", 0);
+            ThirdHandChoice.None => "Vazio",
+            ThirdHandChoice.HighPotion => "High Potion",
+            ThirdHandChoice.MannaPrism => "Manna Prism",
+            ThirdHandChoice.Food => "Comida",
+            _ => choice.ToString(),
+        };
+        return (name, HudLogic.StockOf(s, choice));
     }
-
     public static void RenderHud(Vector2 imageMin, Vector2 imageSize)
     {
         if (!Enabled || !ShowHudSlot) return;
@@ -228,7 +225,8 @@ public static class ThirdHandManager
         // Position: Top-right, right below the Minimap HUD
         float boxW = 86f * scaleX;
         float boxH = 20f * scaleY;
-        Vector2 slotPos = imageMin + new Vector2(imageSize.X - boxW - 12f * scaleX, 134f * scaleY);
+        float slotY = BloodstainedMinimapHud.Enabled ? BloodstainedMinimapHud.BoxBottom(imageSize) + 4f * scaleY : 10f * scaleY;
+        Vector2 slotPos = imageMin + new Vector2(imageSize.X - boxW - 12f * scaleX, slotY);
         Vector2 slotMax = slotPos + new Vector2(boxW, boxH);
 
         // Slot backdrop pill
@@ -239,7 +237,7 @@ public static class ThirdHandManager
 
         // Text: [3ª Mão] Item xCount
         string label = count > 0 ? $"{name} x{count}" : "Mochila Vazia";
-        string subLabel = "[F / L2]";
+        string subLabel = "[T / L2]";
         Vector2 tSz = ImGui.CalcTextSize(label);
         Vector2 sSz = ImGui.CalcTextSize(subLabel);
 

@@ -23,7 +23,7 @@ public static class PlayerSelectScreen
     public static bool IsOpen = false;
     private static bool _initialized = false;
     private static int _selectedCard = 1; // 0 = Richter, 1 = Alucard, 2 = Maria
-    private static int _mariaRow = 0;     // 0 = Version, 1 = Balance, 2 = Dub
+    private static int _mariaRow = -1;    // -1 = card focus (Left/Right switch cards), 0 = Version, 1 = Balance, 2 = Dub
     private static int _richterCostumeIndex = 0; // 0 = Classic, 1 = SaturnCoat, 2 = BrownCoat
 
     // Texturas de alta fidelidade
@@ -38,6 +38,14 @@ public static class PlayerSelectScreen
     private static Vector2 _szMaria;
     private static Vector2 _szConfigBox;
     private static bool _texturesLoaded = false;
+
+    internal static int SelectedCard => _selectedCard;
+    internal static int MariaRow => _mariaRow;
+
+    // Options as they were when the screen opened, restored on cancel (Esc / P / F3).
+    private static CharacterSelection _snapMode;
+    private static SaturnBalanceMode _snapBalance;
+    private static DubMode _snapDub;
 
     // Cores temáticas fiéis ao PS1 SotN Ultimate
     private static readonly uint ColBgDark = ImGui.ColorConvertFloat4ToU32(new Vector4(0.04f, 0.05f, 0.09f, 0.94f));
@@ -57,15 +65,30 @@ public static class PlayerSelectScreen
         {
             if (!e.Pressed || e.Repeat) return;
 
-            // Tecla 'P' ou 'F3' abre/fecha o seletor visual
-            if (e.Key == (int)Silk.NET.Input.Key.P || e.Key == (int)Silk.NET.Input.Key.F3)
+            // Tecla 'P' ou 'F3' abre/fecha (cancelando) o seletor visual
+            if ((e.Key == (int)Silk.NET.Input.Key.P && !HotkeyGuard.IsTyping()) || e.Key == (int)Silk.NET.Input.Key.F3)
             {
-                IsOpen = !IsOpen;
-                if (IsOpen) SyncFromOptions();
+                if (IsOpen) Cancel();
+                else Open();
             }
             else if (IsOpen)
             {
                 HandleInput(e.Key);
+            }
+        });
+
+        // While the screen is open the game must not see the keys used to navigate it.
+        // Pad bits are active low (0 = pressed), so "nothing pressed" is all ones. With an analog port
+        // the InputManager also mirrors the arrows onto the sticks, and those bytes are written to the
+        // pad buffer right after this event without passing through it, so they are centred here too.
+        Event.AddListener<PadReadEvent>(e =>
+        {
+            if (!IsOpen) return;
+            e.Buttons = 0xFFFF;
+            if (e.Port == 0)
+            {
+                RecompOne.Runtime.Hardware.Controller.LeftX = RecompOne.Runtime.Hardware.Controller.LeftY = 0x80;
+                RecompOne.Runtime.Hardware.Controller.RightX = RecompOne.Runtime.Hardware.Controller.RightY = 0x80;
             }
         });
 
@@ -128,6 +151,7 @@ public static class PlayerSelectScreen
             case CharacterSelection.SaturnMaria:
             case CharacterSelection.PSPMaria:
                 _selectedCard = 2;
+                _mariaRow = -1;
                 break;
             default:
                 _selectedCard = 1; // Alucard
@@ -137,6 +161,10 @@ public static class PlayerSelectScreen
 
     public static void Open(int initialCard = -1)
     {
+        _snapMode = UltimateOptions.CharacterMode;
+        _snapBalance = UltimateOptions.Balance;
+        _snapDub = UltimateOptions.Dub;
+        _mariaRow = -1;
         IsOpen = true;
         if (initialCard >= 0 && initialCard <= 2)
             _selectedCard = initialCard;
@@ -149,53 +177,53 @@ public static class PlayerSelectScreen
         IsOpen = false;
     }
 
+    /// <summary>Closes without choosing and puts back any Maria option changed while open.</summary>
+    public static void Cancel()
+    {
+        bool balanceChanged = UltimateOptions.Balance != _snapBalance;
+        if (UltimateOptions.CharacterMode != _snapMode || balanceChanged || UltimateOptions.Dub != _snapDub)
+        {
+            UltimateOptions.CharacterMode = _snapMode;
+            UltimateOptions.Balance = _snapBalance;
+            UltimateOptions.Dub = _snapDub;
+            UltimateOptions.Save();
+            if (balanceChanged && Game.Available && RecompOne.Runtime.Runtime.Mem != null)
+                SaturnBalance.ForceReapply(RecompOne.Runtime.Runtime.Mem);
+        }
+        Close();
+    }
+
+    private static void MoveCard(int delta)
+    {
+        int next = Math.Clamp(_selectedCard + delta, 0, 2);
+        if (next == _selectedCard) return;
+        _selectedCard = next;
+        _mariaRow = -1;
+    }
+
+    // Left/Right switch cards; Up/Down pick Richter's costume or walk Maria's config rows.
+    // On Maria, Up past the first row returns focus to the cards so Left/Right move again.
     private static void HandleInput(int key)
     {
         switch ((Silk.NET.Input.Key)key)
         {
             case Silk.NET.Input.Key.Left:
-                if (_selectedCard == 2)
-                {
-                    // Na Maria, Left/Right pode navegar opções da caixa de configuração
-                    ToggleConfigRow(_mariaRow, left: true);
-                }
-                else if (_selectedCard == 0)
-                {
-                    if (_richterCostumeIndex > 0) _richterCostumeIndex--;
-                    else _selectedCard = 0;
-                }
-                else if (_selectedCard > 0)
-                {
-                    _selectedCard--;
-                }
-                break;
-
             case Silk.NET.Input.Key.Right:
-                if (_selectedCard == 2)
-                {
-                    ToggleConfigRow(_mariaRow, left: false);
-                }
-                else if (_selectedCard == 0)
-                {
-                    if (_richterCostumeIndex < 2) _richterCostumeIndex++;
-                    else if (_selectedCard < 2) _selectedCard++;
-                }
-                else if (_selectedCard < 2)
-                {
-                    _selectedCard++;
-                }
+                bool left = (Silk.NET.Input.Key)key == Silk.NET.Input.Key.Left;
+                if (_selectedCard == 2 && _mariaRow >= 0)
+                    ToggleConfigRow(_mariaRow, left);
+                else
+                    MoveCard(left ? -1 : 1);
                 break;
 
             case Silk.NET.Input.Key.Up:
-                if (_selectedCard == 2 && _mariaRow > 0) _mariaRow--;
-                else if (_selectedCard == 0 && _richterCostumeIndex > 0) _richterCostumeIndex--;
-                else if (_selectedCard > 0 && _selectedCard != 2) _selectedCard--;
+                if (_selectedCard == 0 && _richterCostumeIndex > 0) _richterCostumeIndex--;
+                else if (_selectedCard == 2 && _mariaRow > -1) _mariaRow--;
                 break;
 
             case Silk.NET.Input.Key.Down:
-                if (_selectedCard == 2 && _mariaRow < 2) _mariaRow++;
-                else if (_selectedCard == 0 && _richterCostumeIndex < 2) _richterCostumeIndex++;
-                else if (_selectedCard < 2 && _selectedCard != 2) _selectedCard++;
+                if (_selectedCard == 0 && _richterCostumeIndex < 2) _richterCostumeIndex++;
+                else if (_selectedCard == 2 && _mariaRow < 2) _mariaRow++;
                 break;
 
             case Silk.NET.Input.Key.Enter:
@@ -204,7 +232,7 @@ public static class PlayerSelectScreen
                 break;
 
             case Silk.NET.Input.Key.Escape:
-                Close();
+                Cancel();
                 break;
         }
     }
@@ -303,7 +331,8 @@ public static class PlayerSelectScreen
         }
 
         // 3. DIMENSÕES DOS CARDS DE PERSONAGEM
-        bool showMariaConfig = (_selectedCard == 2);
+        // Richter and Maria each get an options box beside the cards (costume / version, balance, dub)
+        bool showMariaConfig = (_selectedCard == 2 || _selectedCard == 0);
         float cardW = MathF.Min(220f, (screenSize.X - 100f) / (showMariaConfig ? 4.2f : 3.4f));
         float cardH = cardW * 1.80f; // Proporção áurea dos retratos do Saturn
         if (cardH > screenSize.Y - 170f)
@@ -331,7 +360,10 @@ public static class PlayerSelectScreen
             float configW = MathF.Min(400f, screenMax.X - configX - 35f);
             if (configW > 240f)
             {
-                DrawMariaConfigBox(dl, new Vector2(configX, cardY + 10f), new Vector2(configW, cardH - 20f), time);
+                if (_selectedCard == 2)
+                    DrawMariaConfigBox(dl, new Vector2(configX, cardY + 10f), new Vector2(configW, cardH - 20f), time);
+                else
+                    DrawRichterCostumeBox(dl, new Vector2(configX, cardY + 10f), new Vector2(configW, cardH - 20f));
             }
         }
 
@@ -340,7 +372,7 @@ public static class PlayerSelectScreen
         dl.AddText(footPos + new Vector2(1, 1), 0xFF000000, "Versão Ultimate do PS1");
         dl.AddText(footPos, 0xFFB0B8C8, "Versão Ultimate do PS1");
 
-        string controlsPrompt = "<- -> Selecionar   |   [ENTER / X] Decidir   |   [ESC / Triangle] Cancelar";
+        string controlsPrompt = "Setas: Esq/Dir Personagem, Cima/Baixo Opções   |   [ENTER] Decidir   |   [ESC] Cancelar";
         float cW = ImGui.CalcTextSize(controlsPrompt).X;
         Vector2 cPromptPos = new Vector2(screenMax.X - cW - 40f, footPos.Y);
         dl.AddText(cPromptPos + new Vector2(1, 1), 0xFF000000, controlsPrompt);
@@ -457,6 +489,41 @@ public static class PlayerSelectScreen
                 _mariaRow = 2;
                 ToggleConfigRow(2, isA);
             });
+    }
+
+    private static readonly string[] RichterCostumes = ["Clássico PS1", "Saturn Azul", "Duster Couro"];
+
+    /// <summary>Richter's three costumes as a vertical list; Up/Down move the highlight (HandleInput).</summary>
+    private static void DrawRichterCostumeBox(ImDrawListPtr dl, Vector2 pos, Vector2 size)
+    {
+        Vector2 boxMin = pos;
+        Vector2 boxMax = pos + size;
+        dl.AddRectFilled(boxMin, boxMax, ColBgDark, 6.0f);
+        dl.AddRect(boxMin, boxMax, ColGoldBorder, 6.0f, ImDrawFlags.None, 2.5f);
+
+        float x = boxMin.X + 18f;
+        float w = size.X - 36f;
+        float y = boxMin.Y + 22f;
+        dl.AddText(new Vector2(x, y), ColGold, "Costume");
+        y += 22f;
+
+        float btnH = 34f;
+        float gap = MathF.Max(10f, (size.Y - 22f - 22f - 30f - btnH * RichterCostumes.Length) / RichterCostumes.Length);
+        for (int i = 0; i < RichterCostumes.Length; i++)
+        {
+            bool active = i == _richterCostumeIndex;
+            Vector2 bMin = new(x, y);
+            Vector2 bMax = new(x + w, y + btnH);
+            uint border = active ? ColGold : ImGui.ColorConvertFloat4ToU32(new Vector4(0.3f, 0.35f, 0.45f, 0.8f));
+            dl.AddRectFilled(bMin, bMax, active ? ColActiveBlue : ColInactiveBtn, 4.0f);
+            dl.AddRect(bMin, bMax, border, 4.0f, ImDrawFlags.None, active ? 2.0f : 1.0f);
+            string label = RichterCostumes[i];
+            dl.AddText(bMin + new Vector2((w - ImGui.CalcTextSize(label).X) * 0.5f, 8f), active ? 0xFFFFFFFF : 0xFFA0A8B8, label);
+            y += btnH + gap;
+        }
+
+        string hint = "Cima / Baixo";
+        dl.AddText(new Vector2(boxMin.X + (size.X - ImGui.CalcTextSize(hint).X) * 0.5f, boxMax.Y - 26f), 0xFF9098A8, hint);
     }
 
     private static void DrawConfigOptionRow(

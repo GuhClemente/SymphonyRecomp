@@ -72,6 +72,7 @@ internal class QualityOfLife
         BloodstainedMinimapHud.Initialize();
         ThirdHandManager.Initialize();
         QuickRelicHud.Initialize();
+        Recompiled.Netplay.PlayerSpriteCapture.Initialize();
     }
 
     public static void Save()

@@ -47,7 +47,7 @@ public sealed class QualityOfLifePanel : IPanel
 
         ImGui.SeparatorText("Modern HUD & Saturn Evolution");
         dirty |= ToggleManual("Minimap HUD (Estilo Bloodstained) [M]", ref BloodstainedMinimapHud.Enabled);
-        dirty |= ToggleManual("Terceira Mão do Saturn (Quick Consumable) [F / L2]", ref ThirdHandManager.Enabled);
+        dirty |= ToggleManual("Terceira Mão do Saturn (Quick Consumable) [T / L2]", ref ThirdHandManager.Enabled);
         dirty |= ToggleManual("Dock Rápido de Relíquias [H]", ref QuickRelicHud.Enabled);
 
         if (dirty) QualityOfLife.Save();

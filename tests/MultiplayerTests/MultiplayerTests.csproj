@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../patches/netplay/NetworkPacket.cs" Link="NetworkPacket.cs" />
+    <Compile Include="../../patches/hud/HudLogic.cs" Link="HudLogic.cs" />
   </ItemGroup>
 </Project>

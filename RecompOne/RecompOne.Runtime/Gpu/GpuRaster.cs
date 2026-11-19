@@ -101,7 +101,12 @@ public sealed partial class Gpu
             {
                 e.X[i] = v[i].X;
                 e.Y[i] = v[i].Y;
+                e.U[i] = v[i].U;
+                e.V[i] = v[i].V;
             }
+            e.TexPageX = _texPageX;
+            e.TexPageY = _texPageY;
+            e.TexDepth = _texDepth;
 
             e.DrawLeft = _drawAreaLeft;
             e.DrawRight = _drawAreaRight;
@@ -180,6 +185,11 @@ public sealed partial class Gpu
             e.X[1] = x + w;
             e.Y[0] = y;
             e.Y[1] = y + h;
+            e.U[0] = u0;
+            e.V[0] = v0;
+            e.TexPageX = _texPageX;
+            e.TexPageY = _texPageY;
+            e.TexDepth = _texDepth;
             e.DrawLeft = _drawAreaLeft;
             e.DrawRight = _drawAreaRight;
             e.DrawTop = _drawAreaTop;

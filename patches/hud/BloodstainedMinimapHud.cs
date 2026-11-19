@@ -36,7 +36,7 @@ public static class BloodstainedMinimapHud
 
         Event.AddListener<KeyboardEvent>(e =>
         {
-            if (e.Pressed && !e.Repeat && e.Key == (int)Silk.NET.Input.Key.M)
+            if (e.Pressed && !e.Repeat && e.Key == (int)Silk.NET.Input.Key.M && !HotkeyGuard.IsTyping())
             {
                 _toggleRequested = true;
             }
@@ -93,29 +93,19 @@ public static class BloodstainedMinimapHud
         float time = (float)ImGui.GetTime();
 
         // 1. Calculate Player Castle Coordinates
-        int castleX = (int)m.ReadU8(CastleXAddr);
-        int castleY = (int)m.ReadU8(CastleYAddr);
-        int roomX = (int)m.ReadU16(RoomXAddr) / 256;
-        int roomY = (int)m.ReadU16(RoomYAddr) / 256;
-        int curCellX = castleX + roomX;
-        int curCellY = castleY + roomY;
-
         bool isSecondCastle = (m.ReadU8(ZoneAddr) & 0x20) == 0x20;
-        if (isSecondCastle) curCellY -= 7;
+        var (curCellX, curCellY) = LocalCell(m);
 
         if (curCellX < 0 || curCellX >= 64 || curCellY < 0 || curCellY >= 64) return;
 
         // 2. Radar Geometry: 7x7 View Window
-        const int Radius = 3; // 7x7 grid
-        float cellSize = 10.5f * scaleX;
+        float cellSize = CellSize * scaleX;
         float radarW = (Radius * 2 + 1) * cellSize;
-        float radarH = (Radius * 2 + 1) * cellSize;
 
         // Position: Top-Right of the game screen
         float padRight = 12f * scaleX;
-        float padTop = 10f * scaleY;
-        Vector2 boxMin = imageMin + new Vector2(imageSize.X - radarW - padRight - 8f * scaleX, padTop);
-        Vector2 boxMax = boxMin + new Vector2(radarW + 16f * scaleX, radarH + 28f * scaleY);
+        Vector2 boxMin = imageMin + new Vector2(imageSize.X - radarW - padRight - 8f * scaleX, PadTop * scaleY);
+        Vector2 boxMax = new(boxMin.X + radarW + 16f * scaleX, imageMin.Y + BoxBottom(imageSize));
         Vector2 gridOrigin = boxMin + new Vector2(8f * scaleX, 18f * scaleY);
 
         // 3. Dark Gothic Container
@@ -179,6 +169,39 @@ public static class BloodstainedMinimapHud
         }
     }
 
+    private const int Radius = 3; // 7x7 grid
+    private const float CellSize = 10.5f;
+    private const float PadTop = 10f;
+
+    /// <summary>Distance from the top of the game image to the bottom of the radar box, so other HUD
+    /// pieces (the Third Hand slot) can sit right below it instead of on top of it.</summary>
+    internal static float BoxBottom(Vector2 imageSize)
+    {
+        float scaleX = imageSize.X / 256.0f;
+        float scaleY = imageSize.Y / 224.0f;
+        return PadTop * scaleY + (Radius * 2 + 1) * CellSize * scaleX + 28f * scaleY;
+    }
+
+    /// <summary>Map cell the local player stands in (as drawn at the radar's center).</summary>
+    internal static (int X, int Y) LocalCell(IMemory m)
+    {
+        int x = HudLogic.MapCell(m.ReadU8(CastleXAddr), m.ReadU16(RoomXAddr));
+        int y = HudLogic.MapCell(m.ReadU8(CastleYAddr), m.ReadU16(RoomYAddr));
+        if ((m.ReadU8(ZoneAddr) & 0x20) == 0x20) y -= 7;
+        return (x, y);
+    }
+
+    /// <summary>Map cell of the co-op partner from their last transform packet. RemotePuppet.RoomX/Y is
+    /// already their room origin cell (their Stages.RoomX) and PosX/PosY their world position in it,
+    /// so this is the same rule as <see cref="LocalCell"/> applied to their data.</summary>
+    internal static (int X, int Y) PartnerCell()
+    {
+        int x = HudLogic.MapCell(Netplay.RemotePuppet.RoomX, (ushort)Netplay.RemotePuppet.PosX);
+        int y = HudLogic.MapCell(Netplay.RemotePuppet.RoomY, (ushort)Netplay.RemotePuppet.PosY);
+        if ((Netplay.RemotePuppet.StageId & 0x20) != 0) y -= 7;
+        return (x, y);
+    }
+
     private static void DrawPartnerOnRadar(
         ImDrawListPtr dl,
         Vector2 gridOrigin,
@@ -193,9 +216,6 @@ public static class BloodstainedMinimapHud
         float time,
         bool isSecondCastle)
     {
-        var m = RecompOne.Runtime.Runtime.Mem;
-        if (m == null) return;
-
         bool remoteSecondCastle = (Netplay.RemotePuppet.StageId & 0x20) != 0;
         if (remoteSecondCastle != isSecondCastle)
         {
@@ -206,11 +226,7 @@ public static class BloodstainedMinimapHud
             return;
         }
 
-        int partnerCastleX = (int)m.ReadU8(CastleXAddr);
-        int partnerCastleY = (int)m.ReadU8(CastleYAddr);
-        int partnerCellX = partnerCastleX + Netplay.RemotePuppet.RoomX;
-        int partnerCellY = partnerCastleY + Netplay.RemotePuppet.RoomY;
-        if (remoteSecondCastle) partnerCellY -= 7;
+        var (partnerCellX, partnerCellY) = PartnerCell();
 
         int pDx = partnerCellX - curCellX;
         int pDy = partnerCellY - curCellY;

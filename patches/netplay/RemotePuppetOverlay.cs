@@ -39,7 +39,7 @@ public static class RemotePuppetOverlay
         }
 
         bool sameStage = RemotePuppet.StageId == (byte)Stages.Current;
-        bool sameRoom = RemotePuppet.RoomX == (byte)Stages.RoomX && RemotePuppet.RoomY == (byte)Stages.RoomY;
+        bool sameRoom = sameStage && RemotePuppet.RoomX == (byte)Stages.RoomX && RemotePuppet.RoomY == (byte)Stages.RoomY;
 
         // 2. Different room: render directional edge indicator to partner's room
         if (!sameRoom)
@@ -60,8 +60,10 @@ public static class RemotePuppetOverlay
         float posX = RemotePuppet.InterpX;
         float posY = RemotePuppet.InterpY;
 
-        float gameX = (posX >= localScrollX && posX <= localScrollX + 450) ? (posX - localScrollX) : posX;
-        float gameY = (posY >= localScrollY && posY <= localScrollY + 350) ? (posY - localScrollY) : posY;
+        // The partner's position is in room world space (NetworkManager sends 0x800973F0/F4), so it is
+        // always relative to our camera; outside the view it becomes the off-screen indicator below.
+        float gameX = HudLogic.WorldToScreen(posX, localScrollX);
+        float gameY = HudLogic.WorldToScreen(posY, localScrollY);
 
         Vector2 screenPos = imageMin + new Vector2(gameX * scaleX, gameY * scaleY);
         bool isOffScreen = gameX < -20 || gameX > 276 || gameY < -20 || gameY > 244;
@@ -137,6 +139,24 @@ public static class RemotePuppetOverlay
             return;
         }
 
+        // The partner's own sprite, pixel for pixel as their game drew it (SpriteSync). Only what the
+        // game draws: no invented shadow, dust or projectiles; the trail reuses their earlier frames.
+        if (SpriteSync.TryGetTexture(SpriteSync.RemoteHash, out uint tex, out SpriteFrame frame))
+        {
+            foreach (var ghost in RemotePuppet.GhostTrails)
+            {
+                if (!SpriteSync.TryGetTexture(ghost.SpriteHash, out uint gTex, out SpriteFrame gFrame)) continue;
+                Vector2 gScr = imageMin + new Vector2((ghost.Pos.X - localScrollX) * scaleX, (ghost.Pos.Y - localScrollY) * scaleY);
+                uint gCol = (ghost.Tint & 0x00FFFFFF) | ((uint)(Math.Clamp(ghost.Alpha, 0f, 1f) * 150f) << 24);
+                DrawSpriteFrame(dl, gScr, scaleX, scaleY, gTex, gFrame, gCol);
+            }
+
+            bool flash = RemotePuppet.HurtTimer > 0f && ((int)(time * 28f) % 2 == 0);
+            DrawSpriteFrame(dl, screenPos, scaleX, scaleY, tex, frame, flash ? 0xFFB0B0FFu : 0xFFFFFFFFu);
+            DrawOverheadHUD(dl, screenPos, scaleX, scaleY);
+            return;
+        }
+
         // 2. Render Particles (Running dust & hit sparks)
         foreach (var p in RemotePuppet.Particles)
         {
@@ -200,6 +220,16 @@ public static class RemotePuppetOverlay
 
         // 8. Overhead Tactical Nameplate & Smooth Animated HP Bar
         DrawOverheadHUD(dl, screenPos, scaleX, scaleY);
+    }
+
+    /// <summary>A captured frame placed like the game placed it: its box starts (OffsetX, OffsetY) PS1
+    /// pixels from the player's position.</summary>
+    private static void DrawSpriteFrame(ImDrawListPtr dl, Vector2 screenPos, float scaleX, float scaleY,
+        uint tex, SpriteFrame frame, uint tint)
+    {
+        Vector2 min = screenPos + new Vector2(frame.OffsetX * scaleX, frame.OffsetY * scaleY);
+        Vector2 max = min + new Vector2(frame.Width * scaleX, frame.Height * scaleY);
+        dl.AddImage((nint)tex, min, max, Vector2.Zero, Vector2.One, tint);
     }
 
     private static void DrawDownedPuppet(

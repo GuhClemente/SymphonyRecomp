@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 
 namespace Recompiled.Netplay;
@@ -25,7 +27,10 @@ public enum PacketOpCode : byte
     EnemyDamage = 0x70,
     PlayerDowned = 0x80,
     PlayerRevived = 0x81,
-    CoopPing = 0x82
+    CoopPing = 0x82,
+    SpriteShow = 0x90,    // the partner's sprite frame on screen now (hash)
+    SpriteFrame = 0x91,   // the pixels of one sprite frame, sent once per new frame
+    SpriteRequest = 0x92  // "send me this frame again" (it was lost on the way)
 }
 
 public sealed class NetworkPacket
@@ -453,5 +458,114 @@ public sealed class NetworkPacket
         players = r.ReadByte();
         isInGame = r.ReadBoolean();
         return true;
+    }
+
+    // ---- the partner's real sprite (PlayerSpriteCapture) ------------------------------------------
+
+    public static byte[] CreateSpriteShow(ulong hash) => BitConverter.GetBytes(hash);
+
+    public static bool ReadSpriteShow(byte[] payload, out ulong hash)
+    {
+        hash = 0;
+        if (payload == null || payload.Length < 8) return false;
+        hash = BitConverter.ToUInt64(payload, 0);
+        return true;
+    }
+
+    public static byte[] CreateSpriteRequest(ulong hash) => BitConverter.GetBytes(hash);
+    public static bool ReadSpriteRequest(byte[] payload, out ulong hash) => ReadSpriteShow(payload, out hash);
+
+    /// <summary>
+    /// hash u64, offsetX s16, offsetY s16, width u8, height u8, then deflate of: a color count u8, that
+    /// many u16 colors, and one u8 index per pixel (0 = transparent, n = colors[n-1]). A frame with more
+    /// than 255 colors is sent as raw u16 pixels instead (color count 0).
+    /// </summary>
+    public static byte[] CreateSpriteFrame(ulong hash, int offsetX, int offsetY, int width, int height, ushort[] pixels)
+    {
+        if (width <= 0 || height <= 0 || width > 255 || height > 255 || pixels.Length != width * height)
+            throw new ArgumentException("sprite frame size");
+
+        var colors = new List<ushort>();
+        var index = new Dictionary<ushort, byte>();
+        bool indexed = true;
+        foreach (var c in pixels)
+        {
+            if (c == 0 || index.ContainsKey(c)) continue;
+            if (colors.Count == 255) { indexed = false; break; }
+            colors.Add(c);
+            index[c] = (byte)colors.Count;
+        }
+
+        var body = new MemoryStream();
+        using (var bw = new BinaryWriter(body, Encoding.UTF8, leaveOpen: true))
+        {
+            if (indexed)
+            {
+                bw.Write((byte)colors.Count);
+                foreach (var c in colors) bw.Write(c);
+                foreach (var c in pixels) bw.Write(c == 0 ? (byte)0 : index[c]);
+            }
+            else
+            {
+                bw.Write((byte)0);
+                foreach (var c in pixels) bw.Write(c);
+            }
+        }
+
+        var packed = new MemoryStream();
+        using (var z = new DeflateStream(packed, CompressionLevel.Optimal, leaveOpen: true))
+            z.Write(body.GetBuffer(), 0, (int)body.Length);
+
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(hash);
+        w.Write((short)offsetX);
+        w.Write((short)offsetY);
+        w.Write((byte)width);
+        w.Write((byte)height);
+        w.Write(packed.GetBuffer(), 0, (int)packed.Length);
+        return ms.ToArray();
+    }
+
+    public static bool ReadSpriteFrame(byte[] payload, out ulong hash, out int offsetX, out int offsetY,
+        out int width, out int height, out ushort[] pixels)
+    {
+        hash = 0; offsetX = offsetY = width = height = 0; pixels = [];
+        try
+        {
+            if (payload == null || payload.Length < 14) return false;
+            hash = BitConverter.ToUInt64(payload, 0);
+            offsetX = BitConverter.ToInt16(payload, 8);
+            offsetY = BitConverter.ToInt16(payload, 10);
+            width = payload[12];
+            height = payload[13];
+            if (width == 0 || height == 0) return false;
+
+            using var z = new DeflateStream(new MemoryStream(payload, 14, payload.Length - 14), CompressionMode.Decompress);
+            using var r = new BinaryReader(z);
+            int n = r.ReadByte();
+            var px = new ushort[width * height];
+            if (n > 0)
+            {
+                var colors = new ushort[n];
+                for (int i = 0; i < n; i++) colors[i] = r.ReadUInt16();
+                for (int i = 0; i < px.Length; i++)
+                {
+                    int k = r.ReadByte();
+                    if (k > n) return false;
+                    px[i] = k == 0 ? (ushort)0 : colors[k - 1];
+                }
+            }
+            else
+            {
+                for (int i = 0; i < px.Length; i++) px[i] = r.ReadUInt16();
+            }
+            pixels = px;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

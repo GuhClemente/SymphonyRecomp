@@ -220,6 +220,8 @@ public static class NetworkManager
         PingMs = 0;
         _lastPacketReceivedTimer = 0f;
         RemotePuppet.Reset();
+        SpriteSync.Reset();
+        PlayerSpriteCapture.Active = false;
     }
 
     public static void SendPacket(NetworkPacket packet)
@@ -387,6 +389,9 @@ public static class NetworkManager
             );
 
             SendPacket(new NetworkPacket(PacketOpCode.PlayerTransform, transformPayload));
+
+            // the real sprite on screen, so the partner sees exactly what this screen draws
+            SpriteSync.Update();
         }
 
         // Update Remote Puppet in the current room
@@ -410,6 +415,7 @@ public static class NetworkManager
                 ToastNotifications.ShowText("Multiplayer Conectado!", $"{RemotePlayerName} entrou na sessão!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
                 LobbyManager.SendLobbySync();
+                SpriteSync.Reset(); // a (new) partner has none of our frames yet
                 break;
 
             case PacketOpCode.HandshakeAck:
@@ -419,6 +425,7 @@ public static class NetworkManager
                 ToastNotifications.ShowText("Multiplayer Conectado!", $"Conectado ao mundo de {RemotePlayerName}!", null, 5.0f);
                 WorldStateSync.SendSyncPacket(m);
                 LobbyManager.SendLobbySync();
+                SpriteSync.Reset(); // a (new) partner has none of our frames yet
                 break;
 
             case PacketOpCode.Ping:
@@ -483,6 +490,18 @@ public static class NetworkManager
             case PacketOpCode.EnterLobbyRoom:
                 Console.WriteLine($"[Netplay/Lobby] EnterLobbyRoom: Entrando na Sala de Espera (Santuário)...");
                 LobbyManager.HandleEnterLobbyRoom();
+                break;
+
+            case PacketOpCode.SpriteShow:
+                SpriteSync.HandleShow(packet.Payload);
+                break;
+
+            case PacketOpCode.SpriteFrame:
+                SpriteSync.HandleFrame(packet.Payload);
+                break;
+
+            case PacketOpCode.SpriteRequest:
+                SpriteSync.HandleRequest(packet.Payload);
                 break;
 
             case PacketOpCode.EnemyDamage:

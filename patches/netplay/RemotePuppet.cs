@@ -31,6 +31,8 @@ public struct GhostSample
     public uint Tint;
     public PuppetAction Action;
     public float WalkPhase;
+    /// <summary>The partner's real sprite frame at that moment (SpriteSync), 0 when none.</summary>
+    public ulong SpriteHash;
 }
 
 public struct PuppetParticle
@@ -336,7 +338,8 @@ public static class RemotePuppet
                         Alpha = 0.65f,
                         Tint = tint,
                         Action = CurrentAction,
-                        WalkPhase = _walkPhase
+                        WalkPhase = _walkPhase,
+                        SpriteHash = SpriteSync.RemoteHash
                     });
                 }
             }

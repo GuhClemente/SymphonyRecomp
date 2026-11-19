@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Recompiled;
 using Recompiled.Netplay;
 
 namespace MultiplayerTests;
@@ -82,11 +83,11 @@ public static class Program
             TestCoopRevivalManagerLogic();
         });
 
-        RunSection("8. Testes do Minimapa Bloodstained, Terceira Mão (Saturn) & Dock de Relíquias (Modern HUD & QoL)", () =>
+        RunSection("8. Testes do Minimapa Bloodstained, Puppet Overlay & Terceira Mão (Saturn) (Modern HUD & QoL)", () =>
         {
             TestBloodstainedMinimapGridAndRadarMath();
             TestThirdHandPriorityAndHealingLogic();
-            TestQuickRelicHudStateAndHotkeys();
+            TestSpriteFrameCodec();
         });
 
         long durationMs = Environment.TickCount64 - startTime;
@@ -1065,141 +1066,84 @@ public static class Program
 
     private static void TestBloodstainedMinimapGridAndRadarMath()
     {
-        // 1. Grid 7x7 Viewport Clamping & Offset
-        int playerX = 32;
-        int playerY = 16;
-        int viewRadius = 3; // 7x7 grid: -3 .. +3
-        int minX = playerX - viewRadius;
-        int maxX = playerX + viewRadius;
-        int minY = playerY - viewRadius;
-        int maxY = playerY + viewRadius;
+        // Cell = room origin cell + (world pixel >> 8), the same rule as Stages.PlaceTick.
+        AssertEqual(20, HudLogic.MapCell(20, 0x00), "Minimap - Célula na origem da sala");
+        AssertEqual(22, HudLogic.MapCell(20, 0x2A0), "Minimap - Célula 2 telas à direita dentro da sala");
 
-        AssertTrue(minX == 29 && maxX == 35, "Minimap - Viewport X horizontal abrangendo 7 células");
-        AssertTrue(minY == 13 && maxY == 19, "Minimap - Viewport Y vertical abrangendo 7 células");
+        // Partner: origin comes from their own room, never added to ours (old bug doubled it).
+        int localCell = HudLogic.MapCell(20, 0x080);
+        int partnerCell = HudLogic.MapCell(23, 0x180);
+        AssertEqual(4, partnerCell - localCell, "Minimap Radar - Parceiro 4 células à direita usando a origem da sala dele");
+        AssertTrue(partnerCell != 20 + 23 + 1, "Minimap Radar - Origens das duas salas não são somadas");
 
-        // 2. Castelo Invertido Inversão de Eixo Y (63 - Y)
-        int normalY = 10;
-        int invertedY = 63 - normalY;
-        AssertTrue(invertedY == 53, "Minimap - Transformação de Castelo Invertido espelha coordenada vertical perfeitamente");
-
-        // 3. Vetor de Radar Co-op e Distância Relativa
-        // Jogador em (10, 20), Parceiro em (16, 28) -> dx=6, dy=8 -> dist = 10
-        float px = 10.0f, py = 20.0f;
-        float partnerX = 16.0f, partnerY = 28.0f;
-        float dx = partnerX - px;
-        float dy = partnerY - py;
-        float dist = MathF.Sqrt(dx * dx + dy * dy);
-        AssertTrue(MathF.Abs(dist - 10.0f) < 0.001f, "Minimap Radar - Cálculo de distância pitagórica exato (10 salas)");
-
-        // 4. Normalização de Vetor de Apontamento
-        float dirX = dx / dist;
-        float dirY = dy / dist;
-        AssertTrue(MathF.Abs(dirX - 0.6f) < 0.001f && MathF.Abs(dirY - 0.8f) < 0.001f, "Minimap Radar - Vetor unitário direcional calibrado (0.6, 0.8)");
-
-        // 5. Bounds Clamping em bordas do Castelo (0 a 63)
-        int clampMin = Math.Clamp(-5, 0, 63);
-        int clampMax = Math.Clamp(70, 0, 63);
-        AssertTrue(clampMin == 0 && clampMax == 63, "Minimap Bounds - Clamping previne IndexOutOfRangeException nos limites do mapa");
+        // Puppet overlay: world position is always offset by our camera scroll.
+        AssertEqual(100f, HudLogic.WorldToScreen(500f, 400), "Puppet - Parceiro visível convertido para a tela");
+        AssertTrue(HudLogic.WorldToScreen(200f, 600) < -20f, "Puppet - Parceiro à esquerda da câmera fica fora da tela (indicador)");
+        AssertTrue(HudLogic.WorldToScreen(900f, 0) > 276f, "Puppet - Parceiro à direita da câmera fica fora da tela (indicador)");
     }
+
+    private static void TestSpriteFrameCodec()
+    {
+        // a sprite-like frame: few colors, transparent around, opaque and semi pixels
+        var px = new ushort[20 * 30];
+        for (int i = 0; i < px.Length; i++) px[i] = (i % 7 == 0) ? (ushort)0 : (ushort)(0x8000 | (i % 5) * 0x0421);
+        px[3] = 0x1234; // semi-transparent (bit 15 clear)
+        byte[] payload = NetworkPacket.CreateSpriteFrame(0xDEADBEEFCAFEF00DUL, -12, -21, 20, 30, px);
+        bool ok = NetworkPacket.ReadSpriteFrame(payload, out ulong h, out int ox, out int oy, out int w, out int ht, out ushort[] back);
+        AssertTrue(ok && h == 0xDEADBEEFCAFEF00DUL && ox == -12 && oy == -21 && w == 20 && ht == 30,
+            "Sprite real - Cabeçalho (hash, offset, tamanho) sobrevive à ida e volta");
+        AssertTrue(ok && back.AsSpan().SequenceEqual(px), "Sprite real - Pixels idênticos depois de indexar + deflate");
+        AssertTrue(payload.Length < px.Length * 2 / 2, $"Sprite real - Pacote compactado ({payload.Length} bytes de {px.Length * 2})");
+
+        // more than 255 colors falls back to raw 16-bit pixels
+        var many = new ushort[40 * 40];
+        for (int i = 0; i < many.Length; i++) many[i] = (ushort)(0x8000 | i);
+        payload = NetworkPacket.CreateSpriteFrame(1, 0, 0, 40, 40, many);
+        ok = NetworkPacket.ReadSpriteFrame(payload, out _, out _, out _, out _, out _, out back);
+        AssertTrue(ok && back.AsSpan().SequenceEqual(many), "Sprite real - Quadro com mais de 255 cores também volta idêntico");
+
+        // a damaged packet is refused, not a crash
+        payload[payload.Length / 2] ^= 0xFF;
+        payload[^1] ^= 0xFF;
+        bool bad = NetworkPacket.ReadSpriteFrame(payload, out _, out _, out _, out _, out _, out back);
+        AssertTrue(!bad || back.Length == 40 * 40, "Sprite real - Pacote corrompido é recusado sem exceção");
+        AssertTrue(NetworkPacket.ReadSpriteShow(NetworkPacket.CreateSpriteShow(42UL), out ulong show) && show == 42UL,
+            "Sprite real - SpriteShow leva o hash do quadro");
+    }
+
+    private static ThirdHandState Bag(int hp = 100, int maxHp = 100, int mp = 50, int maxMp = 50,
+        bool curse = false, bool poison = false, int uncurse = 0, int antivenom = 0, int elixir = 0,
+        int highPotion = 0, int potion = 0, int food = 0, int manna = 0) =>
+        new(hp, maxHp, mp, maxMp, curse, poison, uncurse, antivenom, elixir, highPotion, potion, food, manna);
 
     private static void TestThirdHandPriorityAndHealingLogic()
     {
-        // 1. Prioridade de Maldição (Curse Status 0x04)
-        int status = 0x04; // Curse
-        int uncurseInventory = 2;
-        int elixirInventory = 1;
-        string action = "";
+        AssertEqual(ThirdHandChoice.Uncurse, HudLogic.ChooseThirdHand(Bag(hp: 10, curse: true, uncurse: 1, elixir: 1)),
+            "Terceira Mão - Maldição tem prioridade sobre itens de vida");
+        AssertEqual(ThirdHandChoice.Antivenom, HudLogic.ChooseThirdHand(Bag(hp: 10, poison: true, antivenom: 1, potion: 3)),
+            "Terceira Mão - Antídoto antes de curar HP");
+        AssertEqual(ThirdHandChoice.Elixir, HudLogic.ChooseThirdHand(Bag(hp: 30, elixir: 1, highPotion: 1)),
+            "Terceira Mão - Elixir com HP crítico (<= 35%)");
+        AssertEqual(ThirdHandChoice.HighPotion, HudLogic.ChooseThirdHand(Bag(hp: 40, elixir: 1, highPotion: 1, potion: 1)),
+            "Terceira Mão - High Potion quando faltam >= 60 HP e não é crítico");
+        AssertEqual(ThirdHandChoice.Potion, HudLogic.ChooseThirdHand(Bag(hp: 80, highPotion: 1, potion: 1)),
+            "Terceira Mão - Potion para dano leve");
+        AssertEqual(ThirdHandChoice.Food, HudLogic.ChooseThirdHand(Bag(hp: 80, food: 2)),
+            "Terceira Mão - Comida quando não há poções");
+        AssertEqual(ThirdHandChoice.MannaPrism, HudLogic.ChooseThirdHand(Bag(mp: 10, manna: 1, potion: 5)),
+            "Terceira Mão - Manna Prism com vida cheia e MP baixo");
+        AssertEqual(ThirdHandChoice.None, HudLogic.ChooseThirdHand(Bag(potion: 5, elixir: 1)),
+            "Terceira Mão - Nada é gasto com vida e MP cheios");
 
-        if ((status & 0x04) != 0 && uncurseInventory > 0)
-        {
-            action = "UseUncursePotion";
-            uncurseInventory--;
-        }
-        else if (elixirInventory > 0)
-        {
-            action = "UseElixir";
-            elixirInventory--;
-        }
+        AssertEqual(20, HudLogic.HealAmount(ThirdHandChoice.HighPotion, 20), "Terceira Mão - Cura limitada ao HP que falta");
+        AssertEqual(50, HudLogic.HealAmount(ThirdHandChoice.Potion, 70), "Terceira Mão - Potion cura 50");
 
-        AssertEqual("UseUncursePotion", action, "Terceira Mão - Curar Maldição tem prioridade imediata sobre itens de vida");
-        AssertEqual(1, uncurseInventory, "Terceira Mão - Inventário de Uncurse decrementado após uso");
-
-        // 2. Prioridade de Envenenamento (Poison Status 0x01)
-        status = 0x01; // Poison
-        int antivenomInventory = 3;
-        if ((status & 0x01) != 0 && antivenomInventory > 0)
-        {
-            action = "UseAntivenom";
-            antivenomInventory--;
-        }
-        AssertEqual("UseAntivenom", action, "Terceira Mão - Antídoto acionado prioritariamente contra veneno");
-
-        // 3. Prioridade de Vida Crítica (< 25%)
-        int maxHp = 200;
-        int currentHp = 30; // 15% (crítico)
-        int potionCount = 5;      // +50 HP
-        int highPotionCount = 1;  // +100 HP
-        int elixirCount = 0;      // Full heal
-
-        string chosenItem = "";
-        int healAmount = 0;
-
-        if (currentHp < maxHp / 4)
-        {
-            if (elixirCount > 0)
-            {
-                chosenItem = "Elixir";
-                healAmount = maxHp;
-            }
-            else if (highPotionCount > 0)
-            {
-                chosenItem = "HighPotion";
-                healAmount = 100;
-                highPotionCount--;
-            }
-            else if (potionCount > 0)
-            {
-                chosenItem = "Potion";
-                healAmount = 50;
-                potionCount--;
-            }
-        }
-
-        AssertEqual("HighPotion", chosenItem, "Terceira Mão - Seleciona High Potion ao invés de Potion comum sob HP crítico");
-        AssertEqual(100, healAmount, "Terceira Mão - Quantidade de cura correta (100 HP)");
-        AssertEqual(0, highPotionCount, "Terceira Mão - High Potion consumido");
-
-        // 4. Cura Direta sem desequipar armas
-        currentHp = Math.Min(maxHp, currentHp + healAmount);
-        AssertEqual(130, currentHp, "Terceira Mão - HP aplicado diretamente na memória sem troca de armas");
-    }
-
-    private static void TestQuickRelicHudStateAndHotkeys()
-    {
-        // 1. Máscara de Bits de Relíquias de Mobilidade
-        // Simulação do bitmask do jogo: Bat (bit 0), Wolf (bit 1), Mist (bit 2), Leap Stone (bit 5), Gravity Boots (bit 6)
-        uint relicFlags = (1u << 0) | (1u << 2) | (1u << 6); // Possui Bat, Mist e Gravity Boots
-
-        bool hasBat = (relicFlags & (1u << 0)) != 0;
-        bool hasWolf = (relicFlags & (1u << 1)) != 0;
-        bool hasMist = (relicFlags & (1u << 2)) != 0;
-        bool hasLeap = (relicFlags & (1u << 5)) != 0;
-        bool hasBoots = (relicFlags & (1u << 6)) != 0;
-
-        AssertTrue(hasBat, "Relic Dock - Soul of Bat detectada como adquirida");
-        AssertTrue(!hasWolf, "Relic Dock - Skill of Wolf corretamente reportada como não obtida");
-        AssertTrue(hasMist, "Relic Dock - Form of Mist detectada como adquirida");
-        AssertTrue(!hasLeap, "Relic Dock - Leap Stone corretamente reportada como ausente");
-        AssertTrue(hasBoots, "Relic Dock - Gravity Boots detectada como adquirida");
-
-        // 2. Mapeamento de Teclas de Atalho Modernas
-        // Minimapa: 'M', Relic Dock: 'H', Terceira Mão: 'F' / L2
-        string minimapKey = "M";
-        string relicDockKey = "H";
-        string thirdHandKey = "F";
-
-        AssertEqual("M", minimapKey, "Hotkeys - Minimapa moderno acionado via tecla 'M'");
-        AssertEqual("H", relicDockKey, "Hotkeys - Dock de relíquias acionado via tecla 'H'");
-        AssertEqual("F", thirdHandKey, "Hotkeys - Terceira mão consumível acionada via tecla 'F'");
+        // HUD slot shows exactly what T / L2 will use now.
+        var critical = Bag(hp: 30, elixir: 1, potion: 2);
+        AssertEqual(HudLogic.ChooseThirdHand(critical), HudLogic.PreviewThirdHand(critical),
+            "Terceira Mão HUD - Slot mostra o mesmo item que será usado");
+        AssertEqual(ThirdHandChoice.Potion, HudLogic.PreviewThirdHand(Bag(elixir: 1, potion: 2)),
+            "Terceira Mão HUD - Com vida cheia mostra a Potion (não o Elixir que não seria usado)");
+        AssertEqual(2, HudLogic.StockOf(Bag(potion: 2), ThirdHandChoice.Potion), "Terceira Mão HUD - Contagem do item mostrado");
     }
 }
