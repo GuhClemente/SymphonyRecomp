@@ -216,6 +216,7 @@ public static class ThirdHandManager
     public static void RenderHud(Vector2 imageMin, Vector2 imageSize)
     {
         if (!Enabled || !ShowHudSlot) return;
+        if (Recompiled.Ultimate.PlayerSelectScreen.IsOpen) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading || Game.MapOpen) return;
 
         float scaleX = imageSize.X / 256.0f;

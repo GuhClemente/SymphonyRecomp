@@ -38,6 +38,15 @@ public sealed class UltimatePanel : IPanel
             dirty = true;
         }
 
+        ImGui.Spacing();
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.18f, 0.45f, 0.85f, 0.90f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.28f, 0.58f, 0.95f, 1.0f));
+        if (ImGui.Button("⚜ Abrir Seletor Visual Clássico (Player Select) [Tecla P / F3]", new Vector2(-1, 36)))
+        {
+            PlayerSelectScreen.Open();
+        }
+        ImGui.PopStyleColor(2);
+
         if (!UltimateOptions.UltimateEnabled)
         {
             ImGui.TextColored(new Vector4(0.8f, 0.4f, 0.4f, 1f), "Os recursos Ultimate estão desativados. O jogo funcionará em modo Vanilla PS1 puro.");

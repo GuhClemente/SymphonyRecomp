@@ -19,11 +19,10 @@ namespace Recompiled.Ultimate;
 public static class MariaSaturnHud
 {
     /// <summary>
-    /// Whether the Saturn HUD is active. Off by default because writing HUD art into VRAM at (544, 392)
-    /// and CLUTs 0x106-0x108 collides with stage background tilesets (such as Castle Entrance NO3) on retail discs.
-    /// When disabled, Maria Saturn uses the clean PS1 Richter-style HUD (matching Maria PSP).
+    /// Whether the Saturn HUD is active. Enabled by default when Saturn Maria is active.
+    /// Uses the authentic vine gauge and dual tubes extracted from the SOTN Ultimate disc.
     /// </summary>
-    public static bool Enabled { get; set; } = false;
+    public static bool Enabled { get; set; } = true;
 
     // tpage 0x18 u128-255 v136-231 = VRAM x 544-575, y 392-487: chunk 3 of F_GAME2 (x 0x220, y 384)
     private const int ArtVramX = 544, ArtVramY = 392, ArtW = 32, ArtH = 96;

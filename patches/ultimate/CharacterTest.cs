@@ -169,6 +169,14 @@ public static class CharacterTest
             Shot("ataque_espada");
             Release(Button.Circle);
             Wait(30);
+            Do((_, _) => { _who = "ultimate"; PlayerSelectScreen.Open(1); });
+            Wait(25);
+            Shot("player_select_classico");
+            Do((_, _) => { PlayerSelectScreen.Open(2); });
+            Wait(25);
+            Shot("player_select_maria_config");
+            Do((_, _) => PlayerSelectScreen.Close());
+            Wait(15);
             Do((_, _) => Console.WriteLine("[MariaTest] SEQUÊNCIA COMPLETA"));
             Wait(30);
             Do((_, _) => Environment.Exit(0));

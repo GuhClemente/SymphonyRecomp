@@ -72,6 +72,7 @@ public static class QuickRelicHud
         }
 
         if (!Enabled) return;
+        if (Recompiled.Ultimate.PlayerSelectScreen.IsOpen) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading || Game.MapOpen) return;
 
         float scaleX = imageSize.X / 256.0f;

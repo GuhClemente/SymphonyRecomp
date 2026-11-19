@@ -20,6 +20,8 @@ public static class UltimateMode
         var panel = new UltimatePanel();
         PanelManager.Register(panel);
 
+        PlayerSelectScreen.Initialize();
+
         // Add to "menu.mods" and "menu.misc"
         MenuRegistry.Menu("menu.mods").Panel<UltimatePanel>("panel.ultimate");
         MenuRegistry.Menu("menu.misc").Panel<UltimatePanel>("panel.ultimate");

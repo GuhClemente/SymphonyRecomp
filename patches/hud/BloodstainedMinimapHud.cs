@@ -77,6 +77,7 @@ public static class BloodstainedMinimapHud
         }
 
         if (!Enabled) return;
+        if (Recompiled.Ultimate.PlayerSelectScreen.IsOpen) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading) return;
         if (Game.MapOpen) return; // Full pause map is open, don't overlap
 
