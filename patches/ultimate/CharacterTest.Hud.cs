@@ -212,6 +212,10 @@ public static partial class CharacterTest
         TraceInput("aberta", 200); // the capture script holds the real Left arrow on the window for 1 s
         Do((_, m) =>
         {
+            // something outside the test (a key typed while the game had focus: P / F3 toggle the
+            // screen) can close it; that is not the input block failing, so it is reported as such
+            Check(_closedFrames == 0, "Seleção aberta: a tela ficou aberta durante todo o seguro da tecla",
+                $"fechada em {_closedFrames} amostras (tecla externa?)");
             Check(_hwFrames > 0, "Seleção aberta: a tecla Esquerda real chegou ao controle", $"amostras={_hwFrames}");
             Check(_gameFrames == 0 && _walkFrames == 0,
                 "Seleção aberta: o jogo não vê a Esquerda e o personagem não anda enquanto ela é segurada",
@@ -240,7 +244,7 @@ public static partial class CharacterTest
     private static CharacterSelection _snapshotMode;
 
     // x is only reported: an enemy periodically pushes the player (step 0x0A) with or without input
-    private static int _hwFrames, _gameFrames, _walkFrames, _xHoldStart, _xHoldEnd;
+    private static int _hwFrames, _gameFrames, _walkFrames, _closedFrames, _xHoldStart, _xHoldEnd;
 
     private static void TraceInput(string tag, int frames)
     {
@@ -249,14 +253,7 @@ public static partial class CharacterTest
             int at = f;
             Do((_, m) =>
             {
-                if (at == 0) { _hwFrames = _gameFrames = _walkFrames = 0; _xHoldStart = _xHoldEnd = int.MinValue; }
-                // Simulate holding Left key on controller if not physically pressed by external tool
-                if ((RecompOne.Runtime.Hardware.Controller.State & RecompOne.Runtime.Hardware.Controller.Left) != 0)
-                {
-                    RecompOne.Runtime.Hardware.Controller.State &= unchecked((ushort)~RecompOne.Runtime.Hardware.Controller.Left);
-                    RecompOne.Runtime.Hardware.Controller.LeftX = 0;
-                }
-                Held |= (ushort)Button.Left;
+                if (at == 0) { _hwFrames = _gameFrames = _walkFrames = _closedFrames = 0; _xHoldStart = _xHoldEnd = int.MinValue; }
                 bool hw = (RecompOne.Runtime.Hardware.Controller.State & RecompOne.Runtime.Hardware.Controller.Left) == 0;
                 bool game = (m.ReadU16(Game.PadsAddr) & (ushort)Button.Left) != 0;
                 if (hw)
@@ -266,6 +263,7 @@ public static partial class CharacterTest
                     _xHoldEnd = WorldX(m);
                 }
                 if (hw && game) _gameFrames++;
+                if (tag == "aberta" && !PlayerSelectScreen.IsOpen) _closedFrames++;
                 if (hw && Player.Step == PlayerStep.Walking) _walkFrames++;
                 Console.WriteLine(
                     $"[HUDTEST] trace {tag} f={at} x={WorldX(m)} step={(int)Player.Step:X2} card={PlayerSelectScreen.SelectedCard} aberta={PlayerSelectScreen.IsOpen} held=0x{Held:X4} " +
@@ -273,12 +271,6 @@ public static partial class CharacterTest
             });
             Wait(10);
         }
-        Do((_, _) =>
-        {
-            Held &= (ushort)~Button.Left;
-            RecompOne.Runtime.Hardware.Controller.State |= RecompOne.Runtime.Hardware.Controller.Left;
-            RecompOne.Runtime.Hardware.Controller.LeftX = 0x80;
-        });
     }
     private static byte[]? _mapBefore;
 }

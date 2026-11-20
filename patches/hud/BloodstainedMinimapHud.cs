@@ -80,6 +80,8 @@ public static class BloodstainedMinimapHud
         if (Recompiled.Ultimate.PlayerSelectScreen.IsOpen) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading) return;
         if (Game.MapOpen) return; // Full pause map is open, don't overlap
+        // hidden while the game drives the player (opening run / horse ride, scripted scenes)
+        if (!Player.HasControl) return;
 
         var m = RecompOne.Runtime.Runtime.Mem;
         if (m == null) return;

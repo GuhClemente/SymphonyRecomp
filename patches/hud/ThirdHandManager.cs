@@ -215,6 +215,8 @@ public static class ThirdHandManager
         if (!Enabled || !ShowHudSlot) return;
         if (Recompiled.Ultimate.PlayerSelectScreen.IsOpen) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading || Game.MapOpen) return;
+        // hidden while the game drives the player (opening run / horse ride, scripted scenes)
+        if (!Player.HasControl) return;
 
         float scaleX = imageSize.X / 256.0f;
         float scaleY = imageSize.Y / 224.0f;

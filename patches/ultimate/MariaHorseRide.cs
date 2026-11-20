@@ -425,7 +425,7 @@ public static class MariaHorseRide
         _shot++;
         string file = Path.Combine(ShotDir, $"ride_{_shot:000}_step{step}.bmp");
         Console.WriteLine($"[HorseRide] {Path.GetFileName(file)} frame={_frame} scrollX={(short)m.ReadU16(ScrollXHi)} " +
-                          $"x={(short)m.ReadU16(Player + 2)} y={(short)m.ReadU16(Player + 6)} anim={m.ReadU16(self + EAnimFrame)}");
+                          $"x={(short)m.ReadU16(Player + 2)} y={(short)m.ReadU16(Player + 6)} anim={m.ReadU16(self + EAnimFrame)} controle={(global::Sotn.Player.HasControl)} demo={m.ReadU32(0x80072EFCu)}");
         HostWindow.RequestScreenshot(file, 1);
     }
 }
