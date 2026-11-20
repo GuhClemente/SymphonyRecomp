@@ -268,7 +268,7 @@ public static partial class CharacterTest
                 if (hw && game) _gameFrames++;
                 if (hw && Player.Step == PlayerStep.Walking) _walkFrames++;
                 Console.WriteLine(
-                    $"[HUDTEST] trace {tag} f={at} x={WorldX(m)} step={(int)Player.Step:X2} card={PlayerSelectScreen.SelectedCard} " +
+                    $"[HUDTEST] trace {tag} f={at} x={WorldX(m)} step={(int)Player.Step:X2} card={PlayerSelectScreen.SelectedCard} aberta={PlayerSelectScreen.IsOpen} held=0x{Held:X4} " +
                     $"g_pads=0x{m.ReadU16(Game.PadsAddr):X4} hw=0x{RecompOne.Runtime.Hardware.Controller.State:X4} lx={RecompOne.Runtime.Hardware.Controller.LeftX}");
             });
             Wait(10);

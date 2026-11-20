@@ -42,6 +42,7 @@ public static partial class CharacterTest
                                       $"recebidos={SpriteSync.FramesReceived} conectado={NetworkManager.IsConnected}");
                     if (f != null) SaveSpriteBmp(Path.Combine(Dir, $"host_{n:00}_recebido_{h:X16}.bmp"), f, 4);
                     Console.WriteLine($"[NETTEST] SHOT host_{n:00} {Environment.ProcessId}");
+                    RecompOne.Runtime.Host.HostWindow.RequestScreenshot(Path.Combine(Dir, $"host_{n:00}_jogo.bmp"), 1);
                 });
             }
             Do((_, _) => Console.WriteLine($"[NETTEST] RESULTADO host: recebidos={SpriteSync.FramesReceived} enviados={SpriteSync.FramesSent}"));

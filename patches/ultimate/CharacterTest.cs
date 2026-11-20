@@ -151,6 +151,12 @@ public static partial class CharacterTest
             return;
         }
 
+        if (Environment.GetEnvironmentVariable("SOTN_TEST_OVERLAP") == "1")
+        {
+            BuildOverlapScript();
+            return;
+        }
+
         if (Environment.GetEnvironmentVariable("SOTN_TEST_HUDSWAP") == "1")
         {
             BuildHudSwapScript();

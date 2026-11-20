@@ -14,27 +14,54 @@ public static class RemotePuppetOverlay
     {
         if (_initialized) return;
         OutputPanel.OnRenderGameOverlay += Render;
+        // where the game's drawing origin sits inside the area the GPU displays (in game: drawn from
+        // y 0, displayed from y 20, so PS1 y 0 is 20 lines above the top of the image)
+        RecompOne.Runtime.Events.Event.AddListener<RecompOne.Runtime.Events.DrawEnvEvent>(e =>
+        {
+            _originDx = e.OfsX - e.ClipX;
+            _originDy = e.OfsY - e.ClipY;
+        });
         _initialized = true;
+    }
+
+    private static volatile int _originDx, _originDy;
+
+    /// <summary>Test aid: draw the puppet without a netplay session (the test feeds it itself).</summary>
+    public static bool TestForce;
+
+    /// <summary>How PS1 screen coordinates land on the game image: the image shows the GPU's display
+    /// area (256x207 in game, not 256x224), which starts where the draw clip starts, while the game
+    /// draws from its draw offset (20 lines higher), plus, in widescreen, Margin extra pixels on each
+    /// side. Returns the scale and where PS1 (0,0) is on screen.</summary>
+    public static (float ScaleX, float ScaleY, Vector2 Origin) GameScreen(Vector2 imageMin, Vector2 imageSize)
+    {
+        var gpu = RecompOne.Runtime.Runtime.Gpu;
+        int dispW = gpu != null && gpu.DisplayWidth > 0 ? gpu.DisplayWidth : 256;
+        int dispH = gpu != null && gpu.DisplayHeight > 0 ? gpu.DisplayHeight : 240;
+        int margin = WidescreenPatch.Margin;
+        float scaleX = imageSize.X / (dispW + 2 * margin);
+        float scaleY = imageSize.Y / dispH;
+        return (scaleX, scaleY, imageMin + new Vector2((margin + _originDx) * scaleX, _originDy * scaleY));
     }
 
     public static void Render(Vector2 imageMin, Vector2 imageSize)
     {
-        if (!NetworkManager.IsConnected || !RemotePuppet.IsActive) return;
+        if (!(NetworkManager.IsConnected || TestForce) || !RemotePuppet.IsActive) return;
         if (!Game.Available || !Game.InGame || Game.IsLoading) return;
 
         var m = RecompOne.Runtime.Runtime.Mem;
         if (m == null) return;
 
-        // Native PSX resolution is 256x224
-        float scaleX = imageSize.X / 256.0f;
-        float scaleY = imageSize.Y / 224.0f;
+        var (scaleX, scaleY, gameOrigin) = GameScreen(imageMin, imageSize);
+        int margin = WidescreenPatch.Margin;
+        float viewH = imageSize.Y / scaleY;
         var dl = ImGui.GetWindowDrawList();
         float time = (float)ImGui.GetTime();
 
         // 1. In-Game Pause Map: render partner position on the PS1 map
         if (Game.MapOpen)
         {
-            DrawPartnerOnPauseMap(dl, imageMin, imageSize, scaleX, scaleY);
+            DrawPartnerOnPauseMap(dl, gameOrigin, imageSize, scaleX, scaleY);
             return;
         }
 
@@ -65,8 +92,8 @@ public static class RemotePuppetOverlay
         float gameX = HudLogic.WorldToScreen(posX, localScrollX);
         float gameY = HudLogic.WorldToScreen(posY, localScrollY);
 
-        Vector2 screenPos = imageMin + new Vector2(gameX * scaleX, gameY * scaleY);
-        bool isOffScreen = gameX < -20 || gameX > 276 || gameY < -20 || gameY > 244;
+        Vector2 screenPos = gameOrigin + new Vector2(gameX * scaleX, gameY * scaleY);
+        bool isOffScreen = gameX < -margin - 20 || gameX > 256 + margin + 20 || gameY < -20 || gameY > viewH + 20;
 
         if (isOffScreen)
         {
@@ -74,11 +101,11 @@ public static class RemotePuppetOverlay
         }
         else
         {
-            DrawInGamePuppet(dl, screenPos, scaleX, scaleY, time, localScrollX, localScrollY, imageMin);
+            DrawInGamePuppet(dl, screenPos, scaleX, scaleY, time, localScrollX, localScrollY, gameOrigin);
         }
 
         // Render any active tactical ping in this room
-        DrawTacticalPing(dl, imageMin, imageSize, scaleX, scaleY, localScrollX, localScrollY, time);
+        DrawTacticalPing(dl, gameOrigin, imageSize, scaleX, scaleY, localScrollX, localScrollY, time);
     }
 
     private static void DrawOffScreenIndicator(
